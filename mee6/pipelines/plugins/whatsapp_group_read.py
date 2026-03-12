@@ -13,14 +13,9 @@ class WhatsAppGroupReadPlugin:
 
     async def get_fields(self) -> list[FieldSchema]:
         """Return fields with group options loaded from the database."""
-        from mee6.db.engine import AsyncSessionLocal
-        from mee6.db.repository import WhatsAppGroupRepository
+        from mee6.pipelines.plugins._options import load_group_options
 
-        async with AsyncSessionLocal() as session:
-            groups = await WhatsAppGroupRepository(session).list_all()
-
-        # Encode as "name||jid" — stored value is the JID (robust, names can change)
-        options = [f"{g.name}||{g.jid}" for g in groups]
+        options = await load_group_options()
 
         return [
             FieldSchema(

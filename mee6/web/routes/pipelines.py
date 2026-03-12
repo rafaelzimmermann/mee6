@@ -2,23 +2,29 @@
 
 import json
 import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from mee6.pipelines.models import Pipeline, PipelineStep
 from mee6.pipelines.placeholders import AVAILABLE as PLACEHOLDER_HINTS
 from mee6.pipelines.plugin_registry import AGENT_PLUGINS
 from mee6.pipelines.store import pipeline_store
+from mee6.web.templates_env import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
 def _plugin_list_json() -> str:
     return json.dumps([{"name": p.name, "label": p.label} for p in AGENT_PLUGINS.values()])
+
+
+def _pipeline_from_form(data: dict, pipeline_id: str) -> Pipeline:
+    return Pipeline(
+        id=pipeline_id,
+        name=data["name"],
+        steps=[PipelineStep(**step) for step in data.get("steps", [])],
+    )
 
 
 @router.get("/pipelines", response_class=HTMLResponse)
@@ -45,12 +51,7 @@ async def new_pipeline(request: Request):
 
 @router.post("/pipelines")
 async def create_pipeline(pipeline_json: str = Form(...)):
-    data = json.loads(pipeline_json)
-    pipeline = Pipeline(
-        id=str(uuid.uuid4()),
-        name=data["name"],
-        steps=[PipelineStep(**step) for step in data.get("steps", [])],
-    )
+    pipeline = _pipeline_from_form(json.loads(pipeline_json), str(uuid.uuid4()))
     await pipeline_store.upsert(pipeline)
     return RedirectResponse("/pipelines", status_code=303)
 
@@ -74,12 +75,7 @@ async def edit_pipeline(request: Request, pipeline_id: str):
 
 @router.post("/pipelines/{pipeline_id}")
 async def update_pipeline(pipeline_id: str, pipeline_json: str = Form(...)):
-    data = json.loads(pipeline_json)
-    pipeline = Pipeline(
-        id=pipeline_id,
-        name=data["name"],
-        steps=[PipelineStep(**step) for step in data.get("steps", [])],
-    )
+    pipeline = _pipeline_from_form(json.loads(pipeline_json), pipeline_id)
     await pipeline_store.upsert(pipeline)
     return RedirectResponse("/pipelines", status_code=303)
 
@@ -101,7 +97,7 @@ async def get_agent_fields(
     if plugin is None:
         return HTMLResponse("")
     existing_config = json.loads(config)
-    fields = await plugin.get_fields() if hasattr(plugin, "get_fields") else plugin.fields
+    fields = await plugin.get_fields()
     return templates.TemplateResponse(
         request,
         "_agent_fields.html",

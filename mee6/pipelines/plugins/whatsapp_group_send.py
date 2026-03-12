@@ -12,13 +12,9 @@ class WhatsAppGroupSendPlugin:
     fields: list[FieldSchema] = []
 
     async def get_fields(self) -> list[FieldSchema]:
-        from mee6.db.engine import AsyncSessionLocal
-        from mee6.db.repository import WhatsAppGroupRepository
+        from mee6.pipelines.plugins._options import load_group_options
 
-        async with AsyncSessionLocal() as session:
-            groups = await WhatsAppGroupRepository(session).list_all()
-
-        options = [f"{g.name}||{g.jid}" for g in groups]
+        options = await load_group_options()
 
         return [
             FieldSchema(

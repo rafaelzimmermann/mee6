@@ -14,11 +14,16 @@ Minimal whatsapp.yaml:
       allowed_contact: "+34612345678"
 """
 
+import asyncio
+import logging
+
 import yaml
 from agntrick_whatsapp import WhatsAppAgentConfig, WhatsAppChannel
 from agntrick_whatsapp.base import OutgoingMessage
 
 from mee6.config import settings
+
+logger = logging.getLogger(__name__)
 
 _channel: WhatsAppChannel | None = None
 
@@ -65,8 +70,6 @@ async def list_groups() -> list[dict]:
 
     Requires an active WhatsApp connection.  Each dict has keys 'jid' and 'name'.
     """
-    import asyncio
-
     channel = await _get_channel()
     try:
         from neonize.utils.jid import Jid2String  # type: ignore[import-untyped]
@@ -100,20 +103,20 @@ async def read_messages(*, phone: str, limit: int) -> list[str]:
 
 async def send_group_message(*, group_jid: str, message: str) -> None:
     """Send a text message to a WhatsApp group by its JID (e.g. '120363xxx@g.us')."""
-    import asyncio
-
     channel = await _get_channel()
     try:
         from neonize.utils.jid import build_jid  # type: ignore[import-untyped]
 
         user, server = group_jid.split("@", 1)
         jid = build_jid(user, server=server)
+    except ImportError:
+        logger.debug("neonize build_jid not available; passing raw JID string")
+        jid = group_jid  # type: ignore[assignment]
     except Exception:
-        # Fallback: pass the raw string and hope neonize accepts it
+        logger.warning("build_jid(%r) failed; passing raw JID string", group_jid, exc_info=True)
         jid = group_jid  # type: ignore[assignment]
 
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, channel._client.send_message, jid, message)
+    await asyncio.to_thread(channel._client.send_message, jid, message)
 
 
 async def read_group_messages(*, group_jid: str, limit: int) -> list[str]:

@@ -102,7 +102,7 @@ class SchedulerEngine:
                     )
 
         async with AsyncSessionLocal() as session:
-            rows = await RunRecordRepository(session).list_recent(200)
+            rows = await RunRecordRepository(session).list_recent(_MAX_RUN_HISTORY)
             # list_recent returns newest-first; reverse for oldest-first cache
             self._runs = [
                 RunRecord(
@@ -261,36 +261,34 @@ class SchedulerEngine:
             return
         asyncio.create_task(_dispatch_pipeline(pipeline_id=meta.pipeline_id))
 
-    def check_wa_triggers(self, sender: str) -> None:
-        """Called when an incoming WA message is stored.  Dispatches any matching enabled triggers."""
-        # sender is digits-only (no '+').  Trigger phone may have a leading '+'.
-        sender_norm = sender.lstrip("+")
-        logger.info("check_wa_triggers: sender=%s, %d wa_trigger(s) registered", sender_norm, len(self._wa_triggers))
-        for meta in self._wa_triggers.values():
+    def _check_event_triggers(
+        self, triggers: dict, config_key: str, incoming_id: str, label: str
+    ) -> None:
+        """Iterate *triggers*, dispatching any enabled entry whose config[config_key] matches *incoming_id*."""
+        logger.info("%s: id=%s, %d trigger(s) registered", label, incoming_id, len(triggers))
+        for meta in triggers.values():
             if not meta.enabled:
                 continue
-            trigger_phone = meta.config.get("phone", "").lstrip("+")
-            logger.info("check_wa_triggers: comparing %r == %r", trigger_phone, sender_norm)
-            if trigger_phone == sender_norm:
-                logger.info("check_wa_triggers: match! dispatching pipeline %s", meta.pipeline_id)
+            if meta.config.get(config_key, "") == incoming_id:
+                logger.info("%s: match! dispatching pipeline %s", label, meta.pipeline_id)
                 asyncio.create_task(_dispatch_pipeline(pipeline_id=meta.pipeline_id))
+
+    def check_wa_triggers(self, sender: str) -> None:
+        """Called when an incoming WA DM is stored. Dispatches any matching enabled triggers."""
+        # sender is digits-only (no '+').  Trigger phone may have a leading '+'.
+        sender_norm = sender.lstrip("+")
+        # Normalise trigger phones too before comparing
+        normalised = {
+            k: v for k, v in self._wa_triggers.items()
+            if v.config.get("phone", "").lstrip("+") == sender_norm
+        }
+        self._check_event_triggers(normalised, "phone", sender_norm, "check_wa_triggers")
 
     def check_wa_group_triggers(self, chat_id: str) -> None:
         """Called when a group message is stored. Dispatches matching enabled triggers."""
-        logger.info(
-            "check_wa_group_triggers: chat_id=%s, %d trigger(s) registered",
-            chat_id,
-            len(self._wa_group_triggers),
+        self._check_event_triggers(
+            self._wa_group_triggers, "group_jid", chat_id, "check_wa_group_triggers"
         )
-        for meta in self._wa_group_triggers.values():
-            if not meta.enabled:
-                continue
-            if meta.config.get("group_jid", "") == chat_id:
-                logger.info(
-                    "check_wa_group_triggers: match! dispatching pipeline %s",
-                    meta.pipeline_id,
-                )
-                asyncio.create_task(_dispatch_pipeline(pipeline_id=meta.pipeline_id))
 
     def list_jobs(self) -> list[TriggerMeta]:
         return list(self._jobs.values())
@@ -301,17 +299,19 @@ class SchedulerEngine:
     def get_recent_runs(self, limit: int = 50) -> list[RunRecord]:
         return list(reversed(self._runs[-limit:]))
 
-    def _record_run_start(self, pipeline_name: str) -> None:
-        self._pending_run[pipeline_name] = datetime.now().isoformat(timespec="seconds")
+    def _record_run_start(self, pipeline_id: str) -> None:
+        self._pending_run[pipeline_id] = datetime.now().isoformat(timespec="seconds")
 
-    def _record_run_end(self, pipeline_name: str, status: str, summary: str) -> None:
-        ts = self._pending_run.pop(pipeline_name, datetime.now().isoformat(timespec="seconds"))
+    def _record_run_end(self, pipeline_id: str, pipeline_name: str, status: str, summary: str) -> None:
+        ts = self._pending_run.pop(pipeline_id, datetime.now().isoformat(timespec="seconds"))
         self._runs.append(
             RunRecord(pipeline_name=pipeline_name, timestamp=ts, status=status, summary=summary)
         )
-        if len(self._runs) > 200:
-            self._runs = self._runs[-200:]
+        if len(self._runs) > _MAX_RUN_HISTORY:
+            self._runs = self._runs[-_MAX_RUN_HISTORY:]
 
+
+_MAX_RUN_HISTORY = 200
 
 # Singleton used by the FastAPI app and route handlers
 scheduler = SchedulerEngine()
@@ -348,9 +348,9 @@ async def _dispatch_pipeline(pipeline_id: str) -> None:
         await _db_write_run(pipeline_id, pipeline_id, "error", msg, ts)
         return
 
-    scheduler._record_run_start(pipeline.name)
+    scheduler._record_run_start(pipeline.id)
     # Capture timestamp before any awaits
-    ts = scheduler._pending_run.get(pipeline.name, datetime.now().isoformat(timespec="seconds"))
+    ts = scheduler._pending_run.get(pipeline.id, datetime.now().isoformat(timespec="seconds"))
     try:
         result = await run_pipeline(pipeline)
         status, summary = "success", result["summary"]
@@ -358,5 +358,5 @@ async def _dispatch_pipeline(pipeline_id: str) -> None:
         logger.exception("Pipeline '%s' failed", pipeline.name)
         status, summary = "error", str(exc)
 
-    scheduler._record_run_end(pipeline.name, status, summary)
+    scheduler._record_run_end(pipeline.id, pipeline.name, status, summary)
     await _db_write_run(pipeline_id, pipeline.name, status, summary, ts)

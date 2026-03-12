@@ -16,6 +16,23 @@ def _attendees_to_description_note(attendees: list[str], existing_description: s
     note = "Guests: " + ", ".join(attendees)
     return f"{existing_description}\n\n{note}".strip() if existing_description else note
 
+
+def _execute_with_attendee_fallback(execute_fn, event: dict, attendees: list[str], description: str):
+    """Execute a Calendar API call; on 403 forbiddenForServiceAccounts retry without attendees.
+
+    Guests are preserved as a description note so they remain visible on the event.
+    """
+    try:
+        return execute_fn(event)
+    except HttpError as exc:
+        if exc.status_code == 403 and b"forbiddenForServiceAccounts" in exc.content:
+            logger.warning("Service account cannot invite attendees; falling back to description note.")
+            fallback = {**event}
+            fallback.pop("attendees", None)
+            fallback["description"] = _attendees_to_description_note(attendees, description)
+            return execute_fn(fallback)
+        raise
+
 _SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
 
@@ -70,15 +87,10 @@ def create_event(
     }
     if attendees:
         event["attendees"] = [{"email": e} for e in attendees]
-    try:
-        return service.events().insert(calendarId=calendar_id, body=event).execute()
-    except HttpError as exc:
-        if exc.status_code == 403 and b"forbiddenForServiceAccounts" in exc.content:
-            logger.warning("Service account cannot invite attendees; falling back to description note.")
-            event.pop("attendees", None)
-            event["description"] = _attendees_to_description_note(attendees or [], description)
-            return service.events().insert(calendarId=calendar_id, body=event).execute()
-        raise
+    return _execute_with_attendee_fallback(
+        lambda body: service.events().insert(calendarId=calendar_id, body=body).execute(),
+        event, attendees or [], description,
+    )
 
 
 def update_event(
@@ -102,23 +114,10 @@ def update_event(
     }
     if attendees:
         event["attendees"] = [{"email": e} for e in attendees]
-    try:
-        return (
-            service.events()
-            .update(calendarId=calendar_id, eventId=event_id, body=event)
-            .execute()
-        )
-    except HttpError as exc:
-        if exc.status_code == 403 and b"forbiddenForServiceAccounts" in exc.content:
-            logger.warning("Service account cannot invite attendees; falling back to description note.")
-            event.pop("attendees", None)
-            event["description"] = _attendees_to_description_note(attendees or [], description)
-            return (
-                service.events()
-                .update(calendarId=calendar_id, eventId=event_id, body=event)
-                .execute()
-            )
-        raise
+    return _execute_with_attendee_fallback(
+        lambda body: service.events().update(calendarId=calendar_id, eventId=event_id, body=body).execute(),
+        event, attendees or [], description,
+    )
 
 
 def delete_event(calendar_id: str, credentials_file: str, event_id: str) -> None:

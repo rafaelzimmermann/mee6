@@ -1,9 +1,9 @@
+import logging
+import urllib.parse
 import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from mee6.config import settings
 from mee6.db.engine import AsyncSessionLocal
@@ -11,9 +11,11 @@ from mee6.db.models import CalendarRow, WhatsAppGroupRow
 from mee6.db.repository import CalendarRepository, WhatsAppGroupRepository
 from mee6.integrations.whatsapp_session import wa_session
 from mee6.scheduler.engine import scheduler
+from mee6.web.templates_env import templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations")
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
 def _wa_ctx() -> dict:
@@ -72,8 +74,9 @@ async def whatsapp_test(phone: str = Form(...)):
             f'<span class="badge badge-connected">✓ message sent to {phone}</span>'
         )
     except Exception as exc:
+        logger.exception("WhatsApp test message to %s failed", phone)
         return HTMLResponse(
-            f'<span class="badge badge-error">Error: {exc}</span>'
+            f'<span class="badge badge-error">Error: {exc!s:.200}</span>'
         )
 
 
@@ -85,8 +88,11 @@ async def sync_wa_groups():
     try:
         remote = await list_groups()
     except Exception as exc:
-        # Surface errors as a redirect with a query param (simple, no flash system)
-        return RedirectResponse(f"/integrations?error={exc}", status_code=303)
+        logger.exception("Failed to sync WhatsApp groups")
+        return RedirectResponse(
+            f"/integrations?error={urllib.parse.quote(str(exc), safe='')}",
+            status_code=303,
+        )
 
     async with AsyncSessionLocal() as session:
         repo = WhatsAppGroupRepository(session)

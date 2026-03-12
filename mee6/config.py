@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # LLM backends — typically in ~/.config/agntrick/.env
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
+    anthropic_max_tokens: int = 4096
     ollama_base_url: str = "http://localhost:11434"
     ollama_default_model: str = "llama3"
 

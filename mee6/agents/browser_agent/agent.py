@@ -3,6 +3,7 @@
 import glob
 import logging
 import os
+import time
 from pathlib import Path
 
 from browser_use import Agent, BrowserProfile
@@ -11,9 +12,6 @@ from browser_use.llm.anthropic.chat import ChatAnthropic
 from mee6.config import settings
 
 logger = logging.getLogger(__name__)
-
-# Enable verbose logging for browser-use internals to aid debugging
-logging.getLogger("browser_use").setLevel(logging.DEBUG)
 
 
 def _find_headless_shell() -> str | None:
@@ -50,10 +48,9 @@ async def browse(task: str) -> str:
         browser_profile = None
 
     logger.info("browser_agent: creating Agent with model=%s", settings.anthropic_model)
-    import time as _time
-    _t0 = _time.monotonic()
+    _t0 = time.monotonic()
     agent = Agent(task=task, llm=llm, browser_profile=browser_profile)
-    logger.info("browser_agent: Agent() took %.2fs", _time.monotonic() - _t0)
+    logger.info("browser_agent: Agent() took %.2fs", time.monotonic() - _t0)
     logger.info("browser_agent: calling agent.run()")
     history = await agent.run()
     logger.info("browser_agent: agent.run() returned; final_result=%r", history.final_result())

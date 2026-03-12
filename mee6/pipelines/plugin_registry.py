@@ -1,5 +1,6 @@
 """Single registration point for all available agent plugins."""
 
+from mee6.pipelines.base import AgentPlugin
 from mee6.pipelines.plugins.browser_agent import BrowserAgentPlugin
 from mee6.pipelines.plugins.calendar_agent import CalendarAgentPlugin
 from mee6.pipelines.plugins.llm_agent import LlmAgentPlugin
@@ -8,12 +9,15 @@ from mee6.pipelines.plugins.whatsapp_group_read import WhatsAppGroupReadPlugin
 from mee6.pipelines.plugins.whatsapp_group_send import WhatsAppGroupSendPlugin
 from mee6.pipelines.plugins.whatsapp_read import WhatsAppReadPlugin
 
-AGENT_PLUGINS: dict[str, object] = {
-    "llm_agent": LlmAgentPlugin(),
-    "browser_agent": BrowserAgentPlugin(),
-    "whatsapp_read": WhatsAppReadPlugin(),
-    "whatsapp_group_read": WhatsAppGroupReadPlugin(),
-    "whatsapp_group_send": WhatsAppGroupSendPlugin(),
-    "whatsapp_agent": WhatsAppAgentPlugin(),
-    "calendar_agent": CalendarAgentPlugin(),
-}
+_ALL_PLUGINS = [
+    LlmAgentPlugin(),
+    BrowserAgentPlugin(),
+    WhatsAppReadPlugin(),
+    WhatsAppGroupReadPlugin(),
+    WhatsAppGroupSendPlugin(),
+    WhatsAppAgentPlugin(),
+    CalendarAgentPlugin(),
+]
+
+# Keyed by plugin.name — each plugin is authoritative for its own key.
+AGENT_PLUGINS: dict[str, AgentPlugin] = {p.name: p for p in _ALL_PLUGINS}

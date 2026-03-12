@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Phase 1 refactoring** — constants, deduplication, and low-risk cleanups:
+  - Named all magic values: `_NEONIZE_MESSAGE_EV_CODE`, `_MAX_RUN_HISTORY`,
+    `_QR_EXPIRY_TIMEOUT_S`, `_MONITOR_POLL_INTERVAL_S`, `_RECONNECT_DELAY_S`;
+    `anthropic_max_tokens: int = 4096` added to `Settings` and used by both agents.
+  - Plugin registry made self-describing: `{p.name: p for p in _ALL_PLUGINS}` — the
+    plugin is now the single source of truth for its own registry key.
+  - Extracted `_call()` closure in `calendar_agent/_handle_tool` to eliminate four
+    identical `asyncio.to_thread(fn, calendar_id, credentials_file, …)` calls.
+  - Extracted `_execute_with_attendee_fallback()` in `calendar.py` to deduplicate the
+    identical 403-retry blocks in `create_event` and `update_event`.
+  - Extracted `_pipeline_from_form()` in `routes/pipelines.py` to deduplicate pipeline
+    construction between `create_pipeline` and `update_pipeline`.
+  - Replaced `loop.run_in_executor(None, …)` with `asyncio.to_thread(…)` in
+    `whatsapp.py`; moved `import asyncio` to module level.
+  - Removed duplicate `logging.getLogger("browser_use").setLevel(logging.DEBUG)` from
+    `browser_agent/agent.py` (kept only in `app.py`); moved `import time` to module level.
+  - `config["phone"]` → `config.get("phone", "")` with explicit `ValueError` in both
+    WhatsApp plugins, producing a readable error instead of a bare `KeyError`.
+  - Removed unused `Jinja2Templates` object and import from `app.py`.
+- **Phase 2 refactoring** — moderate-effort, structural improvements:
+  - Shared `mee6/web/templates_env.py` exports a single `Jinja2Templates` instance;
+    all four route modules now import from it instead of each constructing their own.
+  - Shared `mee6/pipelines/plugins/_options.py` provides `load_group_options()` and
+    `load_calendar_options()`; the three plugins that called DB directly in `get_fields()`
+    now delegate to these helpers.
+  - `get_fields()` added to the `AgentPlugin` Protocol with a default implementation
+    returning `self.fields`; the ad-hoc `hasattr(plugin, "get_fields")` check in the
+    route is removed and the registry is typed `dict[str, AgentPlugin]`.
+  - `_parse_wa_timestamp(ts_raw)` extracted at module level in `whatsapp_session.py`,
+    replacing two divergent timestamp-parsing blocks (DM and group) with one consistent
+    implementation that always treats neonize timestamps as milliseconds.
+  - `_check_event_triggers(triggers, config_key, incoming_id, label)` private method
+    introduced in `SchedulerEngine`; `check_wa_triggers` and `check_wa_group_triggers`
+    delegate to it, eliminating the duplicated loop.
+  - `_pending_run` in `SchedulerEngine` now keyed by `pipeline_id` (UUID) instead of
+    `pipeline_name`, preventing silent collision when two pipelines share the same name.
+  - `ImportError` caught separately from `Exception` in `whatsapp_session.py` event
+    registration and in `whatsapp.py` JID building; exceptions that are not import
+    failures are now logged at `WARNING` with `exc_info=True` so they appear in logs.
+  - `get_qr_svg()` logs `ImportError` at DEBUG and unexpected exceptions at WARNING
+    instead of silently returning `None`.
+  - Raw exception strings embedded in HTTP responses are now truncated to 200 chars;
+    redirect URL exception strings are `urllib.parse.quote`-encoded; both are logged
+    via `logger.exception()` so the full traceback appears in server logs.
+
 ### Added
 - **Google Calendar integration**: Integrations page gains a Google Calendar card to
   store named calendars (label + calendar ID + credentials file path). Backed by a new

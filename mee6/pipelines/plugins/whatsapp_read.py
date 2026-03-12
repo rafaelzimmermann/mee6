@@ -23,7 +23,9 @@ class WhatsAppReadPlugin:
     async def run(self, config: dict[str, str], input: str = "") -> str:
         from mee6.integrations.whatsapp import read_messages
 
-        phone = config["phone"]
+        phone = config.get("phone", "")
+        if not phone:
+            raise ValueError("WhatsApp Read: 'phone' is required.")
         limit = int(config.get("count", "5"))
         messages = await read_messages(phone=phone, limit=limit)
 

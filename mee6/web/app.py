@@ -5,7 +5,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from mee6.db.engine import async_engine
 from mee6.db.models import Base
@@ -20,10 +19,7 @@ logging.basicConfig(
 # browser_use internals at DEBUG so we can see exactly where it hangs
 logging.getLogger("browser_use").setLevel(logging.DEBUG)
 
-TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
-
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 async def _migrate_db() -> None:

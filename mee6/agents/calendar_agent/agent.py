@@ -126,7 +126,7 @@ async def run_calendar_agent(
     while True:
         response = await client.messages.create(
             model=settings.anthropic_model,
-            max_tokens=4096,
+            max_tokens=settings.anthropic_max_tokens,
             system=_SYSTEM,
             tools=_TOOLS,
             messages=messages,
@@ -161,14 +161,12 @@ async def _handle_tool(
 ) -> Any:
     logger.info("calendar_agent tool=%s input=%s", name, inp)
 
+    async def _call(fn, *args, **kwargs):
+        """Call a synchronous calendar lib function in a thread, pre-filling calendar_id and credentials_file."""
+        return await asyncio.to_thread(fn, calendar_id, credentials_file, *args, **kwargs)
+
     if name == "list_events":
-        events = await asyncio.to_thread(
-            cal_lib.list_events,
-            calendar_id,
-            credentials_file,
-            inp["time_min"],
-            inp["time_max"],
-        )
+        events = await _call(cal_lib.list_events, inp["time_min"], inp["time_max"])
         return [
             {
                 "id": e["id"],
@@ -188,10 +186,8 @@ async def _handle_tool(
         ]
 
     if name == "create_event":
-        event = await asyncio.to_thread(
+        event = await _call(
             cal_lib.create_event,
-            calendar_id,
-            credentials_file,
             title=inp["title"],
             start=inp["start"],
             end=inp["end"],
@@ -201,10 +197,8 @@ async def _handle_tool(
         return {"id": event["id"], "status": "created"}
 
     if name == "update_event":
-        event = await asyncio.to_thread(
+        event = await _call(
             cal_lib.update_event,
-            calendar_id,
-            credentials_file,
             inp["event_id"],
             title=inp["title"],
             start=inp["start"],
@@ -215,12 +209,7 @@ async def _handle_tool(
         return {"id": event["id"], "status": "updated"}
 
     if name == "delete_event":
-        await asyncio.to_thread(
-            cal_lib.delete_event,
-            calendar_id,
-            credentials_file,
-            inp["event_id"],
-        )
+        await _call(cal_lib.delete_event, inp["event_id"])
         return {"status": "deleted"}
 
     return {"error": f"Unknown tool: {name}"}

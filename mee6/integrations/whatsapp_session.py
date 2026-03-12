@@ -16,6 +16,32 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# neonize event.list_func key for MessageEv (EVENT_TO_INT[MessageEv] == 17)
+_NEONIZE_MESSAGE_EV_CODE = 17
+
+
+def _parse_wa_timestamp(ts_raw: Any) -> "datetime":
+    """Convert a neonize timestamp to a timezone-aware UTC datetime.
+
+    neonize always delivers timestamps as millisecond Unix integers.
+    A datetime object with a .timestamp() method is also accepted as a fallback.
+    Returns UTC now if ts_raw is None or zero.
+    """
+    from datetime import datetime, timezone
+
+    if ts_raw is None or ts_raw == 0:
+        return datetime.now(timezone.utc)
+    if isinstance(ts_raw, (int, float)):
+        return datetime.fromtimestamp(ts_raw / 1000, tz=timezone.utc)
+    if hasattr(ts_raw, "timestamp"):
+        return datetime.fromtimestamp(ts_raw.timestamp(), tz=timezone.utc)
+    return datetime.now(timezone.utc)
+
+# _monitor timing constants (seconds)
+_MONITOR_POLL_INTERVAL_S = 2
+_QR_EXPIRY_TIMEOUT_S = 65
+_RECONNECT_DELAY_S = 1
+
 
 class WAStatus(str, Enum):
     DISCONNECTED = "disconnected"
@@ -43,7 +69,11 @@ class WhatsAppSession:
                 buf, kind="svg", scale=6, border=2, dark="#1a1a2e"
             )
             return buf.getvalue().decode("utf-8")
+        except ImportError:
+            logger.debug("segno not installed; QR SVG rendering unavailable")
+            return None
         except Exception:
+            logger.warning("Failed to render QR code as SVG", exc_info=True)
             return None
 
     async def connect(self) -> None:
@@ -81,8 +111,10 @@ class WhatsAppSession:
                 self._qr_data = None
 
             channel._client.event(ConnectedEv)(_on_connected)
+        except ImportError:
+            logger.debug("neonize ConnectedEv not available; falling back to polling")
         except Exception:
-            pass  # neonize not available; fall back to polling
+            logger.warning("Failed to register ConnectedEv handler", exc_info=True)
 
         # --- DisconnectedEv: reset status on drop ---
         try:
@@ -93,15 +125,15 @@ class WhatsAppSession:
                     self.status = WAStatus.DISCONNECTED
 
             channel._client.event(DisconnectedEv)(_on_disconnected)
+        except ImportError:
+            logger.debug("neonize DisconnectedEv not available; falling back to polling")
         except Exception:
-            pass
+            logger.warning("Failed to register DisconnectedEv handler", exc_info=True)
 
         # --- Start listen() in the background ---
         async def _store_incoming(msg: Any) -> None:
             """Persist each incoming message to the DB for later retrieval."""
             try:
-                from datetime import datetime, timezone
-
                 from mee6.db.engine import AsyncSessionLocal
                 from mee6.db.models import WhatsAppMessageRow
                 from mee6.db.repository import WhatsAppMessageRepository
@@ -110,22 +142,13 @@ class WhatsAppSession:
                 raw_sender: str = getattr(msg, "sender_id", "") or ""
                 sender = raw_sender.split("@")[0].lstrip("+")
 
-                ts = getattr(msg, "timestamp", None)
-                if ts is None:
-                    ts = datetime.now(timezone.utc)
-                elif isinstance(ts, (int, float)):
-                    # Millisecond Unix timestamp (e.g. 1773330464000)
-                    ts = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-                elif hasattr(ts, "timestamp"):
-                    ts = datetime.fromtimestamp(ts.timestamp(), tz=timezone.utc)
-
+                ts = _parse_wa_timestamp(getattr(msg, "timestamp", None))
+                # Column is TIMESTAMP WITHOUT TIME ZONE — store naive UTC
+                ts_naive = ts.replace(tzinfo=None) if ts.tzinfo is not None else ts
                 text: str = getattr(msg, "text", "") or ""
                 logger.info("Incoming WA message from %s: text=%r (attrs: %s)", sender, text[:60] if text else "", [a for a in dir(msg) if not a.startswith("_")])
                 if not text:
                     return  # skip non-text messages (audio, etc.)
-
-                # Column is TIMESTAMP WITHOUT TIME ZONE — store naive UTC
-                ts_naive = ts.replace(tzinfo=None) if ts.tzinfo is not None else ts
                 async with AsyncSessionLocal() as session:
                     repo = WhatsAppMessageRepository(session)
                     await repo.insert(WhatsAppMessageRow(sender=sender, text=text, timestamp=ts_naive))
@@ -141,20 +164,11 @@ class WhatsAppSession:
         async def _store_group_message(chat_jid: str, text: str, ts_raw: Any) -> None:
             """Persist a group message to the DB (runs on the asyncio event loop)."""
             try:
-                from datetime import datetime, timezone
-
                 from mee6.db.engine import AsyncSessionLocal
                 from mee6.db.models import WhatsAppMessageRow
                 from mee6.db.repository import WhatsAppMessageRepository
 
-                if ts_raw is None or ts_raw == 0:
-                    ts = datetime.now(timezone.utc)
-                elif isinstance(ts_raw, (int, float)):
-                    val = ts_raw / 1000 if ts_raw > 1e10 else ts_raw
-                    ts = datetime.fromtimestamp(val, tz=timezone.utc)
-                else:
-                    ts = datetime.now(timezone.utc)
-
+                ts = _parse_wa_timestamp(ts_raw)
                 ts_naive = ts.replace(tzinfo=None) if ts.tzinfo is not None else ts
                 # sender is unknown for group messages captured this way; use empty string
                 logger.info("Group message in %s: %r", chat_jid, text[:60])
@@ -186,9 +200,7 @@ class WhatsAppSession:
         # agntrick_whatsapp intentionally rejects group messages (@g.us JIDs).
         # We wrap its MessageEv handler so group messages reach our DB while
         # DMs continue flowing through the original handler unchanged.
-        # event.list_func uses int key 17 (EVENT_TO_INT[MessageEv]).
-        _MSG_EV_CODE = 17
-        _original_ev_handler = channel._client.event.list_func.get(_MSG_EV_CODE)
+        _original_ev_handler = channel._client.event.list_func.get(_NEONIZE_MESSAGE_EV_CODE)
         _loop_ref = asyncio.get_running_loop()
 
         def _on_message_combined(_client: Any, _ev: Any) -> None:
@@ -221,7 +233,7 @@ class WhatsAppSession:
             except Exception:
                 logger.exception("Error in _on_message_combined")
 
-        channel._client.event.list_func[_MSG_EV_CODE] = _on_message_combined
+        channel._client.event.list_func[_NEONIZE_MESSAGE_EV_CODE] = _on_message_combined
 
         asyncio.create_task(_run_listen())
         asyncio.create_task(self._monitor(channel))
@@ -233,7 +245,7 @@ class WhatsAppSession:
         2. Restart the connection if the QR code goes stale (>65 s without a new one).
         """
         while True:
-            await asyncio.sleep(2)
+            await asyncio.sleep(_MONITOR_POLL_INTERVAL_S)
 
             if self.status == WAStatus.CONNECTED:
                 return
@@ -247,18 +259,18 @@ class WhatsAppSession:
                     self._qr_data = None
                     return
             except Exception:
-                pass
+                logger.warning("is_connected() poll raised an exception", exc_info=True)
 
             # QR watchdog: neonize should re-fire the callback every ~20 s as
             # each code expires.  If 65 s pass without a refresh, force reconnect.
             if (
                 self.status == WAStatus.PENDING_QR
                 and self._qr_updated_at > 0
-                and time.monotonic() - self._qr_updated_at > 65
+                and time.monotonic() - self._qr_updated_at > _QR_EXPIRY_TIMEOUT_S
             ):
                 self.status = WAStatus.DISCONNECTED
                 self._qr_data = None
-                await asyncio.sleep(1)
+                await asyncio.sleep(_RECONNECT_DELAY_S)
                 await self.connect()
                 return
 

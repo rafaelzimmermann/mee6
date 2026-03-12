@@ -14,14 +14,9 @@ class CalendarAgentPlugin:
 
     async def get_fields(self) -> list[FieldSchema]:
         """Return fields with calendar options loaded from the database."""
-        from mee6.db.engine import AsyncSessionLocal
-        from mee6.db.repository import CalendarRepository
+        from mee6.pipelines.plugins._options import load_calendar_options
 
-        async with AsyncSessionLocal() as session:
-            calendars = await CalendarRepository(session).list_all()
-
-        # Encode as "Label||calendar_id" so the template can show both.
-        options = [f"{c.label}||{c.calendar_id}" for c in calendars]
+        options = await load_calendar_options()
 
         return [
             FieldSchema(

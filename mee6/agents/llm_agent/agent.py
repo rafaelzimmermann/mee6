@@ -43,7 +43,7 @@ async def _call_anthropic(prompt: str, model: str) -> str:
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     message = await client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=settings.anthropic_max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text  # type: ignore[union-attr]

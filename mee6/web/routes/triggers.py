@@ -1,16 +1,13 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from mee6.db.engine import AsyncSessionLocal
 from mee6.db.repository import WhatsAppGroupRepository
 from mee6.pipelines.store import pipeline_store
 from mee6.scheduler.engine import TriggerType, scheduler
+from mee6.web.templates_env import templates
 
 router = APIRouter(prefix="/triggers")
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
 @router.get("", response_class=HTMLResponse)
