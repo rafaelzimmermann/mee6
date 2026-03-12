@@ -39,3 +39,43 @@ button {
   cursor: pointer;
 }
 button:hover { background: #2e2e5e; }
+button.secondary { background: #555; }
+button.secondary:hover { background: #333; }
+
+/* Pipeline editor */
+.pipeline-name-row { margin-bottom: 1rem; }
+.pipeline-name-row input { width: 20rem; }
+.pipeline-actions { margin-top: 1rem; display: flex; gap: 0.5rem; }
+
+.step-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.step-header select { padding: 0.3rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+.step-fields { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: #555;
+}
+.field-label input, .field-label textarea {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  width: 100%;
+  max-width: 40rem;
+}
+.field-label textarea { min-height: 4rem; resize: vertical; }

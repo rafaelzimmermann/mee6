@@ -7,32 +7,6 @@ import pytest
 import yaml
 
 # ---------------------------------------------------------------------------
-# school_app
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_fetch_school_content_returns_html():
-    mock_response = MagicMock()
-    mock_response.raise_for_status = MagicMock()
-    mock_response.text = "<html>Calendar page</html>"
-
-    mock_client = AsyncMock()
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=False)
-    mock_client.post = AsyncMock(return_value=mock_response)
-    mock_client.get = AsyncMock(return_value=mock_response)
-
-    with patch("mee6.integrations.school_app.httpx.AsyncClient", return_value=mock_client):
-        from mee6.integrations.school_app import fetch_school_content
-
-        result = await fetch_school_content()
-
-    assert result == "<html>Calendar page</html>"
-    mock_client.post.assert_awaited_once()
-    mock_client.get.assert_awaited_once()
-
-
-# ---------------------------------------------------------------------------
 # calendar
 # ---------------------------------------------------------------------------
 

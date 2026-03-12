@@ -14,7 +14,7 @@
   <tbody>
     {% for run in runs %}
     <tr class="status-{{ run.status }}">
-      <td>{{ run.agent_name }}</td>
+      <td>{{ run.pipeline_name }}</td>
       <td>{{ run.timestamp }}</td>
       <td>{{ run.status }}</td>
       <td>{{ run.summary }}</td>

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if pipeline else "New" }} Pipeline{% endblock %}
+{% block content %}
+<h1>{{ "Edit" if pipeline else "New" }} Pipeline</h1>
+
+<form id="pipeline-form" method="post"
+      action="{{ '/pipelines/' + pipeline.id if pipeline else '/pipelines' }}">
+  <input type="hidden" id="pipeline-json" name="pipeline_json">
+
+  <div class="pipeline-name-row">
+    <label>
+      Name
+      <input type="text" id="pipeline-name"
+             value="{{ pipeline.name if pipeline else '' }}"
+             placeholder="My pipeline" required>
+    </label>
+  </div>
+
+  <h2>Steps</h2>
+  <div id="steps-container"></div>
+
+  <div class="pipeline-actions">
+    <button type="button" onclick="addStep()">+ Add step</button>
+    <button type="submit">Save pipeline</button>
+    <a href="/pipelines"><button type="button" class="secondary">Cancel</button></a>
+  </div>
+</form>
+
+<script>
+const AGENT_PLUGINS = {{ plugin_list_json | safe }};
+const initialPipeline = {{ initial_pipeline_json | safe }};
+let steps = [];
+
+function buildCardHTML(idx, selectedType) {
+  const opts = ['<option value="">— select agent —</option>']
+    .concat(AGENT_PLUGINS.map(p =>
+      `<option value="${p.name}"${p.name === selectedType ? ' selected' : ''}>${p.label}</option>`
+    )).join('');
+  return `
+    <div class="step-header">
+      <strong>Step ${idx + 1}</strong>
+      <select class="agent-select">${opts}</select>
+      <button type="button" class="remove-step secondary">Remove</button>
+    </div>
+    <div class="step-fields" id="step-fields-${idx}"></div>
+  `;
+}
+
+async function loadFields(idx, agentType, existingConfig) {
+  const container = document.getElementById(`step-fields-${idx}`);
+  if (!agentType) { container.innerHTML = ''; return; }
+  const params = new URLSearchParams({
+    step_index: idx,
+    config: JSON.stringify(existingConfig),
+  });
+  const resp = await fetch(`/api/agents/${agentType}/fields?${params}`);
+  container.innerHTML = await resp.text();
+}
+
+async function addStep(initialData) {
+  const idx = steps.length;
+  const step = initialData
+    ? { agent_type: initialData.agent_type, config: { ...initialData.config } }
+    : { agent_type: '', config: {} };
+  steps.push(step);
+
+  const card = document.createElement('div');
+  card.className = 'step-card';
+  card.dataset.idx = idx;
+  card.innerHTML = buildCardHTML(idx, step.agent_type);
+  document.getElementById('steps-container').appendChild(card);
+
+  if (step.agent_type) {
+    await loadFields(idx, step.agent_type, step.config);
+  }
+}
+
+async function rebuildSteps() {
+  document.getElementById('steps-container').innerHTML = '';
+  const toAdd = [...steps];
+  steps = [];
+  for (const s of toAdd) await addStep(s);
+}
+
+// Event delegation for agent select changes and remove buttons
+document.getElementById('steps-container').addEventListener('change', async (e) => {
+  if (e.target.classList.contains('agent-select')) {
+    const card = e.target.closest('.step-card');
+    const idx = parseInt(card.dataset.idx);
+    steps[idx].agent_type = e.target.value;
+    steps[idx].config = {};
+    await loadFields(idx, e.target.value, {});
+  }
+});
+
+document.getElementById('steps-container').addEventListener('click', async (e) => {
+  if (e.target.classList.contains('remove-step')) {
+    const card = e.target.closest('.step-card');
+    const idx = parseInt(card.dataset.idx);
+    steps.splice(idx, 1);
+    await rebuildSteps();
+  }
+});
+
+// Before submit: collect all field values into steps[], then serialise
+document.getElementById('pipeline-form').addEventListener('submit', (e) => {
+  document.querySelectorAll('.step-card').forEach((card, i) => {
+    if (i >= steps.length) return;
+    const config = {};
+    card.querySelectorAll('.step-fields input, .step-fields textarea').forEach(el => {
+      config[el.getAttribute('name')] = el.value;
+    });
+    steps[i].config = config;
+  });
+  document.getElementById('pipeline-json').value = JSON.stringify({
+    name: document.getElementById('pipeline-name').value,
+    steps: steps,
+  });
+});
+
+// Initialise
+if (initialPipeline && initialPipeline.steps) {
+  initialPipeline.steps.forEach(s => addStep(s));
+} else {
+  addStep();
+}
+</script>
+{% endblock %}

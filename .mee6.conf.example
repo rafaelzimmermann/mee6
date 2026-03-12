@@ -2,10 +2,12 @@
 # Copy to .mee6.conf (gitignored) and fill in your values.
 # These settings are specific to this mee6 instance.
 
-# School app credentials
-SCHOOL_APP_URL=https://your-school-app.example.com
-SCHOOL_APP_USERNAME=your_username
-SCHOOL_APP_PASSWORD=your_password
+# Anthropic model used by the browser agent (overrides the default in ~/.config/agntrick/.env)
+# ANTHROPIC_MODEL=claude-sonnet-4-6
+
+# browser-agent task — the natural-language instruction given to browser-use on each run.
+# Customize this to match your school app URL, login flow, and what events to extract.
+BROWSER_AGENT_TASK=Go to https://your-school-app.example.com, log in with username YOUR_USERNAME and password YOUR_PASSWORD, navigate to the calendar page, and return all upcoming events as a JSON array with fields: title, date (YYYY-MM-DD), time (HH:MM or empty string), description, type (holiday|meeting|activity|exam|other).
 
 # WhatsApp notification target (E.164 format, e.g. +34612345678)
 # Must match the allowed_contact in ~/.config/agntrick/whatsapp.yaml

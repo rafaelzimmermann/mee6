@@ -8,10 +8,9 @@ version = "0.1.0"
 description = "A personal AI assistant that automates life tasks using LLMs."
 requires-python = ">=3.12"
 dependencies = [
-    "agntrick",
     "agntrick-whatsapp",
-    "anthropic",
-    "ollama",
+    "browser-use",
+    "langchain-anthropic",
     "fastapi>=0.115",
     "uvicorn[standard]",
     "jinja2",

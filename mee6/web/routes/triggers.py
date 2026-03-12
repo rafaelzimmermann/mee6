@@ -4,6 +4,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from mee6.pipelines.store import pipeline_store
 from mee6.scheduler.engine import scheduler
 
 router = APIRouter(prefix="/triggers")
@@ -14,18 +15,22 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 async def list_triggers(request: Request):
     jobs = scheduler.list_jobs()
     active_count = scheduler.active_job_count()
+    pipelines = pipeline_store.list()
     return templates.TemplateResponse(
-        request, "triggers.html", {"jobs": jobs, "active_count": active_count}
+        request,
+        "triggers.html",
+        {"jobs": jobs, "active_count": active_count, "pipelines": pipelines},
     )
 
 
 @router.post("")
 async def create_trigger(
-    agent_name: str = Form(...),
+    pipeline_id: str = Form(...),
+    pipeline_name: str = Form(...),
     cron_expr: str = Form(...),
     enabled: bool = Form(False),
 ):
-    await scheduler.add_trigger(agent_name, cron_expr, enabled=enabled)
+    await scheduler.add_trigger(pipeline_id, pipeline_name, cron_expr, enabled=enabled)
     return RedirectResponse("/triggers", status_code=303)
 
 

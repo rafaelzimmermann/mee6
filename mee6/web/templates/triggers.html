@@ -4,19 +4,31 @@
 <h1>Triggers</h1>
 
 <h2>Add trigger</h2>
+{% if pipelines %}
 <form method="post" action="/triggers">
-  <label>Agent name <input type="text" name="agent_name" placeholder="school-monitor" required></label>
-  <label>Cron expression <input type="text" name="cron_expr" placeholder="0 8 * * *" required></label>
+  <label>Pipeline
+    <select name="pipeline_id" required
+      onchange="document.getElementById('pname').value = this.options[this.selectedIndex].text">
+      <option value="">— select —</option>
+      {% for p in pipelines %}
+      <option value="{{ p.id }}">{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <input type="hidden" id="pname" name="pipeline_name">
+  <label>Cron <input type="text" name="cron_expr" placeholder="0 8 * * *" required></label>
   <label><input type="checkbox" name="enabled" value="true"> Enabled</label>
   <button type="submit">Add</button>
 </form>
+{% else %}
+<p><a href="/pipelines/new">Create a pipeline</a> first, then come back to schedule it.</p>
+{% endif %}
 
 <h2>Configured triggers</h2>
 <table>
   <thead>
     <tr>
-      <th>ID</th>
-      <th>Agent</th>
+      <th>Pipeline</th>
       <th>Schedule</th>
       <th>Enabled</th>
       <th>Actions</th>
@@ -25,8 +37,7 @@
   <tbody>
     {% for job in jobs %}
     <tr>
-      <td>{{ job.id }}</td>
-      <td>{{ job.agent_name }}</td>
+      <td>{{ job.pipeline_name }}</td>
       <td>{{ job.cron_expr }}</td>
       <td>{{ "Yes" if job.enabled else "No" }}</td>
       <td>
@@ -42,7 +53,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5">No triggers configured.</td></tr>
+    <tr><td colspan="4">No triggers configured.</td></tr>
     {% endfor %}
   </tbody>
 </table>

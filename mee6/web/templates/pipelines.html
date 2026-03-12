@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Pipelines{% endblock %}
+{% block content %}
+<h1>Pipelines</h1>
+
+<p><a href="/pipelines/new"><button type="button">New pipeline</button></a></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Steps</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in pipelines %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td>{{ p.steps | map(attribute='agent_type') | join(' → ') }}</td>
+      <td>
+        <a href="/pipelines/{{ p.id }}/edit"><button type="button">Edit</button></a>
+        <form method="post" action="/pipelines/{{ p.id }}/delete" style="display:inline">
+          <button type="submit" onclick="return confirm('Delete pipeline {{ p.name }}?')">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">No pipelines yet. <a href="/pipelines/new">Create one.</a></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -13,7 +13,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Runtime stage
 FROM python:3.12-slim AS runtime
 
-# libmagic is required by agntrick-whatsapp (neonize file-type detection)
+# libmagic: agntrick-whatsapp (neonize); Playwright system deps installed via playwright CLI
 RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -24,6 +24,9 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY mee6/ ./mee6/
 COPY .agntrick.yaml ./
+
+# Install Playwright browser binaries (Chromium used by browser-use)
+RUN /app/.venv/bin/playwright install --with-deps chromium
 
 RUN mkdir -p /app/data && chown mee6:mee6 /app/data
 
