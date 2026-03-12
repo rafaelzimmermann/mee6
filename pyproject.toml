@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mee6"
+version = "0.1.0"
+description = "A personal AI assistant that automates life tasks using LLMs."
+requires-python = ">=3.12"
+dependencies = [
+    "agntrick",
+    "agntrick-whatsapp",
+    "anthropic",
+    "ollama",
+    "fastapi>=0.115",
+    "uvicorn[standard]",
+    "jinja2",
+    "python-multipart",
+    "pydantic-settings",
+    "python-dotenv",
+    "google-auth",
+    "google-api-python-client",
+    "httpx",
+    "apscheduler>=4.0a1",
+    "sqlalchemy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

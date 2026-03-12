@@ -1,0 +1,14 @@
+llm:
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+  temperature: 0.2
+
+# To switch to Ollama, replace the above with:
+# llm:
+#   provider: ollama
+#   model: llama3
+#   base_url: http://192.168.1.x:11434
+#   temperature: 0.2
+
+logging:
+  level: INFO

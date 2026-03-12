@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Triggers{% endblock %}
+{% block content %}
+<h1>Triggers</h1>
+
+<h2>Add trigger</h2>
+<form method="post" action="/triggers">
+  <label>Agent name <input type="text" name="agent_name" placeholder="school-monitor" required></label>
+  <label>Cron expression <input type="text" name="cron_expr" placeholder="0 8 * * *" required></label>
+  <label><input type="checkbox" name="enabled" value="true"> Enabled</label>
+  <button type="submit">Add</button>
+</form>
+
+<h2>Configured triggers</h2>
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Agent</th>
+      <th>Schedule</th>
+      <th>Enabled</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for job in jobs %}
+    <tr>
+      <td>{{ job.id }}</td>
+      <td>{{ job.agent_name }}</td>
+      <td>{{ job.cron_expr }}</td>
+      <td>{{ "Yes" if job.enabled else "No" }}</td>
+      <td>
+        <form method="post" action="/triggers/{{ job.id }}/toggle" style="display:inline">
+          <button type="submit">{{ "Disable" if job.enabled else "Enable" }}</button>
+        </form>
+        <form method="post" action="/triggers/{{ job.id }}/run-now" style="display:inline">
+          <button type="submit">Run now</button>
+        </form>
+        <form method="post" action="/triggers/{{ job.id }}/delete" style="display:inline">
+          <button type="submit" onclick="return confirm('Delete this trigger?')">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No triggers configured.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

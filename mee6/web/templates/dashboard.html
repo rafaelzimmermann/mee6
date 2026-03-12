@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<table>
+  <thead>
+    <tr>
+      <th>Agent</th>
+      <th>Timestamp</th>
+      <th>Status</th>
+      <th>Summary</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    <tr class="status-{{ run.status }}">
+      <td>{{ run.agent_name }}</td>
+      <td>{{ run.timestamp }}</td>
+      <td>{{ run.status }}</td>
+      <td>{{ run.summary }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">No runs yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,10 @@
+services:
+  mee6:
+    build: .
+    env_file: .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    # Ollama is external — configure OLLAMA_BASE_URL in .env to point to your server
