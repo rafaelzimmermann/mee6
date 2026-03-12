@@ -9,23 +9,23 @@ logger = logging.getLogger(__name__)
 
 async def llm_call(
     prompt: str,
-    previous_output: str = "",
+    input: str = "",
     provider: str = "anthropic",
     model: str = "",
 ) -> str:
     """Call an LLM and return the text response.
 
-    If *previous_output* is non-empty and the caller didn't embed
-    ``{previous_output}`` in *prompt*, the previous output is prepended as
-    context so the LLM can see it without requiring the user to explicitly
-    reference it in the template.
+    If *input* is non-empty and the caller didn't embed ``{input}`` (or
+    ``{previous_output}``) in *prompt*, the input is prepended as context.
     """
-    # Build the final prompt.
-    if "{previous_output}" in prompt:
-        final_prompt = prompt.format_map({"previous_output": previous_output})
-    elif previous_output:
+    from mee6.pipelines.placeholders import resolve
+
+    has_placeholder = "{input}" in prompt or "{previous_output}" in prompt
+    if has_placeholder:
+        final_prompt = resolve(prompt, input=input)
+    elif input:
         # Auto-inject: previous step's output as context, prompt as instruction.
-        final_prompt = f"{previous_output}\n\n{prompt}" if prompt else previous_output
+        final_prompt = f"{input}\n\n{prompt}" if prompt else input
     else:
         final_prompt = prompt
 

@@ -20,5 +20,5 @@ class AgentPlugin(Protocol):
     label: str
     fields: list[FieldSchema]
 
-    async def run(self, config: dict[str, str], previous_output: str) -> str:
+    async def run(self, config: dict[str, str], input: str) -> str:
         ...

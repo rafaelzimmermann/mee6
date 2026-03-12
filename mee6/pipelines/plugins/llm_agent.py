@@ -32,18 +32,18 @@ class LlmAgentPlugin:
         FieldSchema(
             name="prompt",
             label="Prompt",
-            placeholder="Summarise the following: {previous_output}",
+            placeholder="Summarise the following: {input}",
             field_type="textarea",
             required=True,
         ),
     ]
 
-    async def run(self, config: dict[str, str], previous_output: str) -> str:
+    async def run(self, config: dict[str, str], input: str = "") -> str:
         from mee6.agents.llm_agent.agent import llm_call
 
         return await llm_call(
             prompt=config.get("prompt", ""),
-            previous_output=previous_output,
+            input=input,
             provider=config.get("provider", "anthropic"),
             model=config.get("model", ""),
         )

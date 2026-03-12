@@ -20,7 +20,7 @@ class WhatsAppReadPlugin:
         ),
     ]
 
-    async def run(self, config: dict[str, str], previous_output: str) -> str:
+    async def run(self, config: dict[str, str], input: str = "") -> str:
         from mee6.integrations.whatsapp import read_messages
 
         phone = config["phone"]

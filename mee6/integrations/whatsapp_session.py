@@ -138,6 +138,42 @@ class WhatsAppSession:
             except Exception:
                 logger.exception("Error in _store_incoming")  # never crash the listen loop
 
+        async def _store_group_message(chat_jid: str, text: str, ts_raw: Any) -> None:
+            """Persist a group message to the DB (runs on the asyncio event loop)."""
+            try:
+                from datetime import datetime, timezone
+
+                from mee6.db.engine import AsyncSessionLocal
+                from mee6.db.models import WhatsAppMessageRow
+                from mee6.db.repository import WhatsAppMessageRepository
+
+                if ts_raw is None or ts_raw == 0:
+                    ts = datetime.now(timezone.utc)
+                elif isinstance(ts_raw, (int, float)):
+                    val = ts_raw / 1000 if ts_raw > 1e10 else ts_raw
+                    ts = datetime.fromtimestamp(val, tz=timezone.utc)
+                else:
+                    ts = datetime.now(timezone.utc)
+
+                ts_naive = ts.replace(tzinfo=None) if ts.tzinfo is not None else ts
+                # sender is unknown for group messages captured this way; use empty string
+                logger.info("Group message in %s: %r", chat_jid, text[:60])
+                async with AsyncSessionLocal() as session:
+                    await WhatsAppMessageRepository(session).insert(
+                        WhatsAppMessageRow(
+                            sender="",
+                            text=text,
+                            timestamp=ts_naive,
+                            chat_id=chat_jid,
+                        )
+                    )
+
+                from mee6.scheduler.engine import scheduler
+
+                scheduler.check_wa_group_triggers(chat_jid)
+            except Exception:
+                logger.exception("Error in _store_group_message")
+
         async def _run_listen() -> None:
             try:
                 await channel.listen(_store_incoming)
@@ -145,6 +181,47 @@ class WhatsAppSession:
                 if self.status not in (WAStatus.CONNECTED,):
                     self.status = WAStatus.ERROR
                     self.error = str(exc)
+
+        # --- Group message capture ---
+        # agntrick_whatsapp intentionally rejects group messages (@g.us JIDs).
+        # We wrap its MessageEv handler so group messages reach our DB while
+        # DMs continue flowing through the original handler unchanged.
+        # event.list_func uses int key 17 (EVENT_TO_INT[MessageEv]).
+        _MSG_EV_CODE = 17
+        _original_ev_handler = channel._client.event.list_func.get(_MSG_EV_CODE)
+        _loop_ref = asyncio.get_running_loop()
+
+        def _on_message_combined(_client: Any, _ev: Any) -> None:
+            try:
+                _chat_jid: str = ""
+                try:
+                    from neonize.utils.jid import Jid2String  # type: ignore[import-untyped]
+                    _chat_jid = Jid2String(_ev.Info.MessageSource.Chat) if _ev.Info.MessageSource.Chat else ""
+                except Exception:
+                    pass
+
+                if _chat_jid.endswith("@g.us"):
+                    # Extract text the same way agntrick does
+                    _text: str = getattr(_ev.Message, "conversation", "")
+                    if not _text:
+                        _ext = getattr(_ev.Message, "extendedTextMessage", None)
+                        if _ext:
+                            _text = getattr(_ext, "text", "")
+                    if _text:
+                        _ts_raw = getattr(_ev.Info, "Timestamp", 0)
+                        asyncio.run_coroutine_threadsafe(
+                            _store_group_message(_chat_jid, _text, _ts_raw),
+                            _loop_ref,
+                        )
+                    return  # don't pass groups to agntrick's DM-only handler
+
+                # DM — let the original handler do its job
+                if _original_ev_handler is not None:
+                    _original_ev_handler(_client, _ev)
+            except Exception:
+                logger.exception("Error in _on_message_combined")
+
+        channel._client.event.list_func[_MSG_EV_CODE] = _on_message_combined
 
         asyncio.create_task(_run_listen())
         asyncio.create_task(self._monitor(channel))

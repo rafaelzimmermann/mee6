@@ -12,4 +12,73 @@
   </div>
 </section>
 
+<section class="card">
+  <div class="card-header">WhatsApp Groups</div>
+  <div class="card-body">
+    {% if wa_groups %}
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Label</th><th>JID</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for g in wa_groups %}
+        <tr>
+          <td>{{ g.name }}</td>
+          <td>
+            <form method="post" action="/integrations/whatsapp/groups/{{ g.jid | urlencode }}/label" style="margin:0">
+              <input type="text" name="label" value="{{ g.label }}" style="width:10rem">
+              <button type="submit" class="sm">Save</button>
+            </form>
+          </td>
+          <td><code style="font-size:0.75rem">{{ g.jid }}</code></td>
+          <td>
+            <form method="post" action="/integrations/whatsapp/groups/{{ g.jid | urlencode }}/delete" style="margin:0">
+              <button type="submit" class="sm danger">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:#777;font-size:0.85rem;margin-bottom:0.75rem">No groups synced yet.</p>
+    {% endif %}
+    <form method="post" action="/integrations/whatsapp/groups/sync" style="margin-top:{{ '1rem' if wa_groups else '0' }}">
+      <button type="submit">↻ Sync groups from WhatsApp</button>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-header">Google Calendar</div>
+  <div class="card-body">
+    {% if calendars %}
+    <table>
+      <thead>
+        <tr><th>Label</th><th>Calendar ID</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for cal in calendars %}
+        <tr>
+          <td>{{ cal.label }}</td>
+          <td><code>{{ cal.calendar_id }}</code></td>
+          <td>
+            <form method="post" action="/integrations/calendars/{{ cal.id }}/delete" style="margin:0">
+              <button type="submit" class="sm danger">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    <h2 style="margin-top:{{ '1.25rem' if calendars else '0' }}">Add Calendar</h2>
+    <form method="post" action="/integrations/calendars">
+      <label>Label <input type="text" name="label" placeholder="School" required></label>
+      <label>Calendar ID <input type="text" name="calendar_id" placeholder="xxx@group.calendar.google.com" required style="width:22rem"></label>
+      <button type="submit">Add</button>
+    </form>
+  </div>
+</section>
+
 {% endblock %}

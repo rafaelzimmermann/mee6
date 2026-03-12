@@ -14,17 +14,16 @@ class WhatsAppAgentPlugin:
         FieldSchema(
             name="message_template",
             label="Message",
-            placeholder="Result: {previous_output}",
+            placeholder="Result: {input}",
             field_type="textarea",
         ),
     ]
 
-    async def run(self, config: dict[str, str], previous_output: str) -> str:
+    async def run(self, config: dict[str, str], input: str = "") -> str:
         from mee6.integrations.whatsapp import send_notification
+        from mee6.pipelines.placeholders import resolve
 
         phone = config["phone"]
-        message = config.get("message_template", "{previous_output}").format_map(
-            {"previous_output": previous_output}
-        )
+        message = resolve(config.get("message_template", "{input}"), input=input)
         await send_notification(phone=phone, message=message)
         return f"WhatsApp message sent to {phone} Body: {message}"

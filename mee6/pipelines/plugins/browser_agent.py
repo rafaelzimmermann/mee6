@@ -13,8 +13,9 @@ class BrowserAgentPlugin:
         )
     ]
 
-    async def run(self, config: dict[str, str], previous_output: str) -> str:
+    async def run(self, config: dict[str, str], input: str = "") -> str:
         from mee6.agents.browser_agent.agent import browse
+        from mee6.pipelines.placeholders import resolve
 
-        task = config.get("task", "").format_map({"previous_output": previous_output})
+        task = resolve(config.get("task", ""), input=input)
         return await browse(task)

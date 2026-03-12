@@ -60,6 +60,26 @@ async def send_notification(*, phone: str, message: str) -> None:
     await channel.send(OutgoingMessage(text=message, recipient_id=phone))
 
 
+async def list_groups() -> list[dict]:
+    """Return all WhatsApp groups the connected account is a member of.
+
+    Requires an active WhatsApp connection.  Each dict has keys 'jid' and 'name'.
+    """
+    import asyncio
+
+    channel = await _get_channel()
+    try:
+        from neonize.utils.jid import Jid2String  # type: ignore[import-untyped]
+    except Exception:
+        Jid2String = str  # type: ignore[assignment]
+
+    groups = await asyncio.to_thread(channel._client.get_joined_groups)
+    return [
+        {"jid": Jid2String(g.JID), "name": g.GroupName.Name}
+        for g in groups
+    ]
+
+
 async def read_messages(*, phone: str, limit: int) -> list[str]:
     """Return the last *limit* messages received from *phone* (E.164 or plain digits).
 
@@ -75,4 +95,32 @@ async def read_messages(*, phone: str, limit: int) -> list[str]:
         repo = WhatsAppMessageRepository(session)
         rows = await repo.get_recent_from(sender, limit)
 
+    return [row.text for row in rows]
+
+
+async def send_group_message(*, group_jid: str, message: str) -> None:
+    """Send a text message to a WhatsApp group by its JID (e.g. '120363xxx@g.us')."""
+    import asyncio
+
+    channel = await _get_channel()
+    try:
+        from neonize.utils.jid import build_jid  # type: ignore[import-untyped]
+
+        user, server = group_jid.split("@", 1)
+        jid = build_jid(user, server=server)
+    except Exception:
+        # Fallback: pass the raw string and hope neonize accepts it
+        jid = group_jid  # type: ignore[assignment]
+
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, channel._client.send_message, jid, message)
+
+
+async def read_group_messages(*, group_jid: str, limit: int) -> list[str]:
+    """Return the last *limit* messages from a WhatsApp group, oldest first."""
+    from mee6.db.engine import AsyncSessionLocal
+    from mee6.db.repository import WhatsAppMessageRepository
+
+    async with AsyncSessionLocal() as session:
+        rows = await WhatsAppMessageRepository(session).get_recent_from_chat(group_jid, limit)
     return [row.text for row in rows]

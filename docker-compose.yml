@@ -28,7 +28,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ~/.config/agntrick:/home/mee6/.config/agntrick      # whatsapp.yaml, .agntrick.yaml, .mee6.conf + WA session
+      - ~/.config/agntrick:/home/mee6/.config/agntrick      # whatsapp.yaml, .agntrick.yaml, .mee6.conf
+      - mee6_storage:/home/mee6/storage                     # WhatsApp session + other runtime state
+      - ./data:/app/data                                    # credentials.json, browser profiles, etc.
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,3 +38,4 @@ services:
 
 volumes:
   postgres_data:
+  mee6_storage:

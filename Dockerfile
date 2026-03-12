@@ -23,6 +23,7 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 COPY mee6/ ./mee6/
+COPY db/ ./db/
 COPY .agntrick.yaml ./
 
 # Install Playwright browser binaries to a fixed path accessible by the mee6 user.
@@ -35,8 +36,8 @@ RUN /app/.venv/bin/python -m playwright install --with-deps chromium \
 # Create writable directories for mee6 user.
 # /home/mee6/.config is created here (owned by mee6) so that Docker doesn't
 # create it as root when bind-mounting a subdirectory (e.g. .config/agntrick).
-RUN mkdir -p /app/data /home/mee6/.config \
-    && chown mee6:mee6 /app/data /home/mee6/.config
+RUN mkdir -p /app/data /home/mee6/.config /home/mee6/storage \
+    && chown mee6:mee6 /app/data /home/mee6/.config /home/mee6/storage
 
 USER mee6
 

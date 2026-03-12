@@ -15,7 +15,7 @@ async def run_pipeline(pipeline: Pipeline) -> dict:
         if plugin is None:
             raise ValueError(f"Step {i}: unknown agent type {step.agent_type!r}")
         logger.info("pipeline %r: running step %d (%s)", pipeline.name, i, step.agent_type)
-        output = await plugin.run(step.config, previous_output=output)
+        output = await plugin.run(step.config, input=output)
     return {
         "summary": f"{len(pipeline.steps)} step(s) completed",
         "final_output": output,

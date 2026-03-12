@@ -7,6 +7,64 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Google Calendar integration**: Integrations page gains a Google Calendar card to
+  store named calendars (label + calendar ID + credentials file path). Backed by a new
+  `calendars` table (`db/migrations/002_calendars.sql`), `CalendarRow` model, and
+  `CalendarRepository`.
+- **`calendar_agent` pipeline step**: Anthropic tool-use agentic loop with four tools
+  (`list_events`, `create_event`, `update_event`, `delete_event`). The agent loops until
+  the model stops requesting tool calls, then returns a structured markdown summary with
+  sections for events created, updated, and removed. Invites attendees via the `attendees`
+  field on create/update; falls back gracefully to listing guests in the event description
+  when the service account lacks Domain-Wide Delegation.
+- **WhatsApp Group support**: incoming group messages are captured by wrapping agntrick's
+  `MessageEv` handler (key 17 in `event.list_func`) and routing `@g.us` JIDs to a
+  separate DB path (`chat_id` column on `whatsapp_messages`).
+- **`whatsapp_group_read` pipeline step**: reads the last N messages from a tracked group.
+- **`whatsapp_group_send` pipeline step**: sends a message to a WhatsApp group, bypassing
+  agntrick's DM-only normalisation by calling neonize directly with `build_jid(user, server="g.us")`.
+- **`wa_group` trigger type**: fires a pipeline when any message arrives in a tracked group.
+  Trigger is matched in real-time via `SchedulerEngine.check_wa_group_triggers()`.
+- **Group sync**: Integrations page gains a "Sync groups from WhatsApp" button that calls
+  `get_joined_groups()` and upserts results into a new `whatsapp_groups` table
+  (`db/migrations/003_wa_groups.sql`). Groups can be given a friendly label and deleted from
+  the UI.
+- **`group_select` and `calendar_select` field types** in the pipeline editor: render as
+  `<select>` with a hint span showing the underlying JID or calendar ID. Options are loaded
+  dynamically at render time via an async `get_fields()` method on the plugin.
+- **Placeholder system** (`mee6/pipelines/placeholders.py`): `{input}` (previous step
+  output), `{date}` (UTC date as `YYYY-MM-DD`), `{now}` (UTC ISO 8601 timestamp), plus
+  `{previous_output}` as a backward-compatible alias. Pipeline editor textarea fields show
+  an inline hint listing available placeholders.
+
+### Changed
+- `{previous_output}` renamed to `{input}` across all plugins and agent functions; the old
+  name still works as an alias so existing pipeline configs are unaffected.
+- Calendar agent and LLM agent prompts now resolve `{date}` / `{now}` before the API call,
+  giving the model accurate date context without relying on training knowledge.
+- `run()` signature across all plugins changed from `previous_output: str` to `input: str`.
+- Default placeholder in calendar agent prompt updated to
+  `"Today is {date}. Extract events from {input}, create them if they aren't already present."`.
+- `list_events` tool result now includes an `attendees` list so the agent can inspect
+  existing guests before deciding whether to update an event.
+
+### Fixed
+- `COPY db/ ./db/` added to Dockerfile: migration SQL files were never included in the
+  image, so `_migrate_db()` silently did nothing and schema changes were never applied.
+- `mee6_storage` named volume added for `/home/mee6/storage` so the WhatsApp neonize
+  session file survives container rebuilds.
+- Named volume ownership fixed: `mkdir -p /home/mee6/storage` and
+  `chown mee6:mee6 /home/mee6/storage` now run before `USER mee6` in the Dockerfile,
+  preventing Docker from initialising the volume as root and causing a `Permission denied`
+  error at runtime.
+- `./data:/app/data` bind mount added to `docker-compose.yml` so `credentials.json` and
+  other runtime files placed in `./data/` are accessible inside the container.
+- Google Calendar `file_cache` INFO log silenced by setting
+  `logging.getLogger("googleapiclient.discovery_cache")` to `ERROR` level.
+- Service account attendee 403: `HttpError` with reason `forbiddenForServiceAccounts` is
+  caught on create/update; the call is retried without the `attendees` field and a
+  `"Guests: …"` note is appended to the event description instead.
+
 - `whatsapp` trigger type: pipelines can now be triggered when a WhatsApp message is
   received from a configured phone number (E.164). The trigger type selector in the
   triggers UI switches between "Cron schedule" and "On WhatsApp message received",

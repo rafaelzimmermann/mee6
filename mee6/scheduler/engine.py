@@ -24,6 +24,7 @@ from mee6.db.engine import AsyncSessionLocal
 class TriggerType(str, Enum):
     CRON = "cron"
     WHATSAPP = "whatsapp"
+    WA_GROUP = "wa_group"
 
 
 @dataclass
@@ -49,8 +50,10 @@ class SchedulerEngine:
     def __init__(self) -> None:
         self._apscheduler = AsyncScheduler(data_store=MemoryDataStore())
         self._jobs: dict[str, TriggerMeta] = {}
-        # WA triggers indexed by job_id (subset of _jobs)
+        # WA DM triggers indexed by job_id (subset of _jobs)
         self._wa_triggers: dict[str, TriggerMeta] = {}
+        # WA group triggers indexed by job_id (subset of _jobs)
+        self._wa_group_triggers: dict[str, TriggerMeta] = {}
         self._runs: list[RunRecord] = []
         self._pending_run: dict[str, str] = {}
         self._exit_stack: AsyncExitStack | None = None
@@ -86,6 +89,8 @@ class SchedulerEngine:
                 self._jobs[row.id] = meta
                 if trigger_type == TriggerType.WHATSAPP:
                     self._wa_triggers[row.id] = meta
+                elif trigger_type == TriggerType.WA_GROUP:
+                    self._wa_group_triggers[row.id] = meta
                 else:
                     apscheduler_trigger = CronTrigger.from_crontab(row.cron_expr)
                     await self._apscheduler.add_schedule(
@@ -187,14 +192,51 @@ class SchedulerEngine:
             )
         return job_id
 
+    async def add_wa_group_trigger(
+        self,
+        pipeline_id: str,
+        pipeline_name: str,
+        group_jid: str,
+        *,
+        enabled: bool = True,
+    ) -> str:
+        from mee6.db.models import TriggerRow
+        from mee6.db.repository import TriggerRepository
+
+        job_id = str(uuid.uuid4())
+        config = {"group_jid": group_jid}
+        meta = TriggerMeta(
+            id=job_id,
+            pipeline_id=pipeline_id,
+            pipeline_name=pipeline_name,
+            enabled=enabled,
+            trigger_type=TriggerType.WA_GROUP,
+            config=config,
+        )
+        self._jobs[job_id] = meta
+        self._wa_group_triggers[job_id] = meta
+        async with AsyncSessionLocal() as session:
+            await TriggerRepository(session).upsert(
+                TriggerRow(
+                    id=job_id,
+                    pipeline_id=pipeline_id,
+                    pipeline_name=pipeline_name,
+                    trigger_type=TriggerType.WA_GROUP,
+                    config=config,
+                    enabled=enabled,
+                )
+            )
+        return job_id
+
     async def remove_trigger(self, job_id: str) -> None:
         from mee6.db.repository import TriggerRepository
 
         meta = self._jobs.get(job_id)
-        if meta and meta.trigger_type != TriggerType.WHATSAPP:
+        if meta and meta.trigger_type not in (TriggerType.WHATSAPP, TriggerType.WA_GROUP):
             await self._apscheduler.remove_schedule(job_id)
         self._jobs.pop(job_id, None)
         self._wa_triggers.pop(job_id, None)
+        self._wa_group_triggers.pop(job_id, None)
         async with AsyncSessionLocal() as session:
             await TriggerRepository(session).delete(job_id)
 
@@ -205,7 +247,7 @@ class SchedulerEngine:
         if meta is None:
             return
         meta.enabled = not meta.enabled
-        if meta.trigger_type != TriggerType.WHATSAPP:
+        if meta.trigger_type not in (TriggerType.WHATSAPP, TriggerType.WA_GROUP):
             if meta.enabled:
                 await self._apscheduler.unpause_schedule(job_id)
             else:
@@ -231,6 +273,23 @@ class SchedulerEngine:
             logger.info("check_wa_triggers: comparing %r == %r", trigger_phone, sender_norm)
             if trigger_phone == sender_norm:
                 logger.info("check_wa_triggers: match! dispatching pipeline %s", meta.pipeline_id)
+                asyncio.create_task(_dispatch_pipeline(pipeline_id=meta.pipeline_id))
+
+    def check_wa_group_triggers(self, chat_id: str) -> None:
+        """Called when a group message is stored. Dispatches matching enabled triggers."""
+        logger.info(
+            "check_wa_group_triggers: chat_id=%s, %d trigger(s) registered",
+            chat_id,
+            len(self._wa_group_triggers),
+        )
+        for meta in self._wa_group_triggers.values():
+            if not meta.enabled:
+                continue
+            if meta.config.get("group_jid", "") == chat_id:
+                logger.info(
+                    "check_wa_group_triggers: match! dispatching pipeline %s",
+                    meta.pipeline_id,
+                )
                 asyncio.create_task(_dispatch_pipeline(pipeline_id=meta.pipeline_id))
 
     def list_jobs(self) -> list[TriggerMeta]:

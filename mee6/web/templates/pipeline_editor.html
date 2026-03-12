@@ -109,7 +109,7 @@ document.getElementById('pipeline-form').addEventListener('submit', (e) => {
   document.querySelectorAll('.step-card').forEach((card, i) => {
     if (i >= steps.length) return;
     const config = {};
-    card.querySelectorAll('.step-fields input, .step-fields textarea').forEach(el => {
+    card.querySelectorAll('.step-fields input, .step-fields textarea, .step-fields select').forEach(el => {
       config[el.getAttribute('name')] = el.value;
     });
     steps[i].config = config;

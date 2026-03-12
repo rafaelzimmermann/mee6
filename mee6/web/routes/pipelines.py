@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from mee6.pipelines.models import Pipeline, PipelineStep
+from mee6.pipelines.placeholders import AVAILABLE as PLACEHOLDER_HINTS
 from mee6.pipelines.plugin_registry import AGENT_PLUGINS
 from mee6.pipelines.store import pipeline_store
 
@@ -100,8 +101,14 @@ async def get_agent_fields(
     if plugin is None:
         return HTMLResponse("")
     existing_config = json.loads(config)
+    fields = await plugin.get_fields() if hasattr(plugin, "get_fields") else plugin.fields
     return templates.TemplateResponse(
         request,
         "_agent_fields.html",
-        {"fields": plugin.fields, "step_index": step_index, "config": existing_config},
+        {
+            "fields": fields,
+            "step_index": step_index,
+            "config": existing_config,
+            "placeholder_hints": PLACEHOLDER_HINTS,
+        },
     )

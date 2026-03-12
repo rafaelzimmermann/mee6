@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
@@ -5,6 +6,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from mee6.config import settings
+from mee6.db.engine import AsyncSessionLocal
+from mee6.db.models import CalendarRow, WhatsAppGroupRow
+from mee6.db.repository import CalendarRepository, WhatsAppGroupRepository
 from mee6.integrations.whatsapp_session import wa_session
 from mee6.scheduler.engine import scheduler
 
@@ -21,12 +25,27 @@ def _wa_ctx() -> dict:
     }
 
 
+async def _wa_groups() -> list[WhatsAppGroupRow]:
+    async with AsyncSessionLocal() as session:
+        return await WhatsAppGroupRepository(session).list_all()
+
+
+async def _calendars() -> list[CalendarRow]:
+    async with AsyncSessionLocal() as session:
+        return await CalendarRepository(session).list_all()
+
+
 @router.get("", response_class=HTMLResponse)
 async def integrations_page(request: Request):
     return templates.TemplateResponse(
         request,
         "integrations.html",
-        {"active_count": scheduler.active_job_count(), **_wa_ctx()},
+        {
+            "active_count": scheduler.active_job_count(),
+            "wa_groups": await _wa_groups(),
+            "calendars": await _calendars(),
+            **_wa_ctx(),
+        },
     )
 
 
@@ -56,3 +75,64 @@ async def whatsapp_test(phone: str = Form(...)):
         return HTMLResponse(
             f'<span class="badge badge-error">Error: {exc}</span>'
         )
+
+
+@router.post("/whatsapp/groups/sync")
+async def sync_wa_groups():
+    """Fetch all groups from WhatsApp and upsert them into the local DB."""
+    from mee6.integrations.whatsapp import list_groups
+
+    try:
+        remote = await list_groups()
+    except Exception as exc:
+        # Surface errors as a redirect with a query param (simple, no flash system)
+        return RedirectResponse(f"/integrations?error={exc}", status_code=303)
+
+    async with AsyncSessionLocal() as session:
+        repo = WhatsAppGroupRepository(session)
+        for g in remote:
+            existing = await repo.get(g["jid"])
+            # Preserve user's custom label; fall back to WA group name
+            label = existing.label if existing and existing.label else g["name"]
+            await repo.upsert(
+                WhatsAppGroupRow(jid=g["jid"], name=g["name"], label=label)
+            )
+
+    return RedirectResponse("/integrations", status_code=303)
+
+
+@router.post("/whatsapp/groups/{jid:path}/label")
+async def update_wa_group_label(jid: str, label: str = Form(...)):
+    async with AsyncSessionLocal() as session:
+        await WhatsAppGroupRepository(session).update_label(jid, label.strip())
+    return RedirectResponse("/integrations", status_code=303)
+
+
+@router.post("/whatsapp/groups/{jid:path}/delete")
+async def delete_wa_group(jid: str):
+    async with AsyncSessionLocal() as session:
+        await WhatsAppGroupRepository(session).delete(jid)
+    return RedirectResponse("/integrations", status_code=303)
+
+
+@router.post("/calendars")
+async def create_calendar(
+    label: str = Form(...),
+    calendar_id: str = Form(...),
+):
+    row = CalendarRow(
+        id=str(uuid.uuid4()),
+        label=label.strip(),
+        calendar_id=calendar_id.strip(),
+        credentials_file=settings.google_credentials_file,
+    )
+    async with AsyncSessionLocal() as session:
+        await CalendarRepository(session).upsert(row)
+    return RedirectResponse("/integrations", status_code=303)
+
+
+@router.post("/calendars/{cal_id}/delete")
+async def delete_calendar(cal_id: str):
+    async with AsyncSessionLocal() as session:
+        await CalendarRepository(session).delete(cal_id)
+    return RedirectResponse("/integrations", status_code=303)

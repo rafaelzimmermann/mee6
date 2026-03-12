@@ -24,7 +24,8 @@
       <label>Type
         <select name="trigger_type" id="trigger_type" onchange="onTriggerTypeChange(this.value)">
           <option value="cron">Cron schedule</option>
-          <option value="whatsapp">On WhatsApp message received</option>
+          <option value="whatsapp">On WhatsApp DM received</option>
+          <option value="wa_group">On WhatsApp Group message received</option>
         </select>
       </label>
 
@@ -33,6 +34,16 @@
       </span>
       <span id="field-whatsapp" style="display:none">
         <label>Phone <input type="tel" name="phone" id="phone" placeholder="+34612345678"></label>
+      </span>
+      <span id="field-wa-group" style="display:none">
+        <label>Group
+          <select name="group_jid" id="group_jid">
+            <option value="">— select group —</option>
+            {% for g in wa_groups %}
+            <option value="{{ g.jid }}">{{ g.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
       </span>
 
       <label><input type="checkbox" name="enabled" value="true"> Enabled</label>
@@ -45,8 +56,10 @@
 function onTriggerTypeChange(type) {
   document.getElementById('field-cron').style.display = type === 'cron' ? '' : 'none';
   document.getElementById('field-whatsapp').style.display = type === 'whatsapp' ? '' : 'none';
+  document.getElementById('field-wa-group').style.display = type === 'wa_group' ? '' : 'none';
   document.getElementById('cron_expr').required = type === 'cron';
   document.getElementById('phone').required = type === 'whatsapp';
+  document.getElementById('group_jid').required = type === 'wa_group';
 }
 onTriggerTypeChange('cron');
 </script>
@@ -70,10 +83,17 @@ onTriggerTypeChange('cron');
       {% for job in jobs %}
       <tr>
         <td>{{ job.pipeline_name }}</td>
-        <td>{{ "WhatsApp" if job.trigger_type == TriggerType.WHATSAPP else "Cron" }}</td>
+        <td>
+          {%- if job.trigger_type == TriggerType.WHATSAPP -%}WhatsApp DM
+          {%- elif job.trigger_type == TriggerType.WA_GROUP -%}WhatsApp Group
+          {%- else -%}Cron
+          {%- endif -%}
+        </td>
         <td>
           {%- if job.trigger_type == TriggerType.WHATSAPP -%}
             {{ job.config.get("phone", "") }}
+          {%- elif job.trigger_type == TriggerType.WA_GROUP -%}
+            {{ job.config.get("group_jid", "") }}
           {%- else -%}
             {{ job.cron_expr }}
           {%- endif -%}
