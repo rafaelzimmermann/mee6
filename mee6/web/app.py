@@ -26,10 +26,26 @@ STATIC_DIR = Path(__file__).parent / "static"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
+async def _migrate_db() -> None:
+    """Apply additive schema migrations that create_all cannot handle."""
+    from sqlalchemy import text
+
+    migrations = [
+        # v2: trigger_type + config columns; cron_expr becomes nullable
+        "ALTER TABLE triggers ADD COLUMN IF NOT EXISTS trigger_type VARCHAR NOT NULL DEFAULT 'cron'",
+        "ALTER TABLE triggers ADD COLUMN IF NOT EXISTS config JSONB",
+        "ALTER TABLE triggers ALTER COLUMN cron_expr DROP NOT NULL",
+    ]
+    async with async_engine.begin() as conn:
+        for stmt in migrations:
+            await conn.execute(text(stmt))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await _migrate_db()
     await scheduler.start()
     # Reconnect WhatsApp in the background if a session file already exists.
     # connect() is a no-op if the config file is missing, so this is always safe.

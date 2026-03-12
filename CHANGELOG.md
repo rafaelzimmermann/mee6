@@ -7,6 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- `whatsapp` trigger type: pipelines can now be triggered when a WhatsApp message is
+  received from a configured phone number (E.164). The trigger type selector in the
+  triggers UI switches between "Cron schedule" and "On WhatsApp message received",
+  showing the appropriate field (cron expression or phone number). WA triggers are
+  stored in the DB with `trigger_type="whatsapp"` and `config={"phone": "..."}` and
+  are matched against incoming messages in real-time via `SchedulerEngine.check_wa_triggers`.
+- `TriggerType(str, Enum)` with `CRON` and `WHATSAPP` members replaces bare string
+  literals throughout `engine.py` and `routes/triggers.py`; extending with new trigger
+  types requires a single line addition to the enum.
+- `whatsapp_read` pipeline step type: reads the last N messages (1–10, configurable)
+  from a given phone number out of the local DB and passes them as text to the next step.
+- `WhatsAppMessageRow` DB model (`whatsapp_messages` table) and `WhatsAppMessageRepository`
+  persist every incoming text message so `whatsapp_read` can query recent history.
 - `llm_agent` pipeline step type: calls Anthropic or Ollama with a configurable
   prompt and returns the text response. When `{previous_output}` appears in the
   prompt template it is formatted inline; otherwise the previous step's output is
@@ -37,6 +50,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `browser-use` can write its config/profiles to a writable path.
 - `ANONYMIZED_TELEMETRY=false` in `docker-compose.yml` to disable `browser-use`'s
   PostHog telemetry (which blocks on DNS in restricted Docker networks).
+
+### Fixed
+- `_store_incoming` timestamp conversion: `msg.timestamp` from `agntrick_whatsapp` is a
+  Unix millisecond integer (e.g. `1773330464000`), not a `datetime`. Added an
+  `isinstance(int, float)` branch that divides by 1000; a follow-up fix strips `tzinfo`
+  before the DB insert because the `whatsapp_messages.timestamp` column is
+  `TIMESTAMP WITHOUT TIME ZONE`.
+- `_store_incoming` error visibility: replaced bare `except: pass` with
+  `logger.exception(...)` so DB and trigger errors are surfaced in logs instead of
+  being silently swallowed.
+- `_dispatch_pipeline` now logs exceptions via `logger.exception` in addition to storing
+  the error string as the run summary.
+- `TriggerRow` startup migration: `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements
+  in the app lifespan add `trigger_type` and `config` to existing `triggers` tables,
+  and make `cron_expr` nullable, without requiring Alembic.
 
 ### Changed
 - `PipelineStore` is now fully async and DB-backed; all `pipeline_store.*` call-sites

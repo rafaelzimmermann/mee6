@@ -58,3 +58,21 @@ async def send_notification(*, phone: str, message: str) -> None:
     """Send a WhatsApp text message to the given phone number (E.164 format)."""
     channel = await _get_channel()
     await channel.send(OutgoingMessage(text=message, recipient_id=phone))
+
+
+async def read_messages(*, phone: str, limit: int) -> list[str]:
+    """Return the last *limit* messages received from *phone* (E.164 or plain digits).
+
+    Messages are returned in chronological order (oldest first) as plain strings.
+    """
+    from mee6.db.engine import AsyncSessionLocal
+    from mee6.db.repository import WhatsAppMessageRepository
+
+    # Normalise: strip leading '+' so "+34…" and "34…" both match
+    sender = phone.lstrip("+")
+
+    async with AsyncSessionLocal() as session:
+        repo = WhatsAppMessageRepository(session)
+        rows = await repo.get_recent_from(sender, limit)
+
+    return [row.text for row in rows]

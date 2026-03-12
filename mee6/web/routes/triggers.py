@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from mee6.pipelines.store import pipeline_store
-from mee6.scheduler.engine import scheduler
+from mee6.scheduler.engine import TriggerType, scheduler
 
 router = APIRouter(prefix="/triggers")
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -19,7 +19,7 @@ async def list_triggers(request: Request):
     return templates.TemplateResponse(
         request,
         "triggers.html",
-        {"jobs": jobs, "active_count": active_count, "pipelines": pipelines},
+        {"jobs": jobs, "active_count": active_count, "pipelines": pipelines, "TriggerType": TriggerType},
     )
 
 
@@ -27,10 +27,15 @@ async def list_triggers(request: Request):
 async def create_trigger(
     pipeline_id: str = Form(...),
     pipeline_name: str = Form(...),
-    cron_expr: str = Form(...),
+    trigger_type: TriggerType = Form(TriggerType.CRON),
+    cron_expr: str = Form(""),
+    phone: str = Form(""),
     enabled: bool = Form(False),
 ):
-    await scheduler.add_trigger(pipeline_id, pipeline_name, cron_expr, enabled=enabled)
+    if trigger_type == TriggerType.WHATSAPP:
+        await scheduler.add_whatsapp_trigger(pipeline_id, pipeline_name, phone, enabled=enabled)
+    else:
+        await scheduler.add_trigger(pipeline_id, pipeline_name, cron_expr, enabled=enabled)
     return RedirectResponse("/triggers", status_code=303)
 
 

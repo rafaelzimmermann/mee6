@@ -16,10 +16,34 @@
     </select>
   </label>
   <input type="hidden" id="pname" name="pipeline_name">
-  <label>Cron <input type="text" name="cron_expr" placeholder="0 8 * * *" required></label>
+
+  <label>Trigger type
+    <select name="trigger_type" id="trigger_type" onchange="onTriggerTypeChange(this.value)">
+      <option value="cron">Cron schedule</option>
+      <option value="whatsapp">On WhatsApp message received</option>
+    </select>
+  </label>
+
+  <span id="field-cron">
+    <label>Cron <input type="text" name="cron_expr" id="cron_expr" placeholder="0 8 * * *"></label>
+  </span>
+  <span id="field-whatsapp" style="display:none">
+    <label>Phone (E.164) <input type="tel" name="phone" id="phone" placeholder="+34612345678"></label>
+  </span>
+
   <label><input type="checkbox" name="enabled" value="true"> Enabled</label>
   <button type="submit">Add</button>
 </form>
+
+<script>
+function onTriggerTypeChange(type) {
+  document.getElementById('field-cron').style.display = type === 'cron' ? '' : 'none';
+  document.getElementById('field-whatsapp').style.display = type === 'whatsapp' ? '' : 'none';
+  document.getElementById('cron_expr').required = type === 'cron';
+  document.getElementById('phone').required = type === 'whatsapp';
+}
+onTriggerTypeChange('cron');
+</script>
 {% else %}
 <p><a href="/pipelines/new">Create a pipeline</a> first, then come back to schedule it.</p>
 {% endif %}
@@ -29,7 +53,8 @@
   <thead>
     <tr>
       <th>Pipeline</th>
-      <th>Schedule</th>
+      <th>Type</th>
+      <th>Schedule / Config</th>
       <th>Enabled</th>
       <th>Actions</th>
     </tr>
@@ -38,7 +63,14 @@
     {% for job in jobs %}
     <tr>
       <td>{{ job.pipeline_name }}</td>
-      <td>{{ job.cron_expr }}</td>
+      <td>{{ "WhatsApp" if job.trigger_type == TriggerType.WHATSAPP else "Cron" }}</td>
+      <td>
+        {%- if job.trigger_type == TriggerType.WHATSAPP -%}
+          {{ job.config.get("phone", "") }}
+        {%- else -%}
+          {{ job.cron_expr }}
+        {%- endif -%}
+      </td>
       <td>{{ "Yes" if job.enabled else "No" }}</td>
       <td>
         <form method="post" action="/triggers/{{ job.id }}/toggle" style="display:inline">
@@ -53,7 +85,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="4">No triggers configured.</td></tr>
+    <tr><td colspan="5">No triggers configured.</td></tr>
     {% endfor %}
   </tbody>
 </table>

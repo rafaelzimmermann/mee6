@@ -3,7 +3,7 @@ from mee6.pipelines.base import FieldSchema
 
 class WhatsAppAgentPlugin:
     name = "whatsapp_agent"
-    label = "WhatsApp Agent"
+    label = "WhatsApp Send"
     fields = [
         FieldSchema(
             name="phone",
@@ -27,4 +27,4 @@ class WhatsAppAgentPlugin:
             {"previous_output": previous_output}
         )
         await send_notification(phone=phone, message=message)
-        return message
+        return f"WhatsApp message sent to {phone} Body: {message}"

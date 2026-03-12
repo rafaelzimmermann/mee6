@@ -5,10 +5,14 @@ Run records are written to PostgreSQL and cached in memory for the current sessi
 """
 
 import asyncio
+import logging
 import uuid
 from contextlib import AsyncExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 from apscheduler import AsyncScheduler
 from apscheduler.datastores.memory import MemoryDataStore
@@ -17,13 +21,20 @@ from apscheduler.triggers.cron import CronTrigger
 from mee6.db.engine import AsyncSessionLocal
 
 
+class TriggerType(str, Enum):
+    CRON = "cron"
+    WHATSAPP = "whatsapp"
+
+
 @dataclass
 class TriggerMeta:
     id: str
     pipeline_id: str
     pipeline_name: str
-    cron_expr: str
     enabled: bool
+    trigger_type: TriggerType = TriggerType.CRON
+    cron_expr: str | None = None
+    config: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -38,6 +49,8 @@ class SchedulerEngine:
     def __init__(self) -> None:
         self._apscheduler = AsyncScheduler(data_store=MemoryDataStore())
         self._jobs: dict[str, TriggerMeta] = {}
+        # WA triggers indexed by job_id (subset of _jobs)
+        self._wa_triggers: dict[str, TriggerMeta] = {}
         self._runs: list[RunRecord] = []
         self._pending_run: dict[str, str] = {}
         self._exit_stack: AsyncExitStack | None = None
@@ -59,21 +72,29 @@ class SchedulerEngine:
 
         async with AsyncSessionLocal() as session:
             for row in await TriggerRepository(session).list_all():
-                trigger = CronTrigger.from_crontab(row.cron_expr)
-                await self._apscheduler.add_schedule(
-                    _dispatch_pipeline,
-                    trigger,
-                    id=row.id,
-                    kwargs={"pipeline_id": row.pipeline_id},
-                    paused=not row.enabled,
-                )
-                self._jobs[row.id] = TriggerMeta(
+                trigger_type = TriggerType(getattr(row, "trigger_type", None) or TriggerType.CRON)
+                config = getattr(row, "config", None) or {}
+                meta = TriggerMeta(
                     id=row.id,
                     pipeline_id=row.pipeline_id,
                     pipeline_name=row.pipeline_name,
-                    cron_expr=row.cron_expr,
                     enabled=row.enabled,
+                    trigger_type=trigger_type,
+                    cron_expr=row.cron_expr,
+                    config=config,
                 )
+                self._jobs[row.id] = meta
+                if trigger_type == TriggerType.WHATSAPP:
+                    self._wa_triggers[row.id] = meta
+                else:
+                    apscheduler_trigger = CronTrigger.from_crontab(row.cron_expr)
+                    await self._apscheduler.add_schedule(
+                        _dispatch_pipeline,
+                        apscheduler_trigger,
+                        id=row.id,
+                        kwargs={"pipeline_id": row.pipeline_id},
+                        paused=not row.enabled,
+                    )
 
         async with AsyncSessionLocal() as session:
             rows = await RunRecordRepository(session).list_recent(200)
@@ -100,28 +121,67 @@ class SchedulerEngine:
         from mee6.db.repository import TriggerRepository
 
         job_id = str(uuid.uuid4())
-        trigger = CronTrigger.from_crontab(cron_expr)
+        apscheduler_trigger = CronTrigger.from_crontab(cron_expr)
         await self._apscheduler.add_schedule(
             _dispatch_pipeline,
-            trigger,
+            apscheduler_trigger,
             id=job_id,
             kwargs={"pipeline_id": pipeline_id},
             paused=not enabled,
         )
-        self._jobs[job_id] = TriggerMeta(
+        meta = TriggerMeta(
             id=job_id,
             pipeline_id=pipeline_id,
             pipeline_name=pipeline_name,
-            cron_expr=cron_expr,
             enabled=enabled,
+            trigger_type=TriggerType.CRON,
+            cron_expr=cron_expr,
         )
+        self._jobs[job_id] = meta
         async with AsyncSessionLocal() as session:
             await TriggerRepository(session).upsert(
                 TriggerRow(
                     id=job_id,
                     pipeline_id=pipeline_id,
                     pipeline_name=pipeline_name,
+                    trigger_type=TriggerType.CRON,
                     cron_expr=cron_expr,
+                    enabled=enabled,
+                )
+            )
+        return job_id
+
+    async def add_whatsapp_trigger(
+        self,
+        pipeline_id: str,
+        pipeline_name: str,
+        phone: str,
+        *,
+        enabled: bool = True,
+    ) -> str:
+        from mee6.db.models import TriggerRow
+        from mee6.db.repository import TriggerRepository
+
+        job_id = str(uuid.uuid4())
+        config = {"phone": phone}
+        meta = TriggerMeta(
+            id=job_id,
+            pipeline_id=pipeline_id,
+            pipeline_name=pipeline_name,
+            enabled=enabled,
+            trigger_type=TriggerType.WHATSAPP,
+            config=config,
+        )
+        self._jobs[job_id] = meta
+        self._wa_triggers[job_id] = meta
+        async with AsyncSessionLocal() as session:
+            await TriggerRepository(session).upsert(
+                TriggerRow(
+                    id=job_id,
+                    pipeline_id=pipeline_id,
+                    pipeline_name=pipeline_name,
+                    trigger_type=TriggerType.WHATSAPP,
+                    config=config,
                     enabled=enabled,
                 )
             )
@@ -130,8 +190,11 @@ class SchedulerEngine:
     async def remove_trigger(self, job_id: str) -> None:
         from mee6.db.repository import TriggerRepository
 
-        await self._apscheduler.remove_schedule(job_id)
+        meta = self._jobs.get(job_id)
+        if meta and meta.trigger_type != TriggerType.WHATSAPP:
+            await self._apscheduler.remove_schedule(job_id)
         self._jobs.pop(job_id, None)
+        self._wa_triggers.pop(job_id, None)
         async with AsyncSessionLocal() as session:
             await TriggerRepository(session).delete(job_id)
 
@@ -141,12 +204,12 @@ class SchedulerEngine:
         meta = self._jobs.get(job_id)
         if meta is None:
             return
-        if meta.enabled:
-            await self._apscheduler.pause_schedule(job_id)
-            meta.enabled = False
-        else:
-            await self._apscheduler.unpause_schedule(job_id)
-            meta.enabled = True
+        meta.enabled = not meta.enabled
+        if meta.trigger_type != TriggerType.WHATSAPP:
+            if meta.enabled:
+                await self._apscheduler.unpause_schedule(job_id)
+            else:
+                await self._apscheduler.pause_schedule(job_id)
         async with AsyncSessionLocal() as session:
             await TriggerRepository(session).set_enabled(job_id, enabled=meta.enabled)
 
@@ -155,6 +218,20 @@ class SchedulerEngine:
         if meta is None:
             return
         asyncio.create_task(_dispatch_pipeline(pipeline_id=meta.pipeline_id))
+
+    def check_wa_triggers(self, sender: str) -> None:
+        """Called when an incoming WA message is stored.  Dispatches any matching enabled triggers."""
+        # sender is digits-only (no '+').  Trigger phone may have a leading '+'.
+        sender_norm = sender.lstrip("+")
+        logger.info("check_wa_triggers: sender=%s, %d wa_trigger(s) registered", sender_norm, len(self._wa_triggers))
+        for meta in self._wa_triggers.values():
+            if not meta.enabled:
+                continue
+            trigger_phone = meta.config.get("phone", "").lstrip("+")
+            logger.info("check_wa_triggers: comparing %r == %r", trigger_phone, sender_norm)
+            if trigger_phone == sender_norm:
+                logger.info("check_wa_triggers: match! dispatching pipeline %s", meta.pipeline_id)
+                asyncio.create_task(_dispatch_pipeline(pipeline_id=meta.pipeline_id))
 
     def list_jobs(self) -> list[TriggerMeta]:
         return list(self._jobs.values())
@@ -219,6 +296,7 @@ async def _dispatch_pipeline(pipeline_id: str) -> None:
         result = await run_pipeline(pipeline)
         status, summary = "success", result["summary"]
     except Exception as exc:
+        logger.exception("Pipeline '%s' failed", pipeline.name)
         status, summary = "error", str(exc)
 
     scheduler._record_run_end(pipeline.name, status, summary)

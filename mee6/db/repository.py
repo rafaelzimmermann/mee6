@@ -1,7 +1,7 @@
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mee6.db.models import PipelineRow, RunRecordRow, TriggerRow
+from mee6.db.models import PipelineRow, RunRecordRow, TriggerRow, WhatsAppMessageRow
 
 
 class PipelineRepository:
@@ -63,3 +63,24 @@ class RunRecordRepository:
             select(RunRecordRow).order_by(RunRecordRow.timestamp.desc()).limit(limit)
         )
         return list(result.scalars())
+
+
+class WhatsAppMessageRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def insert(self, row: WhatsAppMessageRow) -> None:
+        self._s.add(row)
+        await self._s.commit()
+
+    async def get_recent_from(self, sender: str, limit: int) -> list[WhatsAppMessageRow]:
+        """Return the most recent *limit* messages from *sender*, oldest first."""
+        result = await self._s.execute(
+            select(WhatsAppMessageRow)
+            .where(WhatsAppMessageRow.sender == sender)
+            .order_by(WhatsAppMessageRow.timestamp.desc())
+            .limit(limit)
+        )
+        rows = list(result.scalars())
+        rows.reverse()  # return chronological order
+        return rows

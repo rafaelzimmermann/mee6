@@ -9,9 +9,12 @@ covers the edge case where it doesn't).
 
 import asyncio
 import io
+import logging
 import time
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class WAStatus(str, Enum):
@@ -94,12 +97,50 @@ class WhatsAppSession:
             pass
 
         # --- Start listen() in the background ---
-        async def _noop_incoming(_msg: Any) -> None:
-            pass
+        async def _store_incoming(msg: Any) -> None:
+            """Persist each incoming message to the DB for later retrieval."""
+            try:
+                from datetime import datetime, timezone
+
+                from mee6.db.engine import AsyncSessionLocal
+                from mee6.db.models import WhatsAppMessageRow
+                from mee6.db.repository import WhatsAppMessageRepository
+
+                # sender_id arrives as "34612345678@s.whatsapp.net" or plain number
+                raw_sender: str = getattr(msg, "sender_id", "") or ""
+                sender = raw_sender.split("@")[0].lstrip("+")
+
+                ts = getattr(msg, "timestamp", None)
+                if ts is None:
+                    ts = datetime.now(timezone.utc)
+                elif isinstance(ts, (int, float)):
+                    # Millisecond Unix timestamp (e.g. 1773330464000)
+                    ts = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+                elif hasattr(ts, "timestamp"):
+                    ts = datetime.fromtimestamp(ts.timestamp(), tz=timezone.utc)
+
+                text: str = getattr(msg, "text", "") or ""
+                logger.info("Incoming WA message from %s: text=%r (attrs: %s)", sender, text[:60] if text else "", [a for a in dir(msg) if not a.startswith("_")])
+                if not text:
+                    return  # skip non-text messages (audio, etc.)
+
+                # Column is TIMESTAMP WITHOUT TIME ZONE — store naive UTC
+                ts_naive = ts.replace(tzinfo=None) if ts.tzinfo is not None else ts
+                async with AsyncSessionLocal() as session:
+                    repo = WhatsAppMessageRepository(session)
+                    await repo.insert(WhatsAppMessageRow(sender=sender, text=text, timestamp=ts_naive))
+
+                # Fire any matching WA triggers (import here to avoid circular imports)
+                from mee6.scheduler.engine import scheduler
+
+                logger.info("Checking WA triggers for sender=%s", sender)
+                scheduler.check_wa_triggers(sender)
+            except Exception:
+                logger.exception("Error in _store_incoming")  # never crash the listen loop
 
         async def _run_listen() -> None:
             try:
-                await channel.listen(_noop_incoming)
+                await channel.listen(_store_incoming)
             except Exception as exc:
                 if self.status not in (WAStatus.CONNECTED,):
                     self.status = WAStatus.ERROR
