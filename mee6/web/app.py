@@ -27,18 +27,24 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 async def _migrate_db() -> None:
-    """Apply additive schema migrations that create_all cannot handle."""
+    """Run every SQL file in db/migrations/ in sorted order.
+
+    Migration files must be idempotent (use IF NOT EXISTS / DROP IF EXISTS etc.)
+    so they are safe to re-execute on every startup without a migrations table.
+    """
     from sqlalchemy import text
 
-    migrations = [
-        # v2: trigger_type + config columns; cron_expr becomes nullable
-        "ALTER TABLE triggers ADD COLUMN IF NOT EXISTS trigger_type VARCHAR NOT NULL DEFAULT 'cron'",
-        "ALTER TABLE triggers ADD COLUMN IF NOT EXISTS config JSONB",
-        "ALTER TABLE triggers ALTER COLUMN cron_expr DROP NOT NULL",
-    ]
+    migrations_dir = Path(__file__).parent.parent.parent / "db" / "migrations"
+    sql_files = sorted(migrations_dir.glob("*.sql"))
+
     async with async_engine.begin() as conn:
-        for stmt in migrations:
-            await conn.execute(text(stmt))
+        for sql_file in sql_files:
+            for stmt in sql_file.read_text().split(";"):
+                stmt = stmt.strip()
+                # skip blank lines and comment-only blocks
+                meaningful = [l for l in stmt.splitlines() if l.strip() and not l.strip().startswith("--")]
+                if meaningful:
+                    await conn.execute(text(stmt))
 
 
 @asynccontextmanager

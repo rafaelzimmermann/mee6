@@ -32,13 +32,6 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_default_model: str = "llama3"
 
-    # browser-agent task — the instruction given to browser-use on each run
-    browser_agent_task: str = (
-        "Go to the school app, log in, fetch the calendar page, and return all upcoming events "
-        "as a JSON array with fields: title, date (YYYY-MM-DD), time (HH:MM or empty), "
-        "description, type (holiday|meeting|activity|exam|other)."
-    )
-
     # PostgreSQL connection URL (asyncpg driver)
     database_url: str = "postgresql+asyncpg://mee6:mee6@localhost:5432/mee6"
 
