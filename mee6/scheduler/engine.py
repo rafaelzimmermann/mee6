@@ -9,7 +9,7 @@ import logging
 import uuid
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -118,111 +118,49 @@ class SchedulerEngine:
         self,
         pipeline_id: str,
         pipeline_name: str,
-        cron_expr: str,
+        cron_expr: str | None = None,
         *,
+        trigger_type: TriggerType = TriggerType.CRON,
+        config: dict | None = None,
         enabled: bool = True,
     ) -> str:
         from mee6.db.models import TriggerRow
         from mee6.db.repository import TriggerRepository
 
         job_id = str(uuid.uuid4())
-        apscheduler_trigger = CronTrigger.from_crontab(cron_expr)
-        await self._apscheduler.add_schedule(
-            _dispatch_pipeline,
-            apscheduler_trigger,
-            id=job_id,
-            kwargs={"pipeline_id": pipeline_id},
-            paused=not enabled,
-        )
+        cfg = config or {}
         meta = TriggerMeta(
             id=job_id,
             pipeline_id=pipeline_id,
             pipeline_name=pipeline_name,
             enabled=enabled,
-            trigger_type=TriggerType.CRON,
+            trigger_type=trigger_type,
             cron_expr=cron_expr,
+            config=cfg,
         )
         self._jobs[job_id] = meta
+        if trigger_type == TriggerType.WHATSAPP:
+            self._wa_triggers[job_id] = meta
+        elif trigger_type == TriggerType.WA_GROUP:
+            self._wa_group_triggers[job_id] = meta
+        else:
+            apscheduler_trigger = CronTrigger.from_crontab(cron_expr)
+            await self._apscheduler.add_schedule(
+                _dispatch_pipeline,
+                apscheduler_trigger,
+                id=job_id,
+                kwargs={"pipeline_id": pipeline_id},
+                paused=not enabled,
+            )
         async with AsyncSessionLocal() as session:
             await TriggerRepository(session).upsert(
                 TriggerRow(
                     id=job_id,
                     pipeline_id=pipeline_id,
                     pipeline_name=pipeline_name,
-                    trigger_type=TriggerType.CRON,
+                    trigger_type=trigger_type,
                     cron_expr=cron_expr,
-                    enabled=enabled,
-                )
-            )
-        return job_id
-
-    async def add_whatsapp_trigger(
-        self,
-        pipeline_id: str,
-        pipeline_name: str,
-        phone: str,
-        *,
-        enabled: bool = True,
-    ) -> str:
-        from mee6.db.models import TriggerRow
-        from mee6.db.repository import TriggerRepository
-
-        job_id = str(uuid.uuid4())
-        config = {"phone": phone}
-        meta = TriggerMeta(
-            id=job_id,
-            pipeline_id=pipeline_id,
-            pipeline_name=pipeline_name,
-            enabled=enabled,
-            trigger_type=TriggerType.WHATSAPP,
-            config=config,
-        )
-        self._jobs[job_id] = meta
-        self._wa_triggers[job_id] = meta
-        async with AsyncSessionLocal() as session:
-            await TriggerRepository(session).upsert(
-                TriggerRow(
-                    id=job_id,
-                    pipeline_id=pipeline_id,
-                    pipeline_name=pipeline_name,
-                    trigger_type=TriggerType.WHATSAPP,
-                    config=config,
-                    enabled=enabled,
-                )
-            )
-        return job_id
-
-    async def add_wa_group_trigger(
-        self,
-        pipeline_id: str,
-        pipeline_name: str,
-        group_jid: str,
-        *,
-        enabled: bool = True,
-    ) -> str:
-        from mee6.db.models import TriggerRow
-        from mee6.db.repository import TriggerRepository
-
-        job_id = str(uuid.uuid4())
-        config = {"group_jid": group_jid}
-        meta = TriggerMeta(
-            id=job_id,
-            pipeline_id=pipeline_id,
-            pipeline_name=pipeline_name,
-            enabled=enabled,
-            trigger_type=TriggerType.WA_GROUP,
-            config=config,
-        )
-        self._jobs[job_id] = meta
-        self._wa_group_triggers[job_id] = meta
-        async with AsyncSessionLocal() as session:
-            await TriggerRepository(session).upsert(
-                TriggerRow(
-                    id=job_id,
-                    pipeline_id=pipeline_id,
-                    pipeline_name=pipeline_name,
-                    trigger_type=TriggerType.WA_GROUP,
-                    config=config,
+                    config=cfg,
                     enabled=enabled,
                 )
             )
@@ -273,6 +211,21 @@ class SchedulerEngine:
                 logger.info("%s: match! dispatching pipeline %s", label, meta.pipeline_id)
                 asyncio.create_task(_dispatch_pipeline(pipeline_id=meta.pipeline_id))
 
+    def has_wa_trigger(self, sender: str) -> bool:
+        """Return True if there is at least one enabled WA DM trigger matching *sender*."""
+        sender_norm = sender.lstrip("+")
+        return any(
+            meta.enabled and meta.config.get("phone", "").lstrip("+") == sender_norm
+            for meta in self._wa_triggers.values()
+        )
+
+    def has_wa_group_trigger(self, group_jid: str) -> bool:
+        """Return True if there is at least one enabled WA group trigger matching *group_jid*."""
+        return any(
+            meta.enabled and meta.config.get("group_jid", "") == group_jid
+            for meta in self._wa_group_triggers.values()
+        )
+
     def check_wa_triggers(self, sender: str) -> None:
         """Called when an incoming WA DM is stored. Dispatches any matching enabled triggers."""
         # sender is digits-only (no '+').  Trigger phone may have a leading '+'.
@@ -300,10 +253,10 @@ class SchedulerEngine:
         return list(reversed(self._runs[-limit:]))
 
     def _record_run_start(self, pipeline_id: str) -> None:
-        self._pending_run[pipeline_id] = datetime.now().isoformat(timespec="seconds")
+        self._pending_run[pipeline_id] = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     def _record_run_end(self, pipeline_id: str, pipeline_name: str, status: str, summary: str) -> None:
-        ts = self._pending_run.pop(pipeline_id, datetime.now().isoformat(timespec="seconds"))
+        ts = self._pending_run.pop(pipeline_id, datetime.now(timezone.utc).isoformat(timespec="seconds"))
         self._runs.append(
             RunRecord(pipeline_name=pipeline_name, timestamp=ts, status=status, summary=summary)
         )
@@ -323,11 +276,14 @@ async def _db_write_run(
     from mee6.db.models import RunRecordRow
 
     async with AsyncSessionLocal() as session:
+        ts_aware = datetime.fromisoformat(timestamp)
+        # DB column is TIMESTAMP WITHOUT TIME ZONE — store naive UTC
+        ts_naive = ts_aware.replace(tzinfo=None) if ts_aware.tzinfo is not None else ts_aware
         session.add(
             RunRecordRow(
                 pipeline_id=pipeline_id,
                 pipeline_name=pipeline_name,
-                timestamp=datetime.fromisoformat(timestamp),
+                timestamp=ts_naive,
                 status=status,
                 summary=summary,
             )
@@ -343,14 +299,14 @@ async def _dispatch_pipeline(pipeline_id: str) -> None:
     pipeline = await pipeline_store.get(pipeline_id)
     if pipeline is None:
         msg = f"Pipeline '{pipeline_id}' not found"
-        ts = datetime.now().isoformat(timespec="seconds")
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
         scheduler._record_run_end(pipeline_id, "error", msg)
         await _db_write_run(pipeline_id, pipeline_id, "error", msg, ts)
         return
 
     scheduler._record_run_start(pipeline.id)
     # Capture timestamp before any awaits
-    ts = scheduler._pending_run.get(pipeline.id, datetime.now().isoformat(timespec="seconds"))
+    ts = scheduler._pending_run.get(pipeline.id, datetime.now(timezone.utc).isoformat(timespec="seconds"))
     try:
         result = await run_pipeline(pipeline)
         status, summary = "success", result["summary"]

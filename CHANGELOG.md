@@ -6,7 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+- **WhatsApp message filtering** — DM and group messages are now silently discarded
+  unless there is at least one **enabled** trigger configured for the sender/group.
+  No content is logged or persisted to the database for unrecognised senders.
+  Implemented via `SchedulerEngine.has_wa_trigger(sender)` and
+  `has_wa_group_trigger(group_jid)` predicates wired into `WhatsAppSession.connect()`
+  as `on_dm_allowed` / `on_group_allowed` callbacks.
+
 ### Changed
+- **Phase 3 refactoring** — architecture and maintainability improvements:
+  - **C-1 — Decouple session from scheduler**: `WhatsAppSession.connect()` now
+    accepts `on_dm`, `on_group`, `on_dm_allowed`, and `on_group_allowed` callbacks
+    instead of importing `scheduler` directly; callbacks are passed from `app.py`
+    lifespan, eliminating an integration → scheduler dependency cycle.
+  - **E-6 — Step timeout**: `pipeline_step_timeout_s: int = 300` added to `Settings`;
+    each pipeline step is wrapped in `asyncio.wait_for(…, timeout=…)` in `executor.py`;
+    a hung LLM or browser call is now terminated with a descriptive `TimeoutError`.
+  - **M-2 — Timezone-aware datetimes**: all `datetime.now()` calls in
+    `scheduler/engine.py` replaced with `datetime.now(timezone.utc)`; `_db_write_run`
+    strips `tzinfo` before writing to the `TIMESTAMP WITHOUT TIME ZONE` column.
+  - **M-1 — Lazy DB initialisation**: `db/engine.py` no longer creates the SQLAlchemy
+    engine at import time; `get_engine()` and `AsyncSessionLocal()` are lazy functions
+    that initialise on first call, making unit tests easier to set up without a live DB.
+  - **P-2 — Unified trigger creation**: the three separate `add_trigger`,
+    `add_whatsapp_trigger`, and `add_wa_group_trigger` methods on `SchedulerEngine` are
+    merged into one `add_trigger(pipeline_id, pipeline_name, cron_expr=None, *, trigger_type, config, enabled)`;
+    the route builds a type-specific `config` dict and calls the single method.
 - **Phase 1 refactoring** — constants, deduplication, and low-risk cleanups:
   - Named all magic values: `_NEONIZE_MESSAGE_EV_CODE`, `_MAX_RUN_HISTORY`,
     `_QR_EXPIRY_TIMEOUT_S`, `_MONITOR_POLL_INTERVAL_S`, `_RECONNECT_DELAY_S`;

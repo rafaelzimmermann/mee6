@@ -41,11 +41,19 @@ async def create_trigger(
     enabled: bool = Form(False),
 ):
     if trigger_type == TriggerType.WHATSAPP:
-        await scheduler.add_whatsapp_trigger(pipeline_id, pipeline_name, phone, enabled=enabled)
+        config: dict = {"phone": phone}
     elif trigger_type == TriggerType.WA_GROUP:
-        await scheduler.add_wa_group_trigger(pipeline_id, pipeline_name, group_jid, enabled=enabled)
+        config = {"group_jid": group_jid}
     else:
-        await scheduler.add_trigger(pipeline_id, pipeline_name, cron_expr, enabled=enabled)
+        config = {}
+    await scheduler.add_trigger(
+        pipeline_id,
+        pipeline_name,
+        cron_expr or None,
+        trigger_type=trigger_type,
+        config=config,
+        enabled=enabled,
+    )
     return RedirectResponse("/triggers", status_code=303)
 
 

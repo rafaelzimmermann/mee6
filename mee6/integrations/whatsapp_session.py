@@ -11,6 +11,7 @@ import asyncio
 import io
 import logging
 import time
+from collections.abc import Callable
 from enum import Enum
 from typing import Any
 
@@ -57,6 +58,10 @@ class WhatsAppSession:
         self._qr_data: bytes | None = None
         self._qr_updated_at: float = 0.0
         self.error: str | None = None
+        self._on_dm: Callable[[str], None] | None = None
+        self._on_group: Callable[[str], None] | None = None
+        self._on_dm_allowed: Callable[[str], bool] | None = None
+        self._on_group_allowed: Callable[[str], bool] | None = None
 
     def get_qr_svg(self) -> str | None:
         if self._qr_data is None:
@@ -76,12 +81,22 @@ class WhatsAppSession:
             logger.warning("Failed to render QR code as SVG", exc_info=True)
             return None
 
-    async def connect(self) -> None:
+    async def connect(
+        self,
+        on_dm: "Callable[[str], None] | None" = None,
+        on_group: "Callable[[str], None] | None" = None,
+        on_dm_allowed: "Callable[[str], bool] | None" = None,
+        on_group_allowed: "Callable[[str], bool] | None" = None,
+    ) -> None:
         if self.status in (WAStatus.CONNECTING, WAStatus.PENDING_QR, WAStatus.CONNECTED):
             return
 
         from mee6.integrations.whatsapp import _get_channel
 
+        self._on_dm = on_dm
+        self._on_group = on_group
+        self._on_dm_allowed = on_dm_allowed
+        self._on_group_allowed = on_group_allowed
         self.status = WAStatus.CONNECTING
         self.error = None
         self._qr_data = None
@@ -146,18 +161,18 @@ class WhatsAppSession:
                 # Column is TIMESTAMP WITHOUT TIME ZONE — store naive UTC
                 ts_naive = ts.replace(tzinfo=None) if ts.tzinfo is not None else ts
                 text: str = getattr(msg, "text", "") or ""
-                logger.info("Incoming WA message from %s: text=%r (attrs: %s)", sender, text[:60] if text else "", [a for a in dir(msg) if not a.startswith("_")])
                 if not text:
                     return  # skip non-text messages (audio, etc.)
+                if self._on_dm_allowed and not self._on_dm_allowed(sender):
+                    return  # no enabled trigger for this sender — ignore silently
+                logger.info("Incoming WA message from %s: text=%r", sender, text[:60])
                 async with AsyncSessionLocal() as session:
                     repo = WhatsAppMessageRepository(session)
                     await repo.insert(WhatsAppMessageRow(sender=sender, text=text, timestamp=ts_naive))
 
-                # Fire any matching WA triggers (import here to avoid circular imports)
-                from mee6.scheduler.engine import scheduler
-
                 logger.info("Checking WA triggers for sender=%s", sender)
-                scheduler.check_wa_triggers(sender)
+                if self._on_dm:
+                    self._on_dm(sender)
             except Exception:
                 logger.exception("Error in _store_incoming")  # never crash the listen loop
 
@@ -168,9 +183,10 @@ class WhatsAppSession:
                 from mee6.db.models import WhatsAppMessageRow
                 from mee6.db.repository import WhatsAppMessageRepository
 
+                if self._on_group_allowed and not self._on_group_allowed(chat_jid):
+                    return  # no enabled trigger for this group — ignore silently
                 ts = _parse_wa_timestamp(ts_raw)
                 ts_naive = ts.replace(tzinfo=None) if ts.tzinfo is not None else ts
-                # sender is unknown for group messages captured this way; use empty string
                 logger.info("Group message in %s: %r", chat_jid, text[:60])
                 async with AsyncSessionLocal() as session:
                     await WhatsAppMessageRepository(session).insert(
@@ -182,9 +198,8 @@ class WhatsAppSession:
                         )
                     )
 
-                from mee6.scheduler.engine import scheduler
-
-                scheduler.check_wa_group_triggers(chat_jid)
+                if self._on_group:
+                    self._on_group(chat_jid)
             except Exception:
                 logger.exception("Error in _store_group_message")
 

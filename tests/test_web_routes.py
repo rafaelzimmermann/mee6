@@ -137,8 +137,11 @@ async def test_create_trigger_calls_add_and_redirects(client):
     )
     assert resp.status_code == 303
     assert resp.headers["location"] == "/triggers"
+    from mee6.scheduler.engine import TriggerType
+
     sched.add_trigger.assert_awaited_once_with(
-        "pipe-1", "My Pipeline", "0 8 * * *", enabled=False
+        "pipe-1", "My Pipeline", "0 8 * * *",
+        trigger_type=TriggerType.CRON, config={}, enabled=False,
     )
 
 
@@ -155,8 +158,11 @@ async def test_create_trigger_enabled_flag(client):
         },
         follow_redirects=False,
     )
+    from mee6.scheduler.engine import TriggerType
+
     sched.add_trigger.assert_awaited_once_with(
-        "pipe-1", "My Pipeline", "0 8 * * *", enabled=True
+        "pipe-1", "My Pipeline", "0 8 * * *",
+        trigger_type=TriggerType.CRON, config={}, enabled=True,
     )
 
 

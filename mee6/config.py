@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     google_calendar_id: str = ""
     google_credentials_file: str = "/app/data/credentials.json"
 
+    # Pipeline execution — max seconds a single step may run before timing out
+    pipeline_step_timeout_s: int = 300
+
     @property
     def config_dir(self) -> Path:
         return Path(self.agntrick_config_dir).expanduser()

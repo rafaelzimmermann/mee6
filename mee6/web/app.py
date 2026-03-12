@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from mee6.db.engine import async_engine
+from mee6.db.engine import get_engine
 from mee6.db.models import Base
 from mee6.scheduler.engine import scheduler
 from mee6.web.routes import history, integrations, pipelines, triggers
@@ -33,7 +33,7 @@ async def _migrate_db() -> None:
     migrations_dir = Path(__file__).parent.parent.parent / "db" / "migrations"
     sql_files = sorted(migrations_dir.glob("*.sql"))
 
-    async with async_engine.begin() as conn:
+    async with get_engine().begin() as conn:
         for sql_file in sql_files:
             for stmt in sql_file.read_text().split(";"):
                 stmt = stmt.strip()
@@ -45,7 +45,7 @@ async def _migrate_db() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with async_engine.begin() as conn:
+    async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _migrate_db()
     await scheduler.start()
@@ -53,7 +53,14 @@ async def lifespan(app: FastAPI):
     # connect() is a no-op if the config file is missing, so this is always safe.
     from mee6.integrations.whatsapp_session import wa_session
 
-    asyncio.create_task(wa_session.connect())
+    asyncio.create_task(
+        wa_session.connect(
+            on_dm=scheduler.check_wa_triggers,
+            on_group=scheduler.check_wa_group_triggers,
+            on_dm_allowed=scheduler.has_wa_trigger,
+            on_group_allowed=scheduler.has_wa_group_trigger,
+        )
+    )
     yield
     await scheduler.stop()
 
