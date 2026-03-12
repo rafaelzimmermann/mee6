@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- `llm_agent` pipeline step type: calls Anthropic or Ollama with a configurable
+  prompt and returns the text response. When `{previous_output}` appears in the
+  prompt template it is formatted inline; otherwise the previous step's output is
+  automatically prepended as context so the step works naturally at any position in
+  a pipeline without requiring the user to reference it explicitly.
+- `combobox` field type for the pipeline builder: renders as `<input list>` +
+  `<datalist>` so the user sees a dropdown of suggestions but can also type any
+  custom value. Used for the `llm_agent` provider and model fields.
 - PostgreSQL persistence via SQLAlchemy 2.x async + asyncpg: `db/engine.py`,
   `db/models.py` (`PipelineRow`, `TriggerRow`, `RunRecordRow`), `db/repository.py`
   (three repository classes). Tables created with `create_all` at startup.

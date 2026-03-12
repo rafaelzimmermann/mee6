@@ -1,6 +1,6 @@
 """Plugin protocol and field schema for pipeline agents."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
 
@@ -10,7 +10,8 @@ class FieldSchema:
     label: str
     placeholder: str = ""
     required: bool = True
-    field_type: str = "text"  # "text" | "textarea" | "tel"
+    field_type: str = "text"  # "text" | "textarea" | "tel" | "select"
+    options: list[str] = field(default_factory=list)  # used when field_type == "select"
 
 
 @runtime_checkable

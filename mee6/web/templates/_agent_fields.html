@@ -8,6 +8,29 @@
     placeholder="{{ field.placeholder }}"
     {% if field.required %}required{% endif %}
   >{{ config.get(field.name, '') }}</textarea>
+  {% elif field.field_type == "select" %}
+  <select
+    name="{{ field.name }}"
+    id="field-{{ step_index }}-{{ field.name }}"
+    {% if field.required %}required{% endif %}
+  >
+    {% for opt in field.options %}
+    <option value="{{ opt }}"{% if config.get(field.name, field.options[0]) == opt %} selected{% endif %}>{{ opt }}</option>
+    {% endfor %}
+  </select>
+  {% elif field.field_type == "combobox" %}
+  <input
+    type="text"
+    list="dl-{{ step_index }}-{{ field.name }}"
+    name="{{ field.name }}"
+    id="field-{{ step_index }}-{{ field.name }}"
+    placeholder="{{ field.placeholder }}"
+    value="{{ config.get(field.name, '') }}"
+    {% if field.required %}required{% endif %}
+  >
+  <datalist id="dl-{{ step_index }}-{{ field.name }}">
+    {% for opt in field.options %}<option value="{{ opt }}">{% endfor %}
+  </datalist>
   {% else %}
   <input
     type="{{ field.field_type }}"
