@@ -8,12 +8,13 @@
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
 </head>
 <body>
+  {% set path = request.url.path %}
   <nav>
     <span class="brand">mee6</span>
-    <a href="/">History</a>
-    <a href="/pipelines">Pipelines</a>
-    <a href="/triggers">Triggers</a>
-    <a href="/integrations">Integrations</a>
+    <a href="/" class="{{ 'nav-active' if path == '/' else '' }}">History</a>
+    <a href="/pipelines" class="{{ 'nav-active' if path.startswith('/pipelines') else '' }}">Pipelines</a>
+    <a href="/triggers" class="{{ 'nav-active' if path.startswith('/triggers') else '' }}">Triggers</a>
+    <a href="/integrations" class="{{ 'nav-active' if path.startswith('/integrations') else '' }}">Integrations</a>
     <span class="status">{{ active_count }} active job(s)</span>
   </nav>
   <main>

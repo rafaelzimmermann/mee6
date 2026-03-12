@@ -1,39 +1,45 @@
 {% extends "base.html" %}
 {% block title %}Triggers{% endblock %}
 {% block content %}
-<h1>Triggers</h1>
+<div class="page-header">
+  <h1>Triggers</h1>
+</div>
 
-<h2>Add trigger</h2>
 {% if pipelines %}
-<form method="post" action="/triggers">
-  <label>Pipeline
-    <select name="pipeline_id" required
-      onchange="document.getElementById('pname').value = this.options[this.selectedIndex].text">
-      <option value="">— select —</option>
-      {% for p in pipelines %}
-      <option value="{{ p.id }}">{{ p.name }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <input type="hidden" id="pname" name="pipeline_name">
+<section class="card">
+  <div class="card-header">Add trigger</div>
+  <div class="card-body">
+    <form method="post" action="/triggers">
+      <label>Pipeline
+        <select name="pipeline_id" required
+          onchange="document.getElementById('pname').value = this.options[this.selectedIndex].text">
+          <option value="">— select —</option>
+          {% for p in pipelines %}
+          <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <input type="hidden" id="pname" name="pipeline_name">
 
-  <label>Trigger type
-    <select name="trigger_type" id="trigger_type" onchange="onTriggerTypeChange(this.value)">
-      <option value="cron">Cron schedule</option>
-      <option value="whatsapp">On WhatsApp message received</option>
-    </select>
-  </label>
+      <label>Type
+        <select name="trigger_type" id="trigger_type" onchange="onTriggerTypeChange(this.value)">
+          <option value="cron">Cron schedule</option>
+          <option value="whatsapp">On WhatsApp message received</option>
+        </select>
+      </label>
 
-  <span id="field-cron">
-    <label>Cron <input type="text" name="cron_expr" id="cron_expr" placeholder="0 8 * * *"></label>
-  </span>
-  <span id="field-whatsapp" style="display:none">
-    <label>Phone (E.164) <input type="tel" name="phone" id="phone" placeholder="+34612345678"></label>
-  </span>
+      <span id="field-cron">
+        <label>Cron <input type="text" name="cron_expr" id="cron_expr" placeholder="0 8 * * *"></label>
+      </span>
+      <span id="field-whatsapp" style="display:none">
+        <label>Phone <input type="tel" name="phone" id="phone" placeholder="+34612345678"></label>
+      </span>
 
-  <label><input type="checkbox" name="enabled" value="true"> Enabled</label>
-  <button type="submit">Add</button>
-</form>
+      <label><input type="checkbox" name="enabled" value="true"> Enabled</label>
+      <button type="submit">Add</button>
+    </form>
+  </div>
+</section>
 
 <script>
 function onTriggerTypeChange(type) {
@@ -48,45 +54,47 @@ onTriggerTypeChange('cron');
 <p><a href="/pipelines/new">Create a pipeline</a> first, then come back to schedule it.</p>
 {% endif %}
 
-<h2>Configured triggers</h2>
-<table>
-  <thead>
-    <tr>
-      <th>Pipeline</th>
-      <th>Type</th>
-      <th>Schedule / Config</th>
-      <th>Enabled</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for job in jobs %}
-    <tr>
-      <td>{{ job.pipeline_name }}</td>
-      <td>{{ "WhatsApp" if job.trigger_type == TriggerType.WHATSAPP else "Cron" }}</td>
-      <td>
-        {%- if job.trigger_type == TriggerType.WHATSAPP -%}
-          {{ job.config.get("phone", "") }}
-        {%- else -%}
-          {{ job.cron_expr }}
-        {%- endif -%}
-      </td>
-      <td>{{ "Yes" if job.enabled else "No" }}</td>
-      <td>
-        <form method="post" action="/triggers/{{ job.id }}/toggle" style="display:inline">
-          <button type="submit">{{ "Disable" if job.enabled else "Enable" }}</button>
-        </form>
-        <form method="post" action="/triggers/{{ job.id }}/run-now" style="display:inline">
-          <button type="submit">Run now</button>
-        </form>
-        <form method="post" action="/triggers/{{ job.id }}/delete" style="display:inline">
-          <button type="submit" onclick="return confirm('Delete this trigger?')">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="5">No triggers configured.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<section class="card">
+  <div class="card-header">Configured triggers</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Pipeline</th>
+        <th>Type</th>
+        <th>Schedule / Config</th>
+        <th>Enabled</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+      <tr>
+        <td>{{ job.pipeline_name }}</td>
+        <td>{{ "WhatsApp" if job.trigger_type == TriggerType.WHATSAPP else "Cron" }}</td>
+        <td>
+          {%- if job.trigger_type == TriggerType.WHATSAPP -%}
+            {{ job.config.get("phone", "") }}
+          {%- else -%}
+            {{ job.cron_expr }}
+          {%- endif -%}
+        </td>
+        <td>{{ "Yes" if job.enabled else "No" }}</td>
+        <td>
+          <form method="post" action="/triggers/{{ job.id }}/toggle" style="display:inline">
+            <button type="submit" class="sm secondary">{{ "Disable" if job.enabled else "Enable" }}</button>
+          </form>
+          <form method="post" action="/triggers/{{ job.id }}/run-now" style="display:inline">
+            <button type="submit" class="sm">Run now</button>
+          </form>
+          <form method="post" action="/triggers/{{ job.id }}/delete" style="display:inline">
+            <button type="submit" class="sm danger" onclick="return confirm('Delete this trigger?')">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No triggers configured.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
 {% endblock %}
