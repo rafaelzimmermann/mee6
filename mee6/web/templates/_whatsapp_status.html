@@ -1,0 +1,38 @@
+<div id="whatsapp-card"
+  {% if wa_status not in ("connected", "disconnected", "error") %}
+  hx-get="/integrations/whatsapp/status"
+  hx-trigger="every 2s"
+  hx-swap="outerHTML"
+  {% endif %}>
+
+  <p>Status: <span class="badge badge-{{ wa_status }}">{{ wa_status }}</span></p>
+
+  {% if wa_status == "pending_qr" %}
+    {% if wa_qr_svg %}
+    <div class="qr-wrap">{{ wa_qr_svg | safe }}</div>
+    <p class="qr-hint">Open WhatsApp → Linked devices → Link a device, then scan above.</p>
+    {% else %}
+    <p>Generating QR code…</p>
+    {% endif %}
+
+  {% elif wa_status in ("disconnected", "error") %}
+    <form method="post" action="/integrations/whatsapp/connect">
+      <button type="submit">Connect WhatsApp</button>
+    </form>
+    {% if wa_error %}<p class="hint-error">{{ wa_error }}</p>{% endif %}
+
+  {% elif wa_status == "connecting" %}
+    <p>Connecting…</p>
+
+  {% elif wa_status == "connected" %}
+    <p>WhatsApp is connected and ready to send messages.</p>
+    <form hx-post="/integrations/whatsapp/test"
+          hx-target="#test-result"
+          hx-swap="innerHTML"
+          style="margin-top:0.75rem">
+      <input type="tel" name="phone" value="{{ notify_phone }}" placeholder="+34612345678" required>
+      <button type="submit">Send test message</button>
+    </form>
+    <div id="test-result" style="margin-top:0.5rem"></div>
+  {% endif %}
+</div>

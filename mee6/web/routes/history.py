@@ -11,9 +11,16 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 
 
 @router.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
+async def history(request: Request):
     runs = scheduler.get_recent_runs()
     active_count = scheduler.active_job_count()
     return templates.TemplateResponse(
-        request, "dashboard.html", {"runs": runs, "active_count": active_count}
+        request, "history.html", {"runs": runs, "active_count": active_count}
     )
+
+
+@router.get("/history/rows", response_class=HTMLResponse)
+async def history_rows(request: Request):
+    """HTMX partial — returns only the table rows for auto-polling."""
+    runs = scheduler.get_recent_runs()
+    return templates.TemplateResponse(request, "_history_rows.html", {"runs": runs})

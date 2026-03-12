@@ -28,8 +28,10 @@ def _mock_scheduler(jobs: list[TriggerMeta] | None = None, runs: list[RunRecord]
 
 def _mock_pipeline_store(pipelines=None):
     mock = MagicMock()
-    mock.list.return_value = pipelines or []
-    mock.get.return_value = None
+    mock.list = AsyncMock(return_value=pipelines or [])
+    mock.get = AsyncMock(return_value=None)
+    mock.upsert = AsyncMock()
+    mock.delete = AsyncMock()
     return mock
 
 
@@ -48,7 +50,7 @@ async def client(mock_scheduler):
     """AsyncClient pointing at a test app with a no-op lifespan and mocked scheduler."""
     mock_store = _mock_pipeline_store()
     with (
-        patch("mee6.web.routes.dashboard.scheduler", mock_scheduler),
+        patch("mee6.web.routes.history.scheduler", mock_scheduler),
         patch("mee6.web.routes.triggers.scheduler", mock_scheduler),
         patch("mee6.web.routes.triggers.pipeline_store", mock_store),
         patch("mee6.web.routes.pipelines.pipeline_store", mock_store),
@@ -63,7 +65,7 @@ async def client(mock_scheduler):
 
 
 # ---------------------------------------------------------------------------
-# Dashboard
+# History (dashboard)
 # ---------------------------------------------------------------------------
 
 
@@ -72,7 +74,7 @@ async def test_dashboard_returns_200(client):
     c, _, _ = client
     resp = await c.get("/")
     assert resp.status_code == 200
-    assert b"Dashboard" in resp.content
+    assert b"History" in resp.content
 
 
 @pytest.mark.asyncio

@@ -79,3 +79,26 @@ button.secondary:hover { background: #333; }
   max-width: 40rem;
 }
 .field-label textarea { min-height: 4rem; resize: vertical; }
+
+/* Status badges */
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.badge-success      { background: #d4edda; color: #155724; }
+.badge-connected    { background: #d4edda; color: #155724; }
+.badge-error        { background: #f8d7da; color: #721c24; }
+.badge-disconnected { background: #e2e3e5; color: #383d41; }
+.badge-connecting   { background: #cce5ff; color: #004085; }
+.badge-pending_qr   { background: #fff3cd; color: #856404; }
+
+/* QR code display */
+.qr-wrap { display: inline-block; margin: 1rem 0; border: 1px solid #ddd; border-radius: 6px; padding: 0.5rem; background: #fff; }
+.qr-wrap svg { display: block; }
+.qr-hint    { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+.hint-error { font-size: 0.85rem; color: #721c24; margin-top: 0.5rem; }

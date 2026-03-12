@@ -1,4 +1,18 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mee6
+      POSTGRES_PASSWORD: mee6
+      POSTGRES_DB: mee6
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mee6"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   mee6:
     build: .
     env_file:
@@ -8,10 +22,17 @@ services:
         required: false
       - path: .mee6.conf                     # project config in repo root (local override)
         required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mee6:mee6@postgres:5432/mee6
+      ANONYMIZED_TELEMETRY: "false"
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/app/data
-      - ~/.config/agntrick:/home/mee6/.config/agntrick:ro   # whatsapp.yaml, .agntrick.yaml, .mee6.conf
+      - ~/.config/agntrick:/home/mee6/.config/agntrick      # whatsapp.yaml, .agntrick.yaml, .mee6.conf + WA session
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
-    # Ollama is external — set OLLAMA_BASE_URL in ~/.config/agntrick/.env
+
+volumes:
+  postgres_data:

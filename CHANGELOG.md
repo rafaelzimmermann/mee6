@@ -7,6 +7,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- PostgreSQL persistence via SQLAlchemy 2.x async + asyncpg: `db/engine.py`,
+  `db/models.py` (`PipelineRow`, `TriggerRow`, `RunRecordRow`), `db/repository.py`
+  (three repository classes). Tables created with `create_all` at startup.
+- History page (`/`) replaces the old Dashboard: HTMX auto-poll every 10s, status
+  badges, and a `/history/rows` partial endpoint.
+- Integrations page (`/integrations`) with WhatsApp connection card: QR code rendered
+  as inline SVG via `segno`, HTMX status polling every 2 s during connection.
+- `WhatsAppSession` class (`mee6/integrations/whatsapp_session.py`) managing the full
+  connection lifecycle (DISCONNECTED → CONNECTING → PENDING_QR → CONNECTED → ERROR):
+  immediate detection via neonize `ConnectedEv`/`DisconnectedEv` callbacks, polling
+  fallback via `is_connected()`, and a QR watchdog that restarts the connection if no
+  fresh QR has arrived within 65 s.
+- WhatsApp test button on the integrations page: sends a test message to the user's own
+  phone number and shows the result inline via HTMX.
+- `browser_agent` pipeline step type: wraps `browser-use` 0.11.13 to run autonomous
+  Chromium-based browsing tasks as part of a pipeline.
+- Startup auto-reconnect for WhatsApp: `wa_session.connect()` is called in the FastAPI
+  lifespan so an existing session resumes automatically after a container restart.
+- `BROWSER_USE_CONFIG_DIR=/app/data/browseruse` env var in the Docker image so
+  `browser-use` can write its config/profiles to a writable path.
+- `ANONYMIZED_TELEMETRY=false` in `docker-compose.yml` to disable `browser-use`'s
+  PostHog telemetry (which blocks on DNS in restricted Docker networks).
+
+### Changed
+- `PipelineStore` is now fully async and DB-backed; all `pipeline_store.*` call-sites
+  updated to `await`.
+- Scheduler engine persistence moved from JSON files to PostgreSQL; `_load_from_db()`
+  replaces `_load_triggers()` on startup.
+- `docker-compose.yml` now includes a `postgres:16-alpine` service with health-check and
+  named volume; `mee6` service gains `DATABASE_URL` and `depends_on: postgres (healthy)`.
+- Volume mount for the agntrick config directory changed from `:ro` to read-write so
+  neonize can persist the WhatsApp session file across container restarts.
+- Base template: added HTMX script tag, renamed "Dashboard" nav link to "History",
+  added "Integrations" nav link.
+- `style.css`: added badge styles (`.badge-success`, `.badge-error`, `.badge-connected`,
+  `.badge-pending_qr`, etc.) and QR-code card styles (`.qr-wrap`, `.qr-hint`).
+- `browser_agent` wrapper now uses `browser_use.llm.anthropic.chat.ChatAnthropic`
+  instead of `langchain_anthropic.ChatAnthropic` (the langchain version is missing the
+  `.provider` attribute expected by `browser-use` internals).
+
+### Fixed
+- Dockerfile: `playwright` CLI invocation changed from `/app/.venv/bin/playwright` to
+  `python -m playwright` (the console-script wrapper is not installed in the venv).
+- Dockerfile: Playwright browsers installed to `PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers`
+  (root-owned, world-readable) instead of the default `~/.cache/ms-playwright`, so the
+  non-root `mee6` user can access the binaries at runtime.
+- Dockerfile: `/home/mee6/.config` created with `mee6:mee6` ownership before switching
+  to the `mee6` user, preventing Docker from creating it as root when bind-mounting a
+  subdirectory (which would block `browser-use` from writing its config).
+- `browser_agent`: `browser-use` 0.11.13 uses `chrome-headless-shell` (not the regular
+  `chrome` binary) when launched by Playwright; `_find_headless_shell()` detects the
+  correct binary path and sets `BrowserProfile(executable_path=...)` explicitly, avoiding
+  the SIGTRAP crash that occurs when the full `chrome` binary is launched headlessly in Docker.
+- `pyproject.toml`: added explicit `playwright>=1.58.0` dependency (`browser-use` 0.11.13
+  dropped it as a direct dependency).
 - Initial project scaffold for mee6 personal AI assistant.
 - FastAPI web UI with dashboard (recent task runs) and triggers (CRUD for cron schedules).
 - APScheduler 4.x (`AsyncScheduler`) engine integrated into FastAPI lifespan; jobs persist

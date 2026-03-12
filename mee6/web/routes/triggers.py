@@ -15,7 +15,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 async def list_triggers(request: Request):
     jobs = scheduler.list_jobs()
     active_count = scheduler.active_job_count()
-    pipelines = pipeline_store.list()
+    pipelines = await pipeline_store.list()
     return templates.TemplateResponse(
         request,
         "triggers.html",

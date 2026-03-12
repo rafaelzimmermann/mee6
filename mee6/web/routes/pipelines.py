@@ -22,7 +22,7 @@ def _plugin_list_json() -> str:
 
 @router.get("/pipelines", response_class=HTMLResponse)
 async def list_pipelines(request: Request):
-    pipelines = pipeline_store.list()
+    pipelines = await pipeline_store.list()
     return templates.TemplateResponse(
         request, "pipelines.html", {"pipelines": pipelines, "active_count": 0}
     )
@@ -50,13 +50,13 @@ async def create_pipeline(pipeline_json: str = Form(...)):
         name=data["name"],
         steps=[PipelineStep(**step) for step in data.get("steps", [])],
     )
-    pipeline_store.upsert(pipeline)
+    await pipeline_store.upsert(pipeline)
     return RedirectResponse("/pipelines", status_code=303)
 
 
 @router.get("/pipelines/{pipeline_id}/edit", response_class=HTMLResponse)
 async def edit_pipeline(request: Request, pipeline_id: str):
-    pipeline = pipeline_store.get(pipeline_id)
+    pipeline = await pipeline_store.get(pipeline_id)
     if pipeline is None:
         return RedirectResponse("/pipelines", status_code=303)
     return templates.TemplateResponse(
@@ -79,13 +79,13 @@ async def update_pipeline(pipeline_id: str, pipeline_json: str = Form(...)):
         name=data["name"],
         steps=[PipelineStep(**step) for step in data.get("steps", [])],
     )
-    pipeline_store.upsert(pipeline)
+    await pipeline_store.upsert(pipeline)
     return RedirectResponse("/pipelines", status_code=303)
 
 
 @router.post("/pipelines/{pipeline_id}/delete")
 async def delete_pipeline(pipeline_id: str):
-    pipeline_store.delete(pipeline_id)
+    await pipeline_store.delete(pipeline_id)
     return RedirectResponse("/pipelines", status_code=303)
 
 

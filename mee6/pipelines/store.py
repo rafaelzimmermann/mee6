@@ -1,48 +1,44 @@
-"""JSON-file persistence for pipelines."""
+"""PostgreSQL-backed persistence for pipelines."""
 
-import json
 import uuid
-from pathlib import Path
 
-from mee6.pipelines.models import Pipeline
+from mee6.db.engine import AsyncSessionLocal
+from mee6.db.models import PipelineRow
+from mee6.db.repository import PipelineRepository
+from mee6.pipelines.models import Pipeline, PipelineStep
 
-_DEFAULT_PATH = Path("data/pipelines.json")
+
+def _row_to_pipeline(row: PipelineRow) -> Pipeline:
+    return Pipeline(
+        id=row.id,
+        name=row.name,
+        steps=[PipelineStep(**s) for s in row.steps],
+    )
 
 
 class PipelineStore:
-    def __init__(self, path: Path = _DEFAULT_PATH) -> None:
-        self._path = path
+    async def list(self) -> list[Pipeline]:
+        async with AsyncSessionLocal() as session:
+            rows = await PipelineRepository(session).list_all()
+            return [_row_to_pipeline(r) for r in rows]
 
-    def _load_all(self) -> dict[str, Pipeline]:
-        if not self._path.exists():
-            return {}
-        try:
-            raw = json.loads(self._path.read_text())
-            return {pid: Pipeline.model_validate(data) for pid, data in raw.items()}
-        except (json.JSONDecodeError, OSError):
-            return {}
+    async def get(self, pipeline_id: str) -> Pipeline | None:
+        async with AsyncSessionLocal() as session:
+            row = await PipelineRepository(session).get(pipeline_id)
+            return _row_to_pipeline(row) if row else None
 
-    def _save_all(self, pipelines: dict[str, Pipeline]) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({pid: p.model_dump() for pid, p in pipelines.items()}, indent=2))
-        tmp.replace(self._path)
+    async def upsert(self, pipeline: Pipeline) -> None:
+        row = PipelineRow(
+            id=pipeline.id,
+            name=pipeline.name,
+            steps=[s.model_dump() for s in pipeline.steps],
+        )
+        async with AsyncSessionLocal() as session:
+            await PipelineRepository(session).upsert(row)
 
-    def list(self) -> list[Pipeline]:
-        return list(self._load_all().values())
-
-    def get(self, pipeline_id: str) -> Pipeline | None:
-        return self._load_all().get(pipeline_id)
-
-    def upsert(self, pipeline: Pipeline) -> None:
-        pipelines = self._load_all()
-        pipelines[pipeline.id] = pipeline
-        self._save_all(pipelines)
-
-    def delete(self, pipeline_id: str) -> None:
-        pipelines = self._load_all()
-        pipelines.pop(pipeline_id, None)
-        self._save_all(pipelines)
+    async def delete(self, pipeline_id: str) -> None:
+        async with AsyncSessionLocal() as session:
+            await PipelineRepository(session).delete(pipeline_id)
 
     @staticmethod
     def new_id() -> str:

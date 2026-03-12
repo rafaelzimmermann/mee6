@@ -25,14 +25,24 @@ COPY --from=builder /app/.venv /app/.venv
 COPY mee6/ ./mee6/
 COPY .agntrick.yaml ./
 
-# Install Playwright browser binaries (Chromium used by browser-use)
-RUN /app/.venv/bin/playwright install --with-deps chromium
+# Install Playwright browser binaries to a fixed path accessible by the mee6 user.
+# PLAYWRIGHT_BROWSERS_PATH overrides the default ~/.cache/ms-playwright so
+# the root-owned install step is still readable at runtime as mee6.
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers
+RUN /app/.venv/bin/python -m playwright install --with-deps chromium \
+    && chmod -R a+rX /app/playwright-browsers
 
-RUN mkdir -p /app/data && chown mee6:mee6 /app/data
+# Create writable directories for mee6 user.
+# /home/mee6/.config is created here (owned by mee6) so that Docker doesn't
+# create it as root when bind-mounting a subdirectory (e.g. .config/agntrick).
+RUN mkdir -p /app/data /home/mee6/.config \
+    && chown mee6:mee6 /app/data /home/mee6/.config
 
 USER mee6
 
 ENV PATH="/app/.venv/bin:$PATH"
+# Direct browser_use config/profiles to /app/data so the mee6 user can write there.
+ENV BROWSER_USE_CONFIG_DIR=/app/data/browseruse
 
 EXPOSE 8080
 

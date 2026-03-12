@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}History{% endblock %}
+{% block content %}
+<h1>Run History</h1>
+<table>
+  <thead>
+    <tr>
+      <th>Pipeline</th>
+      <th>Timestamp</th>
+      <th>Status</th>
+      <th>Summary</th>
+    </tr>
+  </thead>
+  <tbody id="history-rows"
+         hx-get="/history/rows"
+         hx-trigger="every 10s"
+         hx-swap="innerHTML">
+    {% include "_history_rows.html" %}
+  </tbody>
+</table>
+{% endblock %}

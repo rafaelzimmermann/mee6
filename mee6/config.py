@@ -39,6 +39,9 @@ class Settings(BaseSettings):
         "description, type (holiday|meeting|activity|exam|other)."
     )
 
+    # PostgreSQL connection URL (asyncpg driver)
+    database_url: str = "postgresql+asyncpg://mee6:mee6@localhost:5432/mee6"
+
     # Notification target — project-specific, in .mee6.conf
     notify_phone_number: str = ""
 

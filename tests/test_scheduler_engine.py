@@ -17,7 +17,6 @@ def _make_engine() -> SchedulerEngine:
     mock_apscheduler = AsyncMock()
     mock_apscheduler.add_schedule = AsyncMock(return_value="sched-id")
     engine._apscheduler = mock_apscheduler
-    engine._save_triggers = lambda: None  # disable file I/O in tests
     return engine
 
 
@@ -108,7 +107,15 @@ def test_active_job_count():
 async def test_add_trigger_registers_job():
     engine = _make_engine()
 
-    job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=True)
+    with patch("mee6.scheduler.engine.AsyncSessionLocal") as mock_session_cls:
+        mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+        mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_session = MagicMock()
+        mock_session.merge = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session_cls.return_value.__aenter__.return_value = mock_session
+
+        job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=True)
 
     assert job_id in engine._jobs
     meta = engine._jobs[job_id]
@@ -122,7 +129,15 @@ async def test_add_trigger_registers_job():
 @pytest.mark.asyncio
 async def test_add_trigger_paused_when_disabled():
     engine = _make_engine()
-    await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=False)
+
+    with patch("mee6.scheduler.engine.AsyncSessionLocal") as mock_session_cls:
+        mock_session = MagicMock()
+        mock_session.merge = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=False)
 
     _, kwargs = engine._apscheduler.add_schedule.call_args
     assert kwargs["paused"] is True
@@ -131,9 +146,17 @@ async def test_add_trigger_paused_when_disabled():
 @pytest.mark.asyncio
 async def test_remove_trigger_deletes_job():
     engine = _make_engine()
-    job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *")
 
-    await engine.remove_trigger(job_id)
+    with patch("mee6.scheduler.engine.AsyncSessionLocal") as mock_session_cls:
+        mock_session = MagicMock()
+        mock_session.merge = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *")
+        await engine.remove_trigger(job_id)
 
     assert job_id not in engine._jobs
     engine._apscheduler.remove_schedule.assert_awaited_once_with(job_id)
@@ -143,16 +166,32 @@ async def test_remove_trigger_deletes_job():
 async def test_remove_trigger_unknown_id_raises():
     engine = _make_engine()
     engine._apscheduler.remove_schedule = AsyncMock(side_effect=Exception("not found"))
-    with pytest.raises(Exception):
-        await engine.remove_trigger("nonexistent")
+
+    with patch("mee6.scheduler.engine.AsyncSessionLocal") as mock_session_cls:
+        mock_session = MagicMock()
+        mock_session.execute = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        with pytest.raises(Exception):
+            await engine.remove_trigger("nonexistent")
 
 
 @pytest.mark.asyncio
 async def test_toggle_trigger_disables_enabled_job():
     engine = _make_engine()
-    job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=True)
 
-    await engine.toggle_trigger(job_id)
+    with patch("mee6.scheduler.engine.AsyncSessionLocal") as mock_session_cls:
+        mock_session = MagicMock()
+        mock_session.merge = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=True)
+        await engine.toggle_trigger(job_id)
 
     assert engine._jobs[job_id].enabled is False
     engine._apscheduler.pause_schedule.assert_awaited_once_with(job_id)
@@ -161,9 +200,17 @@ async def test_toggle_trigger_disables_enabled_job():
 @pytest.mark.asyncio
 async def test_toggle_trigger_enables_paused_job():
     engine = _make_engine()
-    job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=False)
 
-    await engine.toggle_trigger(job_id)
+    with patch("mee6.scheduler.engine.AsyncSessionLocal") as mock_session_cls:
+        mock_session = MagicMock()
+        mock_session.merge = AsyncMock()
+        mock_session.commit = AsyncMock()
+        mock_session.execute = AsyncMock()
+        mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=False)
+        await engine.toggle_trigger(job_id)
 
     assert engine._jobs[job_id].enabled is True
     engine._apscheduler.unpause_schedule.assert_awaited_once_with(job_id)
@@ -186,13 +233,14 @@ async def test_dispatch_pipeline_success():
 
     mock_pipeline = Pipeline(id="p1", name="test-pipeline", steps=[])
     mock_store = MagicMock()
-    mock_store.get.return_value = mock_pipeline
+    mock_store.get = AsyncMock(return_value=mock_pipeline)
     mock_run = AsyncMock(return_value={"summary": "2 step(s) completed"})
 
     with (
         patch("mee6.scheduler.engine.scheduler") as mock_engine,
         patch("mee6.pipelines.store.pipeline_store", mock_store),
         patch("mee6.pipelines.executor.run_pipeline", mock_run),
+        patch("mee6.scheduler.engine._db_write_run", AsyncMock()),
     ):
         await _dispatch_pipeline("p1")
 
@@ -205,11 +253,12 @@ async def test_dispatch_pipeline_success():
 @pytest.mark.asyncio
 async def test_dispatch_pipeline_not_found():
     mock_store = MagicMock()
-    mock_store.get.return_value = None
+    mock_store.get = AsyncMock(return_value=None)
 
     with (
         patch("mee6.scheduler.engine.scheduler") as mock_engine,
         patch("mee6.pipelines.store.pipeline_store", mock_store),
+        patch("mee6.scheduler.engine._db_write_run", AsyncMock()),
     ):
         await _dispatch_pipeline("missing-id")
 
@@ -225,13 +274,14 @@ async def test_dispatch_pipeline_records_error_on_exception():
 
     mock_pipeline = Pipeline(id="p1", name="test-pipeline", steps=[])
     mock_store = MagicMock()
-    mock_store.get.return_value = mock_pipeline
+    mock_store.get = AsyncMock(return_value=mock_pipeline)
     mock_run = AsyncMock(side_effect=RuntimeError("something went wrong"))
 
     with (
         patch("mee6.scheduler.engine.scheduler") as mock_engine,
         patch("mee6.pipelines.store.pipeline_store", mock_store),
         patch("mee6.pipelines.executor.run_pipeline", mock_run),
+        patch("mee6.scheduler.engine._db_write_run", AsyncMock()),
     ):
         await _dispatch_pipeline("p1")
 
