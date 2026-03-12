@@ -1,10 +1,17 @@
 services:
   mee6:
     build: .
-    env_file: .env
+    env_file:
+      - path: ~/.config/agntrick/.env        # global: API keys, Ollama URL
+        required: true
+      - path: ~/.config/agntrick/.mee6.conf  # project config in shared config dir
+        required: false
+      - path: .mee6.conf                     # project config in repo root (local override)
+        required: false
     ports:
       - "8080:8080"
     volumes:
       - ./data:/app/data
+      - ~/.config/agntrick:/home/mee6/.config/agntrick:ro   # whatsapp.yaml, .agntrick.yaml, .mee6.conf
     restart: unless-stopped
-    # Ollama is external — configure OLLAMA_BASE_URL in .env to point to your server
+    # Ollama is external — set OLLAMA_BASE_URL in ~/.config/agntrick/.env

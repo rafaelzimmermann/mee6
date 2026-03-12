@@ -1,15 +1,21 @@
 # Builder stage
 FROM python:3.12-slim AS builder
 
+# Use the official uv binary instead of pip install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 WORKDIR /app
 
-RUN pip install uv
-
+# Install dependencies only — source not needed yet, keeps this layer cached
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Runtime stage
 FROM python:3.12-slim AS runtime
+
+# libmagic is required by agntrick-whatsapp (neonize file-type detection)
+RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -u 1000 mee6
 

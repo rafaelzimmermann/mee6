@@ -24,3 +24,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with inline comment showing how to switch to Ollama.
 - `.env.example` with all required variables and explanatory comments.
 - Pytest test suite (3 tests) covering happy path, invalid JSON, and per-event error handling.
+- WhatsApp config loaded from `~/.config/agntrick/whatsapp.yaml` via `WhatsAppAgentConfig`;
+  removed per-project env vars for WhatsApp (`WHATSAPP_STORAGE_PATH`, `NOTIFY_PHONE_NUMBER`).
+- `whatsapp.yaml.example` and `.mee6.conf.example` documenting the new config layout.
+- `scripts/install-requirements.sh` — checks/installs system dependencies (libmagic, ffmpeg,
+  uv, Python 3.12+) and the gcloud CLI with automatic PATH configuration.
+- `scripts/setup-google-credentials.sh` — end-to-end GCP setup: creates project, enables
+  Calendar API, creates service account, downloads `credentials.json`.
+- 34 unit tests across three modules: scheduler engine, web routes, and integration stubs.
+
+### Changed
+- Config now loaded from three layered sources (later = higher priority):
+  `~/.config/agntrick/.env` → `~/.config/agntrick/.mee6.conf` → `.mee6.conf` (repo root).
+  `AGNTRICK_CONFIG_DIR` env var allows overriding the shared config directory.
+- `.env.example` updated to only document global keys (API keys, Ollama URL); project-specific
+  variables moved to `.mee6.conf.example`.
+- `docker-compose.yml` updated to read from the three-layer config and mount the agntrick
+  config directory into the container (`~/.config/agntrick:/home/mee6/.config/agntrick:ro`).
+- `.gitignore` updated to exclude `.mee6.conf` (local project config).
+
+### Fixed
+- APScheduler 4.x startup crash (`RuntimeError: The scheduler has not been initialized yet`):
+  `SchedulerEngine.start()` now uses `AsyncExitStack` to enter the scheduler's async context
+  and keep it alive for the full app lifetime.
+- Docker build failure (`hatchling: Unable to determine which files to ship`): `uv sync` in
+  the builder stage now uses `--no-install-project` so source code is not required at that layer.
+- Dockerfile runtime stage now installs `libmagic1` (required by agntrick-whatsapp/neonize).
+- Jinja2 `TemplateResponse` deprecation: `request` is now passed as the first positional
+  argument in dashboard and triggers routes.
+- Added `.dockerignore` to exclude `.venv/`, `data/`, test files, and editor caches from
+  the Docker build context (reduces context size significantly).

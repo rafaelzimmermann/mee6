@@ -15,8 +15,7 @@ async def list_triggers(request: Request):
     jobs = scheduler.list_jobs()
     active_count = scheduler.active_job_count()
     return templates.TemplateResponse(
-        "triggers.html",
-        {"request": request, "jobs": jobs, "active_count": active_count},
+        request, "triggers.html", {"jobs": jobs, "active_count": active_count}
     )
 
 

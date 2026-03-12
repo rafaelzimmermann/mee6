@@ -13,6 +13,7 @@ switch to SQLAlchemyDataStore:
 
 import asyncio
 import uuid
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -43,12 +44,20 @@ class SchedulerEngine:
         self._jobs: dict[str, JobMeta] = {}
         self._runs: list[RunRecord] = []
         self._pending_run: dict[str, str] = {}
+        self._exit_stack: AsyncExitStack | None = None
 
     async def start(self) -> None:
+        # APScheduler 4.x must be used as an async context manager before any
+        # methods can be called. We keep the exit stack alive until stop().
+        self._exit_stack = AsyncExitStack()
+        await self._exit_stack.__aenter__()
+        await self._exit_stack.enter_async_context(self._apscheduler)
         await self._apscheduler.start_in_background()
 
     async def stop(self) -> None:
-        await self._apscheduler.stop()
+        if self._exit_stack:
+            await self._exit_stack.__aexit__(None, None, None)
+            self._exit_stack = None
 
     async def add_trigger(self, agent_name: str, cron_expr: str, *, enabled: bool = True) -> str:
         job_id = str(uuid.uuid4())

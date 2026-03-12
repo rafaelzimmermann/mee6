@@ -15,6 +15,5 @@ async def dashboard(request: Request):
     runs = scheduler.get_recent_runs()
     active_count = scheduler.active_job_count()
     return templates.TemplateResponse(
-        "dashboard.html",
-        {"request": request, "runs": runs, "active_count": active_count},
+        request, "dashboard.html", {"runs": runs, "active_count": active_count}
     )
