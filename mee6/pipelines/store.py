@@ -3,8 +3,8 @@
 import uuid
 
 from mee6.db.engine import AsyncSessionLocal
-from mee6.db.models import PipelineRow
-from mee6.db.repository import PipelineRepository
+from mee6.db.models import PipelineRow, PipelineStepRow
+from mee6.db.repository import PipelineRepository, PipelineStepRepository
 from mee6.pipelines.models import Pipeline, PipelineStep
 
 

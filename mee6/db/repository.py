@@ -8,6 +8,7 @@ from mee6.db.models import (
     CalendarRow,
     PipelineMemoryRow,
     PipelineRow,
+    PipelineStepRow,
     RunRecordRow,
     TriggerRow,
     WhatsAppGroupRow,
@@ -34,6 +35,52 @@ class PipelineRepository:
 
     async def delete(self, pipeline_id: str) -> None:
         await self._s.execute(delete(PipelineRow).where(PipelineRow.id == pipeline_id))
+        await self._s.commit()
+
+
+class PipelineStepRepository:
+    """Repository for individual pipeline steps stored in pipeline_steps table."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def list_by_pipeline(self, pipeline_id: str) -> list[PipelineStepRow]:
+        """Get all steps for a pipeline, ordered by step_index."""
+        result = await self._s.execute(
+            select(PipelineStepRow)
+            .where(PipelineStepRow.pipeline_id == pipeline_id)
+            .order_by(PipelineStepRow.step_index)
+        )
+        return list(result.scalars())
+
+    async def upsert_steps(
+        self, pipeline_id: str, steps: list[PipelineStepRow]
+    ) -> None:
+        """Upsert all steps for a pipeline.
+
+        This method deletes all existing steps for this pipeline
+        and inserts new steps, replacing them entirely.
+
+        Args:
+            pipeline_id: The pipeline ID
+            steps: List of PipelineStepRow objects with pipeline_id and step_index set
+        """
+        # Delete all existing steps for this pipeline
+        await self._s.execute(
+            delete(PipelineStepRow).where(PipelineStepRow.pipeline_id == pipeline_id)
+        )
+
+        # Insert new steps
+        for step in steps:
+            self._s.add(step)
+
+        await self._s.commit()
+
+    async def delete_by_pipeline(self, pipeline_id: str) -> None:
+        """Delete all steps for a pipeline."""
+        await self._s.execute(
+            delete(PipelineStepRow).where(PipelineStepRow.pipeline_id == pipeline_id)
+        )
         await self._s.commit()
 
 

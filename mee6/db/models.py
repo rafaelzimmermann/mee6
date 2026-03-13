@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -15,7 +15,38 @@ class PipelineRow(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    steps: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # Keep for backward compatibility, will be deprecated
+    steps: Mapped[list] = mapped_column(JSONB, nullable=True, default=None)
+    # Relationship to steps
+    steps_list: Mapped[list["PipelineStepRow"]] = relationship(
+        "PipelineStepRow",
+        back_populates="pipeline",
+        cascade="all, delete-orphan",
+        order_by="PipelineStepRow.step_index",
+    )
+
+
+class PipelineStepRow(Base):
+    __tablename__ = "pipeline_steps"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pipeline_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("pipelines.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    step_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    agent_type: Mapped[str] = mapped_column(String, nullable=False)
+    config: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    # Relationship to pipeline
+    pipeline: Mapped["PipelineRow"] = relationship(
+        "PipelineRow",
+        back_populates="steps_list",
+    )
+
+    __table_args__ = (
+        Index("ix_pipeline_steps_pipeline_index", "pipeline_id", "step_index", unique=True),
+    )
 
 
 class TriggerRow(Base):
@@ -58,7 +89,7 @@ class WhatsAppMessageRow(Base):
     __tablename__ = "whatsapp_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    # Normalised phone number without the '+' prefix, e.g. "34612345678"
+    # Normalised phone number without '+' prefix, e.g. "34612345678"
     sender: Mapped[str] = mapped_column(String, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False)
@@ -67,8 +98,8 @@ class WhatsAppMessageRow(Base):
 
     __table_args__ = (
         Index("ix_wa_messages_sender_ts", "sender", "timestamp"),
-        # Partial index on chat_id is created by the migration file (003_wa_groups.sql)
-        # rather than here to avoid the `text` name conflict with the `text` column.
+        # Partial index on chat_id is created by migration file (003_wa_groups.sql)
+        # rather than here to avoid a `text` name conflict with `text` column.
     )
 
 

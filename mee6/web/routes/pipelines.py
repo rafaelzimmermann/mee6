@@ -10,8 +10,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 from mee6.db.engine import AsyncSessionLocal
-from mee6.db.repository import TriggerRepository
-from mee6.pipelines.models import Pipeline, PipelineStep
+from mee6.db.repository import TriggerRepository, PipelineStepRepository
+from mee6.pipelines.models import Pipeline, PipelineStepRow
 from mee6.pipelines.placeholders import AVAILABLE as PLACEHOLDER_HINTS
 from mee6.pipelines.plugin_registry import AGENT_PLUGINS
 from mee6.pipelines.store import pipeline_store
@@ -54,12 +54,27 @@ async def new_pipeline(request: Request):
 
 @router.post("/pipelines")
 async def create_pipeline(data: PipelineCreateRequest):
+    pipeline_id = str(uuid.uuid4())
     pipeline = Pipeline(
-        id=str(uuid.uuid4()),
+        id=pipeline_id,
         name=data.name,
-        steps=[PipelineStep(**step) for step in data.steps],
     )
     await pipeline_store.upsert(pipeline)
+
+    # Insert steps into pipeline_steps table
+    async with AsyncSessionLocal() as session:
+        step_repo = PipelineStepRepository(session)
+        step_rows = [
+            PipelineStepRow(
+                pipeline_id=pipeline_id,
+                step_index=idx,
+                agent_type=step.get("agent_type", ""),
+                config=step,
+            )
+            for idx, step in enumerate(data.steps)
+        ]
+        await step_repo.upsert_steps(pipeline_id, step_rows)
+
     return RedirectResponse("/pipelines", status_code=303)
 
 
@@ -80,19 +95,33 @@ async def edit_pipeline(request: Request, pipeline_id: str):
     )
 
 
+
 @router.post("/pipelines/{pipeline_id}")
 async def update_pipeline(pipeline_id: str, data: PipelineCreateRequest):
-    # Deprecated - use PUT /api/v1/pipelines/{pipeline_id} for JSON API
-    # This route returns JSON instead of redirect for SPA
-    pipeline = Pipeline(
-        id=pipeline_id,
-        name=data.name,
-        steps=[PipelineStep(**step) for step in data.steps],
-    )
+    # Update pipeline name
+    pipeline = Pipeline(id=pipeline_id, name=data.name)
     await pipeline_store.upsert(pipeline)
     scheduler.update_pipeline_name(pipeline_id, pipeline.name)
+
+    # Replace all steps
+    async with AsyncSessionLocal() as session:
+        step_repo = PipelineStepRepository(session)
+        step_rows = [
+            PipelineStepRow(
+                pipeline_id=pipeline_id,
+                step_index=idx,
+                agent_type=step.get("agent_type", ""),
+                config=step,
+            )
+            for idx, step in enumerate(data.steps)
+        ]
+        await step_repo.upsert_steps(pipeline_id, step_rows)
+
     return PipelineResponse(
         id=pipeline.id,
+        name=pipeline.name,
+        steps=[step.model_dump() for step in pipeline.steps_list],
+    )
         name=pipeline.name,
         steps=[step.model_dump() for step in pipeline.steps],
     )
