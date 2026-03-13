@@ -82,6 +82,8 @@ async def edit_pipeline(request: Request, pipeline_id: str):
 
 @router.post("/pipelines/{pipeline_id}")
 async def update_pipeline(pipeline_id: str, data: PipelineCreateRequest):
+    # Deprecated - use PUT /api/v1/pipelines/{pipeline_id} for JSON API
+    # This route returns JSON instead of redirect for SPA
     pipeline = Pipeline(
         id=pipeline_id,
         name=data.name,
@@ -89,7 +91,11 @@ async def update_pipeline(pipeline_id: str, data: PipelineCreateRequest):
     )
     await pipeline_store.upsert(pipeline)
     scheduler.update_pipeline_name(pipeline_id, pipeline.name)
-    return RedirectResponse("/pipelines", status_code=303)
+    return PipelineResponse(
+        id=pipeline.id,
+        name=pipeline.name,
+        steps=[step.model_dump() for step in pipeline.steps],
+    )
 
 
 @router.post("/pipelines/{pipeline_id}/delete")

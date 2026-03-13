@@ -227,9 +227,6 @@ export function PipelineForm() {
           onSuccess: () => {
             setSuccessMessage("Pipeline updated successfully!");
             setIsDirty(false);
-            setTimeout(() => {
-              navigate("/pipelines");
-            }, 1500);
           },
         }
       );
@@ -238,9 +235,6 @@ export function PipelineForm() {
         onSuccess: () => {
           setSuccessMessage("Pipeline created successfully!");
           setIsDirty(false);
-          setTimeout(() => {
-            navigate("/pipelines");
-          }, 1500);
         },
       });
     }
@@ -418,6 +412,14 @@ export function PipelineForm() {
           >
             Cancel
           </Button>
+          {successMessage && (
+            <Button
+              type="button"
+              onClick={() => navigate("/pipelines")}
+            >
+              Back to Pipelines
+            </Button>
+          )}
         </div>
       </form>
 
