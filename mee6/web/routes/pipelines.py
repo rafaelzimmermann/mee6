@@ -1,11 +1,14 @@
 """CRUD routes for pipelines and the agent-fields API endpoint."""
 
 import json
+import urllib.parse
 import uuid
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from mee6.db.engine import AsyncSessionLocal
+from mee6.db.repository import TriggerRepository
 from mee6.pipelines.models import Pipeline, PipelineStep
 from mee6.pipelines.placeholders import AVAILABLE as PLACEHOLDER_HINTS
 from mee6.pipelines.plugin_registry import AGENT_PLUGINS
@@ -28,10 +31,10 @@ def _pipeline_from_form(data: dict, pipeline_id: str) -> Pipeline:
 
 
 @router.get("/pipelines", response_class=HTMLResponse)
-async def list_pipelines(request: Request):
+async def list_pipelines(request: Request, error: str = ""):
     pipelines = await pipeline_store.list()
     return templates.TemplateResponse(
-        request, "pipelines.html", {"pipelines": pipelines, "active_count": 0}
+        request, "pipelines.html", {"pipelines": pipelines, "active_count": 0, "error": error}
     )
 
 
@@ -82,6 +85,10 @@ async def update_pipeline(pipeline_id: str, pipeline_json: str = Form(...)):
 
 @router.post("/pipelines/{pipeline_id}/delete")
 async def delete_pipeline(pipeline_id: str):
+    async with AsyncSessionLocal() as session:
+        if await TriggerRepository(session).exists_for_pipeline(pipeline_id):
+            msg = urllib.parse.quote("Cannot delete: pipeline has associated triggers.")
+            return RedirectResponse(f"/pipelines?error={msg}", status_code=303)
     await pipeline_store.delete(pipeline_id)
     return RedirectResponse("/pipelines", status_code=303)
 

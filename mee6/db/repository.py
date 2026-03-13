@@ -35,6 +35,12 @@ class TriggerRepository:
         result = await self._s.execute(select(TriggerRow))
         return list(result.scalars())
 
+    async def exists_for_pipeline(self, pipeline_id: str) -> bool:
+        result = await self._s.execute(
+            select(TriggerRow.id).where(TriggerRow.pipeline_id == pipeline_id).limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
     async def upsert(self, row: TriggerRow) -> None:
         await self._s.merge(row)
         await self._s.commit()
