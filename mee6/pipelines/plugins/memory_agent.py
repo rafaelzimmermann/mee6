@@ -127,10 +127,10 @@ class MemoryAgentPlugin(AgentPlugin):
             cutoff_time = datetime.utcnow() - timedelta(hours=ttl_hours)
 
             # Get memories for this label, sorted by most recent
-            memories = await repository.list(
+            memories = await repository.get_recent(
                 pipeline_id=pipeline_id,
                 label=label,
-                created_after=cutoff_time,
+                since=cutoff_time,
                 limit=max_memories,
             )
 
