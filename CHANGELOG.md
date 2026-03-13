@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-03-13
+
 ### Changed
 - **CSS best practices** — removed all inline `style=` attributes from templates; replaced
   `<a><button>` anti-pattern with `<a class="btn">` link-buttons; added font inheritance,
