@@ -13,6 +13,7 @@ from mee6.pipelines.models import Pipeline, PipelineStep
 from mee6.pipelines.placeholders import AVAILABLE as PLACEHOLDER_HINTS
 from mee6.pipelines.plugin_registry import AGENT_PLUGINS
 from mee6.pipelines.store import pipeline_store
+from mee6.scheduler.engine import scheduler
 from mee6.web.templates_env import templates
 
 router = APIRouter()
@@ -80,6 +81,7 @@ async def edit_pipeline(request: Request, pipeline_id: str):
 async def update_pipeline(pipeline_id: str, pipeline_json: str = Form(...)):
     pipeline = _pipeline_from_form(json.loads(pipeline_json), pipeline_id)
     await pipeline_store.upsert(pipeline)
+    scheduler.update_pipeline_name(pipeline_id, pipeline.name)
     return RedirectResponse("/pipelines", status_code=303)
 
 

@@ -72,6 +72,9 @@ class SchedulerEngine:
 
     async def _load_from_db(self) -> None:
         from mee6.db.repository import RunRecordRepository, TriggerRepository
+        from mee6.pipelines.store import pipeline_store
+
+        pipeline_names: dict[str, str] = {p.id: p.name for p in await pipeline_store.list()}
 
         async with AsyncSessionLocal() as session:
             for row in await TriggerRepository(session).list_all():
@@ -80,7 +83,7 @@ class SchedulerEngine:
                 meta = TriggerMeta(
                     id=row.id,
                     pipeline_id=row.pipeline_id,
-                    pipeline_name=row.pipeline_name,
+                    pipeline_name=pipeline_names.get(row.pipeline_id, row.pipeline_id),
                     enabled=row.enabled,
                     trigger_type=trigger_type,
                     cron_expr=row.cron_expr,
@@ -117,7 +120,6 @@ class SchedulerEngine:
     async def add_trigger(
         self,
         pipeline_id: str,
-        pipeline_name: str,
         cron_expr: str | None = None,
         *,
         trigger_type: TriggerType = TriggerType.CRON,
@@ -126,6 +128,10 @@ class SchedulerEngine:
     ) -> str:
         from mee6.db.models import TriggerRow
         from mee6.db.repository import TriggerRepository
+        from mee6.pipelines.store import pipeline_store
+
+        pipeline = await pipeline_store.get(pipeline_id)
+        pipeline_name = pipeline.name if pipeline else pipeline_id
 
         job_id = str(uuid.uuid4())
         cfg = config or {}
@@ -157,7 +163,6 @@ class SchedulerEngine:
                 TriggerRow(
                     id=job_id,
                     pipeline_id=pipeline_id,
-                    pipeline_name=pipeline_name,
                     trigger_type=trigger_type,
                     cron_expr=cron_expr,
                     config=cfg,
@@ -165,6 +170,12 @@ class SchedulerEngine:
                 )
             )
         return job_id
+
+    def update_pipeline_name(self, pipeline_id: str, new_name: str) -> None:
+        """Keep in-memory TriggerMeta in sync when a pipeline is renamed."""
+        for meta in self._jobs.values():
+            if meta.pipeline_id == pipeline_id:
+                meta.pipeline_name = new_name
 
     async def remove_trigger(self, job_id: str) -> None:
         from mee6.db.repository import TriggerRepository

@@ -11,15 +11,13 @@
   <div class="card-body">
     <form method="post" action="/triggers">
       <label>Pipeline
-        <select name="pipeline_id" required
-          onchange="document.getElementById('pname').value = this.options[this.selectedIndex].text">
+        <select name="pipeline_id" required>
           <option value="">— select —</option>
           {% for p in pipelines %}
           <option value="{{ p.id }}">{{ p.name }}</option>
           {% endfor %}
         </select>
       </label>
-      <input type="hidden" id="pname" name="pipeline_name">
 
       <label>Type
         <select name="trigger_type" id="trigger_type" onchange="onTriggerTypeChange(this.value)">

@@ -33,7 +33,6 @@ async def list_triggers(request: Request):
 @router.post("")
 async def create_trigger(
     pipeline_id: str = Form(...),
-    pipeline_name: str = Form(...),
     trigger_type: TriggerType = Form(TriggerType.CRON),
     cron_expr: str = Form(""),
     phone: str = Form(""),
@@ -48,7 +47,6 @@ async def create_trigger(
         config = {}
     await scheduler.add_trigger(
         pipeline_id,
-        pipeline_name,
         cron_expr or None,
         trigger_type=trigger_type,
         config=config,

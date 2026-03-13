@@ -1,6 +1,7 @@
 # mee6
 
 A personal AI assistant that automates life tasks using LLMs.
+Powered by [agntrick](https://github.com/jeancsil/agntrick).
 
 ## Overview
 
@@ -11,6 +12,16 @@ and Ollama (local LLMs) as backends.
 **Runtime:** Python 3.12, managed with `uv`, deployed via Docker.
 **LLM backends:** Anthropic Claude (cloud) or Ollama (self-hosted).
 **Agent framework:** [agntrick](https://github.com/jeancsil/agntrick) + agntrick-whatsapp.
+
+> **Warning:** This project is not production-ready. It is a personal tool shared as-is.
+> Before running it, read the code and understand what it does — it connects to external
+> services (WhatsApp, Google Calendar, LLM APIs), executes scheduled automations, and
+> stores data in a local database. You are responsible for any consequences of its use.
+
+## Screenshots
+
+![Pipelines](assets/pipeline_list.png)
+![Triggers](assets/trigger_list.png)
 
 ## Quick start
 

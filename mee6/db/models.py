@@ -23,7 +23,6 @@ class TriggerRow(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     pipeline_id: Mapped[str] = mapped_column(String, nullable=False)
-    pipeline_name: Mapped[str] = mapped_column(String, nullable=False)
     # "cron" or "whatsapp"
     trigger_type: Mapped[str] = mapped_column(String, nullable=False, server_default="cron")
     cron_expr: Mapped[Optional[str]] = mapped_column(String, nullable=True)
