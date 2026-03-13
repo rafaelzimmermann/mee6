@@ -1,35 +1,13 @@
-# Build stage
-FROM node:20-alpine AS build
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files first
-COPY package.json ./
+# Copy package files
+COPY package.json package-lock.json ./
 
-# Install dependencies
+# Install all dependencies (including dev for dev mode)
 RUN npm install
-
-# Copy source code
-COPY src/ ./src/
-COPY public/ ./public/
-
-# Build
-RUN npm run build
-
-# Production stage
-FROM node:20-alpine AS production
-
-WORKDIR /app
-
-# Copy built files from build stage
-COPY --from=build /app/dist ./dist
-
-# Copy package.json for runtime
-COPY package.json ./
-
-# Install only production dependencies
-RUN npm install --production
 
 EXPOSE 5173
 
-CMD ["npm", "run", "preview"]
+CMD ["npm", "run", "dev"]
