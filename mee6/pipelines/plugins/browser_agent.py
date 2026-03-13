@@ -38,9 +38,9 @@ class BrowserAgentPlugin(AgentPlugin):
 
     async def run(self, config: dict[str, str], input: str = "") -> str:
         from mee6.agents.browser_agent.agent import browse
-        from mee6.pipelines.placeholders import resolve
+        from mee6.pipelines.placeholders import resolve_with_memory
 
-        task = resolve(config.get("task", ""), input=input)
+        task = await resolve_with_memory(config.get("task", ""), input=input)
         return await browse(
             task,
             provider=config.get("provider", "anthropic"),

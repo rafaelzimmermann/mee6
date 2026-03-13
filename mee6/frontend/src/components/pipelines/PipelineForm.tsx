@@ -121,12 +121,12 @@ export function PipelineForm() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [isDirty, setIsDirty] = useState(false);
-  const initialFormData = useRef<{ name: string; steps: Step[] } | null>(null);
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    watch,
+    formState: { errors, isDirty: formDirty },
   } = useForm({
     resolver: zodResolver(pipelineSchema),
     defaultValues: pipeline
@@ -137,29 +137,31 @@ export function PipelineForm() {
       : { name: "", steps: [] },
   });
 
-  // Track initial form data for dirty checking
+  const watchedName = watch("name");
+
+  // Track dirty state combining form dirty state and steps changes
   useEffect(() => {
-    if (pipeline && !initialFormData.current) {
-      initialFormData.current = {
-        name: pipeline.name,
-        steps: pipeline.steps.map((step, i) => ({
-          id: `step-${i}`,
-          agent_type: step.agent_type,
-          config: step.config,
-        })),
-      };
+    if (isLoading) return;
+
+    // For new pipelines, any change makes it dirty
+    if (!id) {
+      setIsDirty(formDirty);
+      return;
     }
-  }, [pipeline]);
 
-  // Track changes to update dirty state
-  useEffect(() => {
-    if (!initialFormData.current) return;
+    // For editing, track if steps have changed from initial
+    if (pipeline) {
+      const initialSteps = pipeline.steps;
+      const currentSteps = steps.map((s) => ({
+        agent_type: s.agent_type,
+        config: s.config,
+      }));
 
-    const currentName = document.querySelector<HTMLInputElement>('input[name="name"]')?.value || "";
-    const nameChanged = currentName !== initialFormData.current.name;
-    const stepsChanged = JSON.stringify(steps) !== JSON.stringify(initialFormData.current.steps);
-    setIsDirty(nameChanged || stepsChanged);
-  }, [steps]);
+      // Check if steps have changed (ignoring IDs)
+      const stepsChanged = JSON.stringify(currentSteps) !== JSON.stringify(initialSteps);
+      setIsDirty(formDirty || stepsChanged);
+    }
+  }, [formDirty, steps, pipeline, isLoading, id]);
 
   // Initialize steps from pipeline data
   if (pipeline && steps.length === 0 && pipeline.steps.length > 0) {

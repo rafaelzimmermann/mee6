@@ -6,10 +6,7 @@
   <a href="/pipelines" class="btn secondary">Cancel</a>
 </div>
 
-<form id="pipeline-form" method="post"
-      action="{{ '/pipelines/' + pipeline.id if pipeline else '/pipelines' }}">
-  <input type="hidden" id="pipeline-json" name="pipeline_json">
-
+<form id="pipeline-form">
   <div class="pipeline-name-row">
     <label>
       Name
@@ -24,7 +21,7 @@
 
   <div class="pipeline-actions">
     <button type="button" onclick="addStep()">+ Add step</button>
-    <button type="submit">Save pipeline</button>
+    <button type="button" id="save-btn" onclick="savePipeline()">Save pipeline</button>
   </div>
 </form>
 
@@ -32,6 +29,7 @@
 const AGENT_PLUGINS = {{ plugin_list_json | safe }};
 const initialPipeline = {{ initial_pipeline_json | safe }};
 let steps = [];
+let isSaving = false;
 
 function buildCardHTML(idx, selectedType) {
   const opts = ['<option value="">— select agent —</option>']
@@ -39,27 +37,40 @@ function buildCardHTML(idx, selectedType) {
       `<option value="${p.name}"${p.name === selectedType ? ' selected' : ''}>${p.label}</option>`
     )).join('');
   return `
-    <div class="step-header">
-      <strong>Step ${idx + 1}</strong>
-      <select class="agent-select">${opts}</select>
-      <button type="button" class="sm danger remove-step">Remove</button>
+    <div class="step-card" data-idx="${idx}">
+      <div class="step-header">
+        <strong>Step ${idx + 1}</strong>
+        <div class="step-move-buttons">
+          <button type="button" class="sm" onclick="moveStepUp(${idx})" title="Move up">↑</button>
+          <button type="button" class="sm" onclick="moveStepDown(${idx})" title="Move down">↓</button>
+        </div>
+        <select class="agent-select">${opts}</select>
+        <button type="button" class="sm danger remove-step">Remove</button>
+      </div>
+      <div class="step-fields" id="step-fields-${idx}"></div>
     </div>
-    <div class="step-fields" id="step-fields-${idx}"></div>
   `;
 }
 
 async function loadFields(idx, agentType, existingConfig) {
   const container = document.getElementById(`step-fields-${idx}`);
   if (!agentType) { container.innerHTML = ''; return; }
-  const params = new URLSearchParams({
-    step_index: idx,
-    config: JSON.stringify(existingConfig),
+
+  const resp = await fetch(`/api/agents/${agentType}/fields`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      step_index: idx,
+      config: existingConfig,
+    }),
   });
-  const resp = await fetch(`/api/agents/${agentType}/fields?${params}`);
   container.innerHTML = await resp.text();
 }
 
 async function addStep(initialData) {
+  console.log('Adding step:', initialData);
   const idx = steps.length;
   const step = initialData
     ? { agent_type: initialData.agent_type, config: { ...initialData.config } }
@@ -72,14 +83,41 @@ async function addStep(initialData) {
   card.innerHTML = buildCardHTML(idx, step.agent_type);
   document.getElementById('steps-container').appendChild(card);
 
+  console.log('Step card created for:', step.agent_type, 'at index:', idx);
+
   if (step.agent_type) {
+    console.log('Loading fields for step:', step.agent_type, 'config:', step.config);
     await loadFields(idx, step.agent_type, step.config);
   }
 }
 
+
 async function rebuildSteps() {
+  // Collect current form values before clearing container
+  const currentConfigs = [];
+  document.querySelectorAll('.step-card').forEach((card, i) => {
+    if (i < steps.length) {
+      const config = {};
+      card.querySelectorAll('.step-fields input, .step-fields textarea, .step-fields select').forEach(el => {
+        if (el.type === 'checkbox') {
+          config[el.getAttribute('name')] = el.checked ? 'on' : '';
+        } else {
+          config[el.getAttribute('name')] = el.value;
+        }
+      });
+      // Merge with existing step config
+      currentConfigs[i] = { ...steps[i].config, ...config };
+    }
+  });
+
+  // Rebuild display first (clears container)
   document.getElementById('steps-container').innerHTML = '';
+
+  // Add each step back with updated configs
   const toAdd = [...steps];
+  toAdd.forEach((s, i) => {
+    s.config = currentConfigs[i] || s.config;
+  });
   steps = [];
   for (const s of toAdd) await addStep(s);
 }
@@ -104,27 +142,116 @@ document.getElementById('steps-container').addEventListener('click', async (e) =
   }
 });
 
-// Before submit: collect all field values into steps[], then serialise
-document.getElementById('pipeline-form').addEventListener('submit', (e) => {
-  document.querySelectorAll('.step-card').forEach((card, i) => {
-    if (i >= steps.length) return;
-    const config = {};
-    card.querySelectorAll('.step-fields input, .step-fields textarea, .step-fields select').forEach(el => {
-      config[el.getAttribute('name')] = el.value;
+function validateMemorySteps() {
+  const memoryCards = document.querySelectorAll('.step-card');
+  for (const card of memoryCards) {
+    const agentSelect = card.querySelector('.agent-select');
+    if (agentSelect && agentSelect.value === 'memory_agent') {
+      const readCheckbox = card.querySelector('input[name="read_memory"]');
+      const writeCheckbox = card.querySelector('input[name="write_memory"]');
+      if (readCheckbox && writeCheckbox && !readCheckbox.checked && !writeCheckbox.checked) {
+        const stepNum = card.querySelector('strong').textContent;
+        alert(`${stepNum}: Please select at least one of Read Memory or Write Memory.`);
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// Save pipeline via API call instead of form submission
+async function savePipeline() {
+  if (isSaving) return;
+
+  // Validate memory steps before proceeding
+  if (!validateMemorySteps()) {
+    return;
+  }
+
+  isSaving = true;
+
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+
+  try {
+    // Collect current form values
+    document.querySelectorAll('.step-card').forEach((card, i) => {
+      if (i < steps.length) {
+        const config = {};
+        card.querySelectorAll('.step-fields input, .step-fields textarea, .step-fields select').forEach(el => {
+          if (el.type === 'checkbox') {
+            config[el.getAttribute('name')] = el.checked ? 'on' : '';
+          } else {
+            config[el.getAttribute('name')] = el.value;
+          }
+        });
+        steps[i].config = config;
+      }
     });
-    steps[i].config = config;
-  });
-  document.getElementById('pipeline-json').value = JSON.stringify({
-    name: document.getElementById('pipeline-name').value,
-    steps: steps,
-  });
-});
+
+    // Determine if new or edit
+    const isEdit = {{ 'true' if pipeline else 'false' }};
+    const url = isEdit ? `/pipelines/{{ pipeline.id }}` : '/pipelines';
+    const method = 'POST';
+
+    // Send data
+    const response = await fetch(url, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: document.getElementById('pipeline-name').value,
+        steps: steps,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save pipeline: ${response.statusText}`);
+    }
+
+    // Redirect to pipelines list
+    window.location.href = '/pipelines';
+  } catch (error) {
+    console.error('Error saving pipeline:', error);
+    alert(`Error saving pipeline: ${error.message}`);
+  } finally {
+    isSaving = false;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save pipeline';
+  }
+}
 
 // Initialise
-if (initialPipeline && initialPipeline.steps) {
-  initialPipeline.steps.forEach(s => addStep(s));
-} else {
-  addStep();
+async function initializeSteps() {
+  if (initialPipeline && initialPipeline.steps) {
+    for (const s of initialPipeline.steps) {
+      await addStep(s);
+    }
+  } else {
+    await addStep();
+  }
+}
+initializeSteps();
+
+// Step reordering functions
+function moveStepUp(idx) {
+  if (idx > 0) {
+    // Swap steps in array
+    [steps[idx], steps[idx - 1]] = [steps[idx - 1], steps[idx]];
+    // Rebuild display
+    rebuildSteps();
+  }
+}
+
+function moveStepDown(idx) {
+  if (idx < steps.length - 1) {
+    // Swap steps in array
+    [steps[idx], steps[idx + 1]] = [steps[idx + 1], steps[idx]];
+    // Rebuild display
+    rebuildSteps();
+  }
 }
 </script>
 {% endblock %}

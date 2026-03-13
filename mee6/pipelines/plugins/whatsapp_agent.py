@@ -21,11 +21,11 @@ class WhatsAppAgentPlugin(AgentPlugin):
 
     async def run(self, config: dict[str, str], input: str = "") -> str:
         from mee6.integrations.whatsapp import send_notification
-        from mee6.pipelines.placeholders import resolve
+        from mee6.pipelines.placeholders import resolve_with_memory
 
         phone = config.get("phone", "")
         if not phone:
             raise ValueError("WhatsApp Send: 'phone' is required.")
-        message = resolve(config.get("message_template", "{input}"), input=input)
+        message = await resolve_with_memory(config.get("message_template", "{input}"), input=input)
         await send_notification(phone=phone, message=message)
         return f"WhatsApp message sent to {phone} Body: {message}"

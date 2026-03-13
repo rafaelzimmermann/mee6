@@ -86,3 +86,23 @@ class WhatsAppSettingsRow(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     phone_number: Mapped[str] = mapped_column(String, nullable=False, server_default="")
+
+
+class PipelineMemoryRow(Base):
+    __tablename__ = "pipeline_memories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pipeline_id: Mapped[str] = mapped_column(String, nullable=False)
+    trigger_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class PipelineMemoryConfig(Base):
+    __tablename__ = "pipeline_memory_configs"
+
+    label: Mapped[str] = mapped_column(String, primary_key=True)
+    max_memories: Mapped[int] = mapped_column(Integer, nullable=False, server_default="20")
+    ttl_hours: Mapped[int] = mapped_column(Integer, nullable=False, server_default="720")
+    max_value_size: Mapped[int] = mapped_column(Integer, nullable=False, server_default="2000")

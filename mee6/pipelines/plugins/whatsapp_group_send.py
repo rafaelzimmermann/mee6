@@ -36,10 +36,10 @@ class WhatsAppGroupSendPlugin:
 
     async def run(self, config: dict[str, str], input: str = "") -> str:
         from mee6.integrations.whatsapp import send_group_message
-        from mee6.pipelines.placeholders import resolve
+        from mee6.pipelines.placeholders import resolve_with_memory
 
         group_jid = config.get("group", "")
-        message = resolve(config.get("message_template", "{input}"), input=input)
+        message = await resolve_with_memory(config.get("message_template", "{input}"), input=input)
 
         await send_group_message(group_jid=group_jid, message=message)
         return f"WhatsApp group message sent to {group_jid}. Body: {message}"

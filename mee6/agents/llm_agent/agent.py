@@ -18,11 +18,11 @@ async def llm_call(
     If *input* is non-empty and the caller didn't embed ``{input}`` (or
     ``{previous_output}``) in *prompt*, the input is prepended as context.
     """
-    from mee6.pipelines.placeholders import resolve
+    from mee6.pipelines.placeholders import resolve_with_memory
 
-    has_placeholder = "{input}" in prompt or "{previous_output}" in prompt
+    has_placeholder = "{input}" in prompt or "{previous_output}" in prompt or "{memory:" in prompt
     if has_placeholder:
-        final_prompt = resolve(prompt, input=input)
+        final_prompt = await resolve_with_memory(prompt, input=input)
     elif input:
         # Auto-inject: previous step's output as context, prompt as instruction.
         final_prompt = f"{input}\n\n{prompt}" if prompt else input

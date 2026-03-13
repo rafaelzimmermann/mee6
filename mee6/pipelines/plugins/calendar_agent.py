@@ -43,19 +43,19 @@ class CalendarAgentPlugin:
         from mee6.agents.calendar_agent.agent import run_calendar_agent
         from mee6.db.engine import AsyncSessionLocal
         from mee6.db.repository import CalendarRepository
-        from mee6.pipelines.placeholders import resolve
+        from mee6.pipelines.placeholders import resolve_with_memory
 
         calendar_label = config.get("calendar", "")
-        prompt = resolve(config.get("prompt", ""), input=input)
+        prompt = await resolve_with_memory(config.get("prompt", ""), input=input)
 
         async with AsyncSessionLocal() as session:
             cal = await CalendarRepository(session).get_by_label(calendar_label)
 
-        if cal is None:
-            raise ValueError(
-                f"Calendar '{calendar_label}' not found. "
-                "Please configure it in Integrations → Google Calendar."
-            )
+            if cal is None:
+                raise ValueError(
+                    f"Calendar '{calendar_label}' not found. "
+                    "Please configure it in Integrations → Google Calendar."
+                )
 
         return await run_calendar_agent(
             calendar_id=cal.calendar_id,

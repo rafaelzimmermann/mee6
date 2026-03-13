@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Memory Integrations{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Memory Integrations</h1>
+  <a href="/integrations" class="btn secondary">Back to Integrations</a>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Memory Configurations</h2>
+    <button type="button" class="btn" onclick="window.location='/integrations/memories/new'">+ New Memory</button>
+  </div>
+  <div class="card-body">
+    {% if memory_configs %}
+      <table>
+        <thead>
+          <tr>
+            <th>Memory Label</th>
+            <th>Entry Count</th>
+            <th>Max Memories</th>
+            <th>TTL (hours)</th>
+            <th>Max Value Size</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for memory in memory_configs %}
+          <tr>
+            <td>{{ memory.label }}</td>
+            <td>{{ memory.count }}</td>
+            <td>{{ memory.max_memories }}</td>
+            <td>{{ memory.ttl_hours }}</td>
+            <td>{{ memory.max_value_size }}</td>
+            <td>
+              <form method="post" action="/integrations/memories/{{ memory.label }}/delete" style="display: inline;">
+                <button type="submit" class="sm danger" onclick="return confirm('Delete all memories for {{ memory.label }}?');">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No memory configurations found. Create your first memory to get started.</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function deleteMemory(label) {
+  if (confirm(`Delete all memories for ${label}?`)) {
+    fetch(`/integrations/memories/${label}/delete`, {
+      method: 'POST',
+    })
+    .then(() => window.location.reload())
+    .catch(error => console.error('Error:', error));
+  }
+}
+</script>
+{% endblock %}

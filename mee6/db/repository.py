@@ -1,7 +1,19 @@
-from sqlalchemy import delete, select, update
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mee6.db.models import CalendarRow, PipelineRow, RunRecordRow, TriggerRow, WhatsAppGroupRow, WhatsAppMessageRow, WhatsAppSettingsRow
+from mee6.db.models import (
+    CalendarRow,
+    PipelineMemoryRow,
+    PipelineRow,
+    RunRecordRow,
+    TriggerRow,
+    WhatsAppGroupRow,
+    WhatsAppMessageRow,
+    WhatsAppSettingsRow,
+)
 
 
 class PipelineRepository:
@@ -13,9 +25,7 @@ class PipelineRepository:
         return list(result.scalars())
 
     async def get(self, pipeline_id: str) -> PipelineRow | None:
-        result = await self._s.execute(
-            select(PipelineRow).where(PipelineRow.id == pipeline_id)
-        )
+        result = await self._s.execute(select(PipelineRow).where(PipelineRow.id == pipeline_id))
         return result.scalar_one_or_none()
 
     async def upsert(self, row: PipelineRow) -> None:
@@ -80,9 +90,7 @@ class CalendarRepository:
         return list(result.scalars())
 
     async def get_by_label(self, label: str) -> CalendarRow | None:
-        result = await self._s.execute(
-            select(CalendarRow).where(CalendarRow.label == label)
-        )
+        result = await self._s.execute(select(CalendarRow).where(CalendarRow.label == label))
         return result.scalar_one_or_none()
 
     async def upsert(self, row: CalendarRow) -> None:
@@ -133,15 +141,11 @@ class WhatsAppGroupRepository:
         self._s = session
 
     async def list_all(self) -> list[WhatsAppGroupRow]:
-        result = await self._s.execute(
-            select(WhatsAppGroupRow).order_by(WhatsAppGroupRow.name)
-        )
+        result = await self._s.execute(select(WhatsAppGroupRow).order_by(WhatsAppGroupRow.name))
         return list(result.scalars())
 
     async def get(self, jid: str) -> WhatsAppGroupRow | None:
-        result = await self._s.execute(
-            select(WhatsAppGroupRow).where(WhatsAppGroupRow.jid == jid)
-        )
+        result = await self._s.execute(select(WhatsAppGroupRow).where(WhatsAppGroupRow.jid == jid))
         return result.scalar_one_or_none()
 
     async def upsert(self, row: WhatsAppGroupRow) -> None:
@@ -155,9 +159,7 @@ class WhatsAppGroupRepository:
         await self._s.commit()
 
     async def delete(self, jid: str) -> None:
-        await self._s.execute(
-            delete(WhatsAppGroupRow).where(WhatsAppGroupRow.jid == jid)
-        )
+        await self._s.execute(delete(WhatsAppGroupRow).where(WhatsAppGroupRow.jid == jid))
         await self._s.commit()
 
 
@@ -176,4 +178,129 @@ class WhatsAppSettingsRepository:
 
     async def set_phone_number(self, phone: str) -> None:
         await self._s.merge(WhatsAppSettingsRow(id=self._ID, phone_number=phone))
+        await self._s.commit()
+
+
+class PipelineMemoryRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def get_recent(
+        self, pipeline_id: str, label: str, limit: int, since: Optional[datetime] = None
+    ) -> list[PipelineMemoryRow]:
+        """Return the most recent *limit* memories for pipeline_id/label, oldest first."""
+        query = select(PipelineMemoryRow).where(
+            PipelineMemoryRow.pipeline_id == pipeline_id,
+            PipelineMemoryRow.label == label,
+        )
+
+        if since is not None:
+            query = query.where(PipelineMemoryRow.created_at >= since)
+
+        result = await self._s.execute(
+            query.order_by(PipelineMemoryRow.created_at.desc()).limit(limit)
+        )
+        rows = list(result.scalars())
+        rows.reverse()
+        return rows
+
+    async def insert(self, row: PipelineMemoryRow) -> None:
+        self._s.add(row)
+        await self._s.commit()
+
+    async def count(self, pipeline_id: str, label: str) -> int:
+        """Count memories for pipeline_id/label."""
+        result = await self._s.execute(
+            select(func.count(PipelineMemoryRow.id)).where(
+                PipelineMemoryRow.pipeline_id == pipeline_id,
+                PipelineMemoryRow.label == label,
+            )
+        )
+        return result.scalar_one()
+
+    async def delete_oldest(self, pipeline_id: str, label: str, keep: int) -> None:
+        """Delete oldest memories beyond *keep* count."""
+        subquery = (
+            select(PipelineMemoryRow.id)
+            .where(
+                PipelineMemoryRow.pipeline_id == pipeline_id,
+                PipelineMemoryRow.label == label,
+            )
+            .order_by(PipelineMemoryRow.created_at.desc())
+            .offset(keep)
+        )
+
+        await self._s.execute(delete(PipelineMemoryRow).where(PipelineMemoryRow.id.in_(subquery)))
+        await self._s.commit()
+
+    async def delete_expired(self, pipeline_id: str, label: str, before: datetime) -> None:
+        """Delete memories older than *before* timestamp."""
+        await self._s.execute(
+            delete(PipelineMemoryRow).where(
+                PipelineMemoryRow.pipeline_id == pipeline_id,
+                PipelineMemoryRow.label == label,
+                PipelineMemoryRow.created_at < before,
+            )
+        )
+        await self._s.commit()
+
+    async def get_config(self, label: str) -> dict | None:
+        """Get memory configuration for a label, or default values if not configured."""
+        from mee6.db.models import PipelineMemoryConfig
+
+        result = await self._s.execute(
+            select(PipelineMemoryConfig).where(PipelineMemoryConfig.label == label)
+        )
+        config = result.scalar_one_or_none()
+
+        if config is None:
+            return {
+                "label": label,
+                "max_memories": 20,
+                "ttl_hours": 720,
+                "max_value_size": 2000,
+            }
+
+        return {
+            "label": config.label,
+            "max_memories": config.max_memories,
+            "ttl_hours": config.ttl_hours,
+            "max_value_size": config.max_value_size,
+        }
+
+    async def set_config(self, label: str, max_memories: int, ttl_hours: int, max_value_size: int) -> None:
+        """Set memory configuration for a label."""
+        from mee6.db.models import PipelineMemoryConfig
+
+        config = PipelineMemoryConfig(
+            label=label,
+            max_memories=max_memories,
+            ttl_hours=ttl_hours,
+            max_value_size=max_value_size,
+        )
+        await self._s.merge(config)
+        await self._s.commit()
+
+    async def list_configs(self) -> list[dict]:
+        """List all memory configurations."""
+        from mee6.db.models import PipelineMemoryConfig
+
+        result = await self._s.execute(select(PipelineMemoryConfig).order_by(PipelineMemoryConfig.label))
+        configs = result.scalars().all()
+
+        return [
+            {
+                "label": config.label,
+                "max_memories": config.max_memories,
+                "ttl_hours": config.ttl_hours,
+                "max_value_size": config.max_value_size,
+            }
+            for config in configs
+        ]
+
+    async def delete_config(self, label: str) -> None:
+        """Delete memory configuration for a label."""
+        from mee6.db.models import PipelineMemoryConfig
+
+        await self._s.execute(delete(PipelineMemoryConfig).where(PipelineMemoryConfig.label == label))
         await self._s.commit()

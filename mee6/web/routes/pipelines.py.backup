@@ -7,8 +7,6 @@ import uuid
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from pydantic import BaseModel
-
 from mee6.db.engine import AsyncSessionLocal
 from mee6.db.repository import TriggerRepository
 from mee6.pipelines.models import Pipeline, PipelineStep
@@ -21,13 +19,16 @@ from mee6.web.templates_env import templates
 router = APIRouter()
 
 
-class PipelineCreateRequest(BaseModel):
-    name: str
-    steps: list[dict]
-
-
 def _plugin_list_json() -> str:
     return json.dumps([{"name": p.name, "label": p.label} for p in AGENT_PLUGINS.values()])
+
+
+def _pipeline_from_form(data: dict, pipeline_id: str) -> Pipeline:
+    return Pipeline(
+        id=pipeline_id,
+        name=data["name"],
+        steps=[PipelineStep(**step) for step in data.get("steps", [])],
+    )
 
 
 @router.get("/pipelines", response_class=HTMLResponse)
@@ -53,18 +54,17 @@ async def new_pipeline(request: Request):
 
 
 @router.post("/pipelines")
-async def create_pipeline(data: PipelineCreateRequest):
-    pipeline = Pipeline(
-        id=str(uuid.uuid4()),
-        name=data.name,
-        steps=[PipelineStep(**step) for step in data.steps],
-    )
+async def create_pipeline(pipeline_json: str = Form(...)):
+    pipeline = _pipeline_from_form(json.loads(pipeline_json), str(uuid.uuid4()))
     await pipeline_store.upsert(pipeline)
     return RedirectResponse("/pipelines", status_code=303)
 
 
 @router.get("/pipelines/{pipeline_id}", response_class=HTMLResponse)
 async def edit_pipeline(request: Request, pipeline_id: str):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"GET /pipelines/{pipeline_id} requested - pipeline_id: {pipeline_id}")
     pipeline = await pipeline_store.get(pipeline_id)
     if pipeline is None:
         return RedirectResponse("/pipelines", status_code=303)
@@ -81,12 +81,8 @@ async def edit_pipeline(request: Request, pipeline_id: str):
 
 
 @router.post("/pipelines/{pipeline_id}")
-async def update_pipeline(pipeline_id: str, data: PipelineCreateRequest):
-    pipeline = Pipeline(
-        id=pipeline_id,
-        name=data.name,
-        steps=[PipelineStep(**step) for step in data.steps],
-    )
+async def update_pipeline(pipeline_id: str, pipeline_json: str = Form(...)):
+    pipeline = _pipeline_from_form(json.loads(pipeline_json), pipeline_id)
     await pipeline_store.upsert(pipeline)
     scheduler.update_pipeline_name(pipeline_id, pipeline.name)
     return RedirectResponse("/pipelines", status_code=303)
@@ -102,22 +98,17 @@ async def delete_pipeline(pipeline_id: str):
     return RedirectResponse("/pipelines", status_code=303)
 
 
-class AgentFieldsRequest(BaseModel):
-    step_index: int = 0
-    config: dict = {}
-
-
-@router.post("/api/agents/{agent_type}/fields", response_class=HTMLResponse)
+@router.get("/api/agents/{agent_type}/fields", response_class=HTMLResponse)
 async def get_agent_fields(
     request: Request,
     agent_type: str,
-    data: AgentFieldsRequest = None,
+    step_index: int = 0,
+    config: str = "{}",
 ):
     plugin = AGENT_PLUGINS.get(agent_type)
     if plugin is None:
         return HTMLResponse("")
-    step_index = data.step_index if data else 0
-    existing_config = data.config if data else {}
+    existing_config = json.loads(config)
     fields = await plugin.get_fields()
     return templates.TemplateResponse(
         request,

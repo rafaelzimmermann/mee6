@@ -90,7 +90,12 @@
     name="{{ field.name }}"
     id="field-{{ step_index }}-{{ field.name }}"
     placeholder="{{ field.placeholder }}"
-    value="{{ config.get(field.name, '') }}"
+    {% if field.field_type == "checkbox" %}
+      value="on"
+      {% if config.get(field.name, '') == 'on' %}checked{% endif %}
+    {% else %}
+      value="{{ config.get(field.name, '') }}"
+    {% endif %}
     {% if field.required %}required{% endif %}
   >
   {% endif %}
