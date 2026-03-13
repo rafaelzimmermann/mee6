@@ -25,9 +25,20 @@ async def _noop_lifespan(app: FastAPI):
 @pytest.fixture()
 async def api_client():
     """AsyncClient pointing at a test app with mocked dependencies."""
-    with patch("mee6.web.api.pipelines.pipeline_store") as mock_store, patch(
-        "mee6.web.api.pipelines.scheduler"
-    ) as mock_scheduler:
+    mock_session = MagicMock()
+    mock_step_repo = MagicMock()
+    mock_step_repo.upsert_steps = AsyncMock()
+
+    @asynccontextmanager
+    async def _mock_session_ctx():
+        yield mock_session
+
+    with (
+        patch("mee6.web.api.pipelines.pipeline_store") as mock_store,
+        patch("mee6.web.api.pipelines.scheduler") as mock_scheduler,
+        patch("mee6.web.api.pipelines.AsyncSessionLocal", side_effect=_mock_session_ctx),
+        patch("mee6.web.api.pipelines.PipelineStepRepository", return_value=mock_step_repo),
+    ):
         mock_store.list = AsyncMock(return_value=[])
         mock_store.get = AsyncMock(return_value=None)
         mock_store.upsert = AsyncMock()
@@ -43,7 +54,7 @@ async def api_client():
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
-            yield client, mock_store
+            yield client, mock_store, mock_step_repo
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +131,7 @@ def test_pipeline_create_request_model():
 @pytest.mark.asyncio
 async def test_list_pipelines_empty(api_client):
     """GET /api/v1/pipelines returns empty list when no pipelines."""
-    client, mock_store = api_client
+    client, mock_store, _ = api_client
     mock_store.list.return_value = []
 
     resp = await client.get("/api/v1/pipelines")
@@ -131,7 +142,7 @@ async def test_list_pipelines_empty(api_client):
 @pytest.mark.asyncio
 async def test_list_pipelines_returns_pipelines(api_client):
     """GET /api/v1/pipelines returns list of pipelines."""
-    client, mock_store = api_client
+    client, mock_store, _ = api_client
     pipeline = Pipeline(
         id="pipe-1", name="Test", steps=[PipelineStep(agent_type="llm_agent", config={})]
     )
@@ -148,7 +159,7 @@ async def test_list_pipelines_returns_pipelines(api_client):
 @pytest.mark.asyncio
 async def test_get_pipeline_not_found(api_client):
     """GET /api/v1/pipelines/{id} returns 404 for non-existent pipeline."""
-    client, mock_store = api_client
+    client, mock_store, _ = api_client
     mock_store.get.return_value = None
 
     resp = await client.get("/api/v1/pipelines/does-not-exist")
@@ -158,7 +169,7 @@ async def test_get_pipeline_not_found(api_client):
 @pytest.mark.asyncio
 async def test_get_pipeline_success(api_client):
     """GET /api/v1/pipelines/{id} returns pipeline."""
-    client, mock_store = api_client
+    client, mock_store, _ = api_client
     pipeline = Pipeline(
         id="pipe-1", name="Test", steps=[PipelineStep(agent_type="llm_agent", config={})]
     )
@@ -173,11 +184,11 @@ async def test_get_pipeline_success(api_client):
 
 @pytest.mark.asyncio
 async def test_create_pipeline(api_client):
-    """POST /api/v1/pipelines creates a new pipeline."""
-    client, mock_store = api_client
+    """POST /api/v1/pipelines creates a new pipeline and saves steps."""
+    client, mock_store, mock_step_repo = api_client
     payload = {
         "name": "New Pipeline",
-        "steps": [{"agent_type": "llm_agent", "config": {}}],
+        "steps": [{"agent_type": "llm_agent", "config": {"prompt": "hello"}}],
     }
 
     resp = await client.post("/api/v1/pipelines", json=payload)
@@ -186,19 +197,18 @@ async def test_create_pipeline(api_client):
     assert "id" in data
     assert "message" in data
     mock_store.upsert.assert_awaited_once()
+    mock_step_repo.upsert_steps.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_update_pipeline(api_client):
-    """PUT /api/v1/pipelines/{id} updates an existing pipeline."""
-    client, mock_store = api_client
-    pipeline = Pipeline(
-        id="pipe-1", name="Old", steps=[PipelineStep(agent_type="llm_agent", config={})]
-    )
+    """PUT /api/v1/pipelines/{id} updates an existing pipeline and replaces steps."""
+    client, mock_store, mock_step_repo = api_client
+    pipeline = Pipeline(id="pipe-1", name="Old")
     mock_store.get.return_value = pipeline
     payload = {
         "name": "Updated Pipeline",
-        "steps": [{"agent_type": "llm_agent", "config": {}}],
+        "steps": [{"agent_type": "llm_agent", "config": {"prompt": "hi"}}],
     }
 
     resp = await client.put("/api/v1/pipelines/pipe-1", json=payload)
@@ -206,12 +216,13 @@ async def test_update_pipeline(api_client):
     data = resp.json()
     assert data["name"] == "Updated Pipeline"
     mock_store.upsert.assert_awaited_once()
+    mock_step_repo.upsert_steps.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_update_pipeline_not_found(api_client):
     """PUT /api/v1/pipelines/{id} returns 404 for non-existent pipeline."""
-    client, mock_store = api_client
+    client, mock_store, _ = api_client
     mock_store.get.return_value = None
 
     resp = await client.put("/api/v1/pipelines/does-not-exist", json={"name": "Test", "steps": []})

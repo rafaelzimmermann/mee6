@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select, delete, func
 
-from mee6.db.models import PipelineMemoryRow, PipelineMemoryConfig
-from mee6.db.repository import PipelineMemoryRepository
+from mee6.db.models import PipelineMemoryRow, PipelineMemoryConfig, PipelineStepRow
+from mee6.db.repository import PipelineMemoryRepository, PipelineStepRepository
 
 
 # ---------------------------------------------------------------------------
@@ -298,3 +298,64 @@ async def test_repository_count(memory_repository, mock_session):
 
     assert count == 42
     mock_session.execute.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# PipelineStepRepository
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def step_repository(mock_session):
+    return PipelineStepRepository(mock_session)
+
+
+@pytest.mark.asyncio
+async def test_step_repository_list_by_pipeline(step_repository, mock_session):
+    """list_by_pipeline returns steps ordered by step_index."""
+    mock_result = MagicMock()
+    mock_result.scalars.return_value = [
+        PipelineStepRow(id=1, pipeline_id="pipe-1", step_index=0, agent_type="llm_agent", config={"prompt": "hi"}),
+        PipelineStepRow(id=2, pipeline_id="pipe-1", step_index=1, agent_type="browser_agent", config={"task": "go"}),
+    ]
+    mock_session.execute.return_value = mock_result
+
+    steps = await step_repository.list_by_pipeline("pipe-1")
+
+    assert len(steps) == 2
+    assert steps[0].agent_type == "llm_agent"
+    assert steps[1].agent_type == "browser_agent"
+
+
+@pytest.mark.asyncio
+async def test_step_repository_upsert_steps_deletes_then_inserts(step_repository, mock_session):
+    """upsert_steps deletes existing steps and inserts new ones."""
+    step_rows = [
+        PipelineStepRow(pipeline_id="pipe-1", step_index=0, agent_type="llm_agent", config={"prompt": "hi"}),
+    ]
+
+    await step_repository.upsert_steps("pipe-1", step_rows)
+
+    # DELETE then INSERT (execute called once for delete, add called for each step)
+    mock_session.execute.assert_awaited_once()
+    mock_session.add.assert_called_once_with(step_rows[0])
+    mock_session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_step_repository_upsert_steps_empty_clears_steps(step_repository, mock_session):
+    """upsert_steps with empty list deletes all steps."""
+    await step_repository.upsert_steps("pipe-1", [])
+
+    mock_session.execute.assert_awaited_once()
+    mock_session.add.assert_not_called()
+    mock_session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_step_repository_delete_by_pipeline(step_repository, mock_session):
+    """delete_by_pipeline removes all steps for the given pipeline."""
+    await step_repository.delete_by_pipeline("pipe-1")
+
+    mock_session.execute.assert_awaited_once()
+    mock_session.commit.assert_awaited_once()

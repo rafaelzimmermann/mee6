@@ -49,11 +49,21 @@ def mock_scheduler():
 async def client(mock_scheduler):
     """AsyncClient pointing at a test app with a no-op lifespan and mocked scheduler."""
     mock_store = _mock_pipeline_store()
+    mock_step_repo = MagicMock()
+    mock_step_repo.upsert_steps = AsyncMock()
+
+    @asynccontextmanager
+    async def _mock_session_ctx():
+        yield MagicMock()
+
     with (
         patch("mee6.web.routes.history.scheduler", mock_scheduler),
         patch("mee6.web.routes.triggers.scheduler", mock_scheduler),
         patch("mee6.web.routes.triggers.pipeline_store", mock_store),
         patch("mee6.web.routes.pipelines.pipeline_store", mock_store),
+        patch("mee6.web.routes.pipelines.scheduler", mock_scheduler),
+        patch("mee6.web.routes.pipelines.AsyncSessionLocal", side_effect=_mock_session_ctx),
+        patch("mee6.web.routes.pipelines.PipelineStepRepository", return_value=mock_step_repo),
     ):
         from mee6.web.app import create_app
 
@@ -61,7 +71,7 @@ async def client(mock_scheduler):
         app.router.lifespan_context = _noop_lifespan
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-            yield c, mock_scheduler, mock_store
+            yield c, mock_scheduler, mock_store, mock_step_repo
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +81,7 @@ async def client(mock_scheduler):
 
 @pytest.mark.asyncio
 async def test_dashboard_returns_200(client):
-    c, _, _ = client
+    c, _, _, _ = client
     resp = await c.get("/")
     assert resp.status_code == 200
     assert b"History" in resp.content
@@ -79,7 +89,7 @@ async def test_dashboard_returns_200(client):
 
 @pytest.mark.asyncio
 async def test_dashboard_shows_run_records(client):
-    c, sched, _ = client
+    c, sched, _, _ = client
     sched.get_recent_runs.return_value = [
         RunRecord("my-pipeline", "2026-03-12T08:00:00", "success", "2 events"),
     ]
@@ -95,7 +105,7 @@ async def test_dashboard_shows_run_records(client):
 
 @pytest.mark.asyncio
 async def test_triggers_list_returns_200(client):
-    c, _, _ = client
+    c, _, _, _ = client
     resp = await c.get("/triggers")
     assert resp.status_code == 200
     assert b"Triggers" in resp.content
@@ -103,7 +113,7 @@ async def test_triggers_list_returns_200(client):
 
 @pytest.mark.asyncio
 async def test_triggers_list_shows_jobs(client):
-    c, sched, _ = client
+    c, sched, _, _ = client
     sched.list_jobs.return_value = [
         TriggerMeta(
             id="abc",
@@ -125,7 +135,7 @@ async def test_triggers_list_shows_jobs(client):
 
 @pytest.mark.asyncio
 async def test_create_trigger_calls_add_and_redirects(client):
-    c, sched, _ = client
+    c, sched, _, _ = client
     resp = await c.post(
         "/triggers",
         data={
@@ -147,7 +157,7 @@ async def test_create_trigger_calls_add_and_redirects(client):
 
 @pytest.mark.asyncio
 async def test_create_trigger_enabled_flag(client):
-    c, sched, _ = client
+    c, sched, _, _ = client
     await c.post(
         "/triggers",
         data={
@@ -173,7 +183,7 @@ async def test_create_trigger_enabled_flag(client):
 
 @pytest.mark.asyncio
 async def test_toggle_trigger_calls_engine_and_redirects(client):
-    c, sched, _ = client
+    c, sched, _, _ = client
     resp = await c.post("/triggers/job-123/toggle", follow_redirects=False)
     assert resp.status_code == 303
     sched.toggle_trigger.assert_awaited_once_with("job-123")
@@ -186,7 +196,7 @@ async def test_toggle_trigger_calls_engine_and_redirects(client):
 
 @pytest.mark.asyncio
 async def test_run_now_calls_engine_and_redirects(client):
-    c, sched, _ = client
+    c, sched, _, _ = client
     resp = await c.post("/triggers/job-123/run-now", follow_redirects=False)
     assert resp.status_code == 303
     sched.run_now.assert_awaited_once_with("job-123")
@@ -199,7 +209,7 @@ async def test_run_now_calls_engine_and_redirects(client):
 
 @pytest.mark.asyncio
 async def test_delete_trigger_calls_engine_and_redirects(client):
-    c, sched, _ = client
+    c, sched, _, _ = client
     resp = await c.post("/triggers/job-123/delete", follow_redirects=False)
     assert resp.status_code == 303
     sched.remove_trigger.assert_awaited_once_with("job-123")
@@ -212,7 +222,7 @@ async def test_delete_trigger_calls_engine_and_redirects(client):
 
 @pytest.mark.asyncio
 async def test_pipelines_list_returns_200(client):
-    c, _, _ = client
+    c, _, _, _ = client
     resp = await c.get("/pipelines")
     assert resp.status_code == 200
     assert b"Pipelines" in resp.content
@@ -220,7 +230,7 @@ async def test_pipelines_list_returns_200(client):
 
 @pytest.mark.asyncio
 async def test_pipelines_new_returns_200(client):
-    c, _, _ = client
+    c, _, _, _ = client
     resp = await c.get("/pipelines/new")
     assert resp.status_code == 200
     assert b"New Pipeline" in resp.content
@@ -228,7 +238,7 @@ async def test_pipelines_new_returns_200(client):
 
 @pytest.mark.asyncio
 async def test_agent_fields_endpoint_returns_html(client):
-    c, _, _ = client
+    c, _, _, _ = client
     resp = await c.get("/api/agents/browser_agent/fields?step_index=0")
     assert resp.status_code == 200
     assert b"task" in resp.content.lower()
@@ -236,7 +246,48 @@ async def test_agent_fields_endpoint_returns_html(client):
 
 @pytest.mark.asyncio
 async def test_agent_fields_unknown_agent_returns_empty(client):
-    c, _, _ = client
+    c, _, _, _ = client
     resp = await c.get("/api/agents/nonexistent/fields")
     assert resp.status_code == 200
     assert resp.content == b""
+
+
+# ---------------------------------------------------------------------------
+# Create / update pipeline
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_pipeline_saves_steps(client):
+    """POST /pipelines creates pipeline and saves steps via PipelineStepRepository."""
+    c, _, mock_store, mock_step_repo = client
+    payload = {"name": "My Pipeline", "steps": [{"agent_type": "llm_agent", "config": {"prompt": "hi"}}]}
+
+    resp = await c.post("/pipelines", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "My Pipeline"
+    mock_store.upsert.assert_awaited_once()
+    mock_step_repo.upsert_steps.assert_awaited_once()
+    _, step_rows = mock_step_repo.upsert_steps.call_args.args
+    assert step_rows[0].agent_type == "llm_agent"
+    assert step_rows[0].config == {"prompt": "hi"}
+
+
+@pytest.mark.asyncio
+async def test_update_pipeline_replaces_steps(client):
+    """POST /pipelines/{id} updates pipeline name and replaces steps."""
+    from mee6.pipelines.models import Pipeline
+    c, _, mock_store, mock_step_repo = client
+    mock_store.get.return_value = Pipeline(id="pipe-1", name="Old")
+    payload = {"name": "New Name", "steps": [{"agent_type": "browser_agent", "config": {"task": "search"}}]}
+
+    resp = await c.post("/pipelines/pipe-1", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "New Name"
+    mock_store.upsert.assert_awaited_once()
+    mock_step_repo.upsert_steps.assert_awaited_once()
+    _, step_rows = mock_step_repo.upsert_steps.call_args.args
+    assert step_rows[0].agent_type == "browser_agent"
+    assert step_rows[0].config == {"task": "search"}

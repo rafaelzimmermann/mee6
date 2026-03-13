@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, status
 from mee6.db.engine import AsyncSessionLocal
 from mee6.db.models import PipelineStepRow
 from mee6.db.repository import PipelineStepRepository, TriggerRepository
-from mee6.pipelines.models import Pipeline, PipelineStep
+from mee6.pipelines.models import Pipeline
 from mee6.pipelines.store import pipeline_store
 from mee6.scheduler.engine import scheduler
 from mee6.web.api.models import (
