@@ -2,6 +2,7 @@
 
 body { font-family: system-ui, sans-serif; font-size: 14px; background: #f0f2f5; color: #222; }
 
+/* ── Nav ───────────────────────────────────────────────────── */
 nav {
   background: #1a1a2e;
   color: #fff;
@@ -16,12 +17,14 @@ nav a:hover { color: #fff; }
 nav a.nav-active { color: #fff; font-weight: 600; border-bottom: 2px solid rgba(120,180,255,.7); }
 nav .status { font-size: 0.8rem; color: #8af; margin-left: auto; }
 
+/* ── Layout ─────────────────────────────────────────────────── */
 main { padding: 2rem 1.5rem; max-width: 1100px; margin: 0 auto; }
 
+/* ── Typography ─────────────────────────────────────────────── */
 h1 { font-size: 1.4rem; }
 h2 { margin: 1.5rem 0 0.75rem; font-size: 0.85rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.05em; }
 
-/* Page header: title on the left, primary action on the right */
+/* ── Page header ────────────────────────────────────────────── */
 .page-header {
   display: flex;
   align-items: center;
@@ -30,7 +33,7 @@ h2 { margin: 1.5rem 0 0.75rem; font-size: 0.85rem; font-weight: 700; color: #555
 }
 .page-header h1 { margin-bottom: 0; }
 
-/* Card */
+/* ── Cards ──────────────────────────────────────────────────── */
 .card {
   background: #fff;
   border-radius: 8px;
@@ -50,38 +53,82 @@ h2 { margin: 1.5rem 0 0.75rem; font-size: 0.85rem; font-weight: 700; color: #555
 }
 .card-body { padding: 1.25rem; }
 
-/* Tables inside cards inherit the card's border-radius and need no extra shadow */
-.card table { box-shadow: none; border-radius: 0; }
+/* Divider within a card body */
+.card-body hr { margin: 1rem 0; border: none; border-top: 1px solid #eee; }
 
+/* Auto-spacing: table or paragraph followed by a form or h2 */
+.card-body table + form,
+.card-body p + form { margin-top: 1rem; }
+.card-body table + h2 { margin-top: 1.25rem; }
+
+/* h2 at the very start of a card body needs no top margin */
+.card-body > h2:first-child { margin-top: 0; }
+
+/* ── Tables ─────────────────────────────────────────────────── */
+.card table { box-shadow: none; border-radius: 0; }
 table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 th, td { padding: 0.6rem 0.9rem; text-align: left; border-bottom: 1px solid #eee; }
 th { background: #f5f6f8; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: #555; }
 tr:last-child td { border-bottom: none; }
 tr.status-success td { background: #f0fff4; }
 tr.status-error td { background: #fff0f0; }
+td code { font-size: 0.75rem; }
 
+/* ── Row actions (multiple forms / buttons in a table cell) ─── */
+.row-actions { display: flex; gap: 0.25rem; align-items: center; }
+.row-actions form,
+td form { margin: 0; }
+
+/* ── Forms & inputs ─────────────────────────────────────────── */
 form { margin-bottom: 0; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 label { display: flex; align-items: center; gap: 0.4rem; }
+
+input, textarea, select, button { font-family: inherit; font-size: inherit; }
+
 input[type="text"],
-input[type="tel"] { padding: 0.35rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; }
-select { padding: 0.35rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: inherit; }
-button {
+input[type="tel"] {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+select {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid #4a90e2;
+  outline-offset: 1px;
+  border-color: #4a90e2;
+}
+
+/* Input width helpers */
+.input-phone { width: 14rem; }
+.input-label { width: 10rem; }
+.input-wide  { width: 22rem; }
+
+/* ── Buttons & link-buttons ──────────────────────────────────── */
+button,
+.btn {
+  display: inline-block;
   padding: 0.35rem 0.75rem;
   background: #1a1a2e;
   color: #fff;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: inherit;
+  text-decoration: none;
 }
-button:hover { background: #2e2e5e; }
-button.secondary { background: #777; }
-button.secondary:hover { background: #555; }
+button:hover, .btn:hover { background: #2e2e5e; color: #fff; }
+button.secondary, .btn.secondary { background: #777; }
+button.secondary:hover, .btn.secondary:hover { background: #555; }
 button.danger { background: #c0392b; }
 button.danger:hover { background: #9b2d23; }
-button.sm { padding: 0.2rem 0.55rem; font-size: 0.8rem; }
+button.sm, .btn.sm { padding: 0.2rem 0.55rem; font-size: 0.8rem; }
 
-/* Pipeline editor */
+/* ── Pipeline editor ─────────────────────────────────────────── */
 #pipeline-form { display: block; }
 .pipeline-name-row { margin-bottom: 1rem; }
 .pipeline-name-row input { width: 20rem; }
@@ -114,13 +161,12 @@ button.sm { padding: 0.2rem 0.55rem; font-size: 0.8rem; }
   padding: 0.35rem 0.6rem;
   border: 1px solid #ccc;
   border-radius: 4px;
-  font-size: 0.9rem;
   width: 100%;
   max-width: 40rem;
 }
 .field-label textarea { min-height: 4rem; resize: vertical; }
 
-/* Status badges */
+/* ── Status badges ───────────────────────────────────────────── */
 .badge {
   display: inline-block;
   padding: 0.15rem 0.5rem;
@@ -137,17 +183,28 @@ button.sm { padding: 0.2rem 0.55rem; font-size: 0.8rem; }
 .badge-connecting   { background: #cce5ff; color: #004085; }
 .badge-pending_qr   { background: #fff3cd; color: #856404; }
 
-/* QR code display */
+/* ── QR code display ─────────────────────────────────────────── */
 .qr-wrap { display: inline-block; margin: 1rem 0; border: 1px solid #ddd; border-radius: 6px; padding: 0.5rem; background: #fff; }
 .qr-wrap svg { display: block; }
 .qr-hint    { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
 .hint-error { font-size: 0.85rem; color: #721c24; margin-top: 0.5rem; }
 
-/* Inline hint text (e.g. calendar ID below a select) */
+/* WhatsApp test form spacing */
+.wa-test-form { margin-top: 0.75rem; }
+#test-result  { margin-top: 0.5rem; }
+
+/* ── Hint & empty-state text ─────────────────────────────────── */
+.hint       { font-size: 0.85rem; color: #777; margin-top: 0.25rem; }
+.empty-hint { font-size: 0.85rem; color: #777; margin-bottom: 0.75rem; }
+
+/* Inline hint below a field (e.g. calendar ID) */
 .field-hint { font-size: 0.75rem; color: #777; margin-top: 0.2rem; min-height: 1em; display: block; }
 .field-hint code { background: #f0f0f0; border-radius: 3px; padding: 0 3px; font-size: 0.75rem; color: #555; }
 
-/* Live update indicator */
+/* ── Utilities ───────────────────────────────────────────────── */
+.hidden { display: none; }
+
+/* ── Live update indicator ───────────────────────────────────── */
 .live-dot {
   display: inline-block;
   width: 8px;

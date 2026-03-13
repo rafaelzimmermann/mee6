@@ -26,13 +26,13 @@
 
   {% elif wa_status == "connected" %}
     <p>WhatsApp is connected and ready to send messages.</p>
-    <form hx-post="/integrations/whatsapp/test"
+    <form class="wa-test-form"
+          hx-post="/integrations/whatsapp/test"
           hx-target="#test-result"
-          hx-swap="innerHTML"
-          style="margin-top:0.75rem">
+          hx-swap="innerHTML">
       <input type="tel" name="phone" value="{{ notify_phone }}" placeholder="+34612345678" required>
       <button type="submit">Send test message</button>
     </form>
-    <div id="test-result" style="margin-top:0.5rem"></div>
+    <div id="test-result"></div>
   {% endif %}
 </div>

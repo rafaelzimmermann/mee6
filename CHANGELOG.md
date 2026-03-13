@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **CSS best practices** — removed all inline `style=` attributes from templates; replaced
+  `<a><button>` anti-pattern with `<a class="btn">` link-buttons; added font inheritance,
+  focus styles, `.hidden` utility class, `.row-actions` flex wrapper for table action cells,
+  CSS adjacency rules (`table + form`, `table + h2`) replacing Jinja conditional margin
+  expressions, and input width helpers (`.input-phone`, `.input-label`, `.input-wide`);
+  JS in `triggers.html` updated to use `classList.toggle('hidden')` instead of
+  `style.display`.
+
 ### Added
 - **WhatsApp phone number configurable from Integrations page** — removed `WHATSAPP_PHONE_NUMBER`
   env var; phone number is now stored in a new `whatsapp_settings` DB table and editable
