@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-03-13
+
+### Added
+- **Running pipeline indicator** — pulsing `⟳ N running` label in the nav bar appears
+  whenever pipelines are executing (manual or scheduled). Implemented via
+  `SchedulerEngine.running_count()` and an HTMX-polled `GET /api/running` partial
+  that self-refreshes every 2s on every page.
+
+### Fixed
+- **Trigger table button alignment** — replaced variable-width "Enable"/"Disable" button
+  with a fixed-size CSS toggle switch (green/grey pill); removed the now-redundant
+  "Enabled" text column. Also fixed underlying cause: `.row-actions form { display: contents }`
+  makes form elements transparent to flex layout so all buttons share one alignment axis.
+- **Favicon and nav logo** — `mee6.png` now used as browser favicon and replaces the
+  text brand in the nav bar.
+- **Table cell vertical alignment** — added explicit `vertical-align: middle` to `td`.
+
 ## [0.1.0] — 2026-03-13
 
 ### Changed
