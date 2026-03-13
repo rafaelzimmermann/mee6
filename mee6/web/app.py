@@ -24,11 +24,65 @@ logging.getLogger("browser_use").setLevel(logging.DEBUG)
 STATIC_DIR = Path(__file__).parent / "static"
 
 
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split SQL into individual statements on ';', ignoring ';' inside dollar-quoted blocks."""
+    stmts: list[str] = []
+    buf: list[str] = []
+    i = 0
+    n = len(sql)
+    dq_tag: str | None = None  # None = not inside a dollar-quoted block
+
+    while i < n:
+        ch = sql[i]
+
+        # Detect opening dollar-quote tag: $[word]$ or $$
+        if ch == "$" and dq_tag is None:
+            j = i + 1
+            while j < n and (sql[j].isalpha() or sql[j] == "_" or sql[j].isdigit()):
+                j += 1
+            if j < n and sql[j] == "$":
+                dq_tag = sql[i : j + 1]
+                buf.append(dq_tag)
+                i = j + 1
+                continue
+
+        # Detect closing dollar-quote tag
+        if ch == "$" and dq_tag is not None:
+            end = i + len(dq_tag)
+            if sql[i:end] == dq_tag:
+                buf.append(dq_tag)
+                i = end
+                dq_tag = None
+                continue
+
+        # Statement separator (only outside dollar-quoted blocks)
+        if ch == ";" and dq_tag is None:
+            stmt = "".join(buf).strip()
+            meaningful = [
+                line for line in stmt.splitlines()
+                if line.strip() and not line.strip().startswith("--")
+            ]
+            if meaningful:
+                stmts.append(stmt)
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+
+    last = "".join(buf).strip()
+    if last and any(
+        line.strip() and not line.strip().startswith("--") for line in last.splitlines()
+    ):
+        stmts.append(last)
+    return stmts
+
+
 async def _migrate_db() -> None:
     """Run every SQL file in db/migrations/ in sorted order.
 
     Migration files must be idempotent (use IF NOT EXISTS / DROP IF EXISTS etc.)
     so they are safe to re-execute on every startup without a migrations table.
+    Dollar-quoted blocks (DO $$ ... $$) are handled correctly.
     """
     from sqlalchemy import text
 
@@ -37,12 +91,8 @@ async def _migrate_db() -> None:
 
     async with get_engine().begin() as conn:
         for sql_file in sql_files:
-            for stmt in sql_file.read_text().split(";"):
-                stmt = stmt.strip()
-                # skip blank lines and comment-only blocks
-                meaningful = [l for l in stmt.splitlines() if l.strip() and not l.strip().startswith("--")]
-                if meaningful:
-                    await conn.execute(text(stmt))
+            for stmt in _split_sql_statements(sql_file.read_text()):
+                await conn.execute(text(stmt))
 
 
 @asynccontextmanager
