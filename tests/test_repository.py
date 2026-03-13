@@ -67,8 +67,9 @@ async def test_repository_insert_memory(memory_repository, mock_session):
 async def test_repository_get_recent_all(memory_repository, mock_session):
     """get_recent returns all memories for a pipeline and label."""
     now = datetime.utcnow()
-    mock_scalars = MagicMock()
-    mock_scalars.all = MagicMock(return_value=[
+    mock_result = MagicMock()
+    # Returns in DESC order (newest first)
+    mock_result.scalars.return_value = [
         PipelineMemoryRow(
             id=1,
             pipeline_id="pipe-1",
@@ -85,9 +86,7 @@ async def test_repository_get_recent_all(memory_repository, mock_session):
             created_at=now - timedelta(hours=1),
             value="value2",
         ),
-    ])
-    mock_result = MagicMock()
-    mock_result.scalars = MagicMock(return_value=mock_scalars)
+    ]
     mock_session.execute.return_value = mock_result
 
     memories = await memory_repository.get_recent(
@@ -95,8 +94,8 @@ async def test_repository_get_recent_all(memory_repository, mock_session):
     )
 
     assert len(memories) == 2
-    assert memories[0].value == "value1"  # Most recent first after reverse
-    assert memories[1].value == "value2"
+    assert memories[0].value == "value2"  # Oldest first after reverse
+    assert memories[1].value == "value1"
 
 
 @pytest.mark.asyncio
@@ -104,8 +103,8 @@ async def test_repository_get_recent_with_since(memory_repository, mock_session)
     """get_recent filters memories by since timestamp."""
     now = datetime.utcnow()
     cutoff = now - timedelta(hours=24)
-    mock_scalars_result = MagicMock()
-    mock_scalars_result.all = MagicMock(return_value=[
+    mock_result = MagicMock()
+    mock_result.scalars.return_value = [
         PipelineMemoryRow(
             id=1,
             pipeline_id="pipe-1",
@@ -114,9 +113,7 @@ async def test_repository_get_recent_with_since(memory_repository, mock_session)
             created_at=now - timedelta(hours=1),  # Within cutoff
             value="recent",
         ),
-    ])
-    mock_result = MagicMock()
-    mock_result.scalars = MagicMock(return_value=mock_scalars_result)
+    ]
     mock_session.execute.return_value = mock_result
 
     memories = await memory_repository.get_recent(
@@ -134,8 +131,9 @@ async def test_repository_get_recent_with_since(memory_repository, mock_session)
 async def test_repository_get_recent_with_limit(memory_repository, mock_session):
     """get_recent limits returned memories."""
     now = datetime.utcnow()
-    mock_scalars_result = MagicMock()
-    mock_scalars_result.all = MagicMock(return_value=[
+    mock_result = MagicMock()
+    # Returns in DESC order (newest first)
+    mock_result.scalars.return_value = [
         PipelineMemoryRow(
             id=i,
             pipeline_id="pipe-1",
@@ -145,9 +143,7 @@ async def test_repository_get_recent_with_limit(memory_repository, mock_session)
             value=f"value{i}",
         )
         for i in range(3)  # Only 3 returned despite having more
-    ])
-    mock_result = MagicMock()
-    mock_result.scalars = MagicMock(return_value=mock_scalars_result)
+    ]
     mock_session.execute.return_value = mock_result
 
     memories = await memory_repository.get_recent(
@@ -162,9 +158,8 @@ async def test_repository_get_recent_ordered_by_created_at(memory_repository, mo
     """get_recent returns memories ordered by created_at DESC, then reversed."""
     now = datetime.utcnow()
     mock_result = MagicMock()
-    mock_scalars_result = MagicMock()
     # Returns in DESC order (newest first)
-    mock_scalars.all = MagicMock(return_value=[
+    mock_result.scalars.return_value = [
         PipelineMemoryRow(
             id=3,
             pipeline_id="pipe-1",
@@ -189,8 +184,7 @@ async def test_repository_get_recent_ordered_by_created_at(memory_repository, mo
             created_at=now - timedelta(hours=2),
             value="value1",
         ),
-    ])
-    mock_result.scalars = MagicMock(return_value=mock_scalars_result)
+    ]
     mock_session.execute.return_value = mock_result
 
     memories = await memory_repository.get_recent(

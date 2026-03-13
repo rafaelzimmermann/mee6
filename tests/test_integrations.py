@@ -10,7 +10,7 @@ import yaml
 # calendar
 # ---------------------------------------------------------------------------
 
-def test_create_calendar_event_timed():
+def test_create_event_timed():
     mock_service = MagicMock()
     mock_events = mock_service.events.return_value
     mock_insert = mock_events.insert.return_value
@@ -20,17 +20,15 @@ def test_create_calendar_event_timed():
         patch("mee6.integrations.calendar.Credentials"),
         patch("mee6.integrations.calendar.build", return_value=mock_service),
     ):
-        import asyncio
+        from mee6.integrations.calendar import create_event
 
-        from mee6.integrations.calendar import create_calendar_event
-
-        asyncio.get_event_loop().run_until_complete(
-            create_calendar_event(
-                title="Parent Meeting",
-                date="2026-03-20",
-                time="17:00",
-                description="Annual conference",
-            )
+        create_event(
+            calendar_id="primary",
+            credentials_file="fake_credentials.json",
+            title="Parent Meeting",
+            start="2026-03-20T17:00:00",
+            end="2026-03-20T18:00:00",
+            description="Annual conference",
         )
 
     mock_events.insert.assert_called_once()
@@ -39,20 +37,21 @@ def test_create_calendar_event_timed():
     assert body["start"]["dateTime"] == "2026-03-20T17:00:00"
 
 
-@pytest.mark.asyncio
-async def test_create_calendar_event_all_day():
+def test_create_event_all_day():
     mock_service = MagicMock()
 
     with (
         patch("mee6.integrations.calendar.Credentials"),
         patch("mee6.integrations.calendar.build", return_value=mock_service),
     ):
-        from mee6.integrations.calendar import create_calendar_event
+        from mee6.integrations.calendar import create_event
 
-        await create_calendar_event(
+        create_event(
+            calendar_id="primary",
+            credentials_file="fake_credentials.json",
             title="Spring Break",
-            date="2026-04-06",
-            time="",
+            start="2026-04-06",
+            end="2026-04-06",
             description="School closed",
         )
 
