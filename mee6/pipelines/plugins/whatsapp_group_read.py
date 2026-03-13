@@ -1,6 +1,7 @@
 import logging
 
 from mee6.pipelines.base import FieldSchema
+from mee6.pipelines.plugins.whatsapp_read import _format_messages
 
 logger = logging.getLogger(__name__)
 
@@ -50,5 +51,4 @@ class WhatsAppGroupReadPlugin:
         if not messages:
             return f"No messages found in group {group_jid}."
 
-        lines = "\n".join(f"- {msg}" for msg in messages)
-        return f"Last {len(messages)} message(s) from group {group_jid}:\n{lines}"
+        return _format_messages(messages)

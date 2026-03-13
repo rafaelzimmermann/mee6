@@ -269,7 +269,7 @@ class WhatsAppSession:
 
             # Fallback poll
             try:
-                if channel._client and channel._client.is_connected():
+                if channel._client and channel._client.is_connected:
                     self.status = WAStatus.CONNECTED
                     self._qr_data = None
                     return

@@ -1,7 +1,18 @@
-from mee6.pipelines.base import FieldSchema
+from mee6.pipelines.base import AgentPlugin, FieldSchema
 
 
-class WhatsAppReadPlugin:
+def _format_messages(rows: list) -> str:
+    """Format WhatsAppMessageRow objects as an indexed, timestamped list."""
+    if not rows:
+        return ""
+    parts = []
+    for i, row in enumerate(rows, start=1):
+        ts = row.timestamp.strftime("%Y-%m-%d %H:%M")
+        parts.append(f"[{i}] [{ts}]\n{row.text}\n[/{i}]")
+    return "\n\n".join(parts)
+
+
+class WhatsAppReadPlugin(AgentPlugin):
     name = "whatsapp_read"
     label = "WhatsApp Read"
     fields = [
@@ -32,5 +43,4 @@ class WhatsAppReadPlugin:
         if not messages:
             return f"No messages found from {phone}."
 
-        lines = "\n".join(f"- {msg}" for msg in messages)
-        return f"Last {len(messages)} message(s) from {phone}:\n{lines}"
+        return _format_messages(messages)

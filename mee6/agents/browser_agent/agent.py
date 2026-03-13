@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 
 from browser_use import Agent, BrowserProfile
-from browser_use.llm.anthropic.chat import ChatAnthropic
 
 from mee6.config import settings
 
@@ -32,12 +31,20 @@ def _find_headless_shell() -> str | None:
     return matches[-1] if matches else None
 
 
-async def browse(task: str) -> str:
+def _build_llm(provider: str, model: str):
+    if provider == "ollama":
+        from browser_use.llm.ollama.chat import ChatOllama
+
+        return ChatOllama(model=model or settings.ollama_default_model, base_url=settings.ollama_base_url)
+    else:
+        from browser_use.llm.anthropic.chat import ChatAnthropic
+
+        return ChatAnthropic(model=model or settings.anthropic_model, api_key=settings.anthropic_api_key)
+
+
+async def browse(task: str, provider: str = "anthropic", model: str = "") -> str:
     """Run a browser-use agent with the given task and return the final result string."""
-    llm = ChatAnthropic(
-        model=settings.anthropic_model,
-        api_key=settings.anthropic_api_key,
-    )
+    llm = _build_llm(provider, model)
 
     headless_shell = _find_headless_shell()
     if headless_shell:
@@ -47,7 +54,7 @@ async def browse(task: str) -> str:
         logger.warning("browser_agent: headless-shell not found, using default browser detection")
         browser_profile = None
 
-    logger.info("browser_agent: creating Agent with model=%s", settings.anthropic_model)
+    logger.info("browser_agent: creating Agent with provider=%s model=%s", provider, model or "(default)")
     _t0 = time.monotonic()
     agent = Agent(task=task, llm=llm, browser_profile=browser_profile)
     logger.info("browser_agent: Agent() took %.2fs", time.monotonic() - _t0)

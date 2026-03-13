@@ -1,7 +1,7 @@
-from mee6.pipelines.base import FieldSchema
+from mee6.pipelines.base import AgentPlugin, FieldSchema
 
 
-class WhatsAppAgentPlugin:
+class WhatsAppAgentPlugin(AgentPlugin):
     name = "whatsapp_agent"
     label = "WhatsApp Send"
     fields = [

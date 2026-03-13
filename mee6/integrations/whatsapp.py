@@ -83,10 +83,10 @@ async def list_groups() -> list[dict]:
     ]
 
 
-async def read_messages(*, phone: str, limit: int) -> list[str]:
+async def read_messages(*, phone: str, limit: int) -> list:
     """Return the last *limit* messages received from *phone* (E.164 or plain digits).
 
-    Messages are returned in chronological order (oldest first) as plain strings.
+    Messages are returned in chronological order (oldest first) as WhatsAppMessageRow objects.
     """
     from mee6.db.engine import AsyncSessionLocal
     from mee6.db.repository import WhatsAppMessageRepository
@@ -96,9 +96,7 @@ async def read_messages(*, phone: str, limit: int) -> list[str]:
 
     async with AsyncSessionLocal() as session:
         repo = WhatsAppMessageRepository(session)
-        rows = await repo.get_recent_from(sender, limit)
-
-    return [row.text for row in rows]
+        return await repo.get_recent_from(sender, limit)
 
 
 async def send_group_message(*, group_jid: str, message: str) -> None:
@@ -119,11 +117,10 @@ async def send_group_message(*, group_jid: str, message: str) -> None:
     await asyncio.to_thread(channel._client.send_message, jid, message)
 
 
-async def read_group_messages(*, group_jid: str, limit: int) -> list[str]:
-    """Return the last *limit* messages from a WhatsApp group, oldest first."""
+async def read_group_messages(*, group_jid: str, limit: int) -> list:
+    """Return the last *limit* messages from a WhatsApp group, oldest first, as WhatsAppMessageRow objects."""
     from mee6.db.engine import AsyncSessionLocal
     from mee6.db.repository import WhatsAppMessageRepository
 
     async with AsyncSessionLocal() as session:
-        rows = await WhatsAppMessageRepository(session).get_recent_from_chat(group_jid, limit)
-    return [row.text for row in rows]
+        return await WhatsAppMessageRepository(session).get_recent_from_chat(group_jid, limit)

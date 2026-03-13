@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Ollama in docker-compose** — `ollama` service with NVIDIA GPU passthrough (RTX 4080),
+  `ollama_data` named volume, exposed on host port 11435. `ollama-init` one-shot service
+  pulls `phi4:14b` automatically after Ollama is healthy. `mee6` service receives
+  `OLLAMA_BASE_URL=http://ollama:11434` so all LLM calls reach the container.
+- **Configurable LLM provider for Browser Agent** — `BrowserAgentPlugin` now exposes
+  `provider` and `model` fields identical to the LLM Agent step. `browse()` accepts
+  `provider`/`model` params and dispatches to `ChatAnthropic` or `ChatOllama` via
+  `_build_llm()`. `phi4:14b` added to the LLM Agent model suggestions list.
+
+### Fixed
+- **`get_fields()` missing on four plugins** — `BrowserAgentPlugin`, `LlmAgentPlugin`,
+  `WhatsAppAgentPlugin`, and `WhatsAppReadPlugin` now inherit from `AgentPlugin` so
+  the Protocol's default `get_fields()` implementation is available; previously the
+  `/api/agents/{type}/fields` endpoint returned 500 for these plugin types.
+- **`is_connected` called as method** — `channel._client.is_connected` is a property
+  not a method; removed the `()` call that caused `TypeError: 'bool' object is not callable`
+  in the WhatsApp session monitor loop.
+- **WhatsApp read output format** — `WhatsAppReadPlugin` and `WhatsAppGroupReadPlugin`
+  now return full `WhatsAppMessageRow` objects and format each message with index and
+  timestamp (`[N] [YYYY-MM-DD HH:MM]\n{text}\n[/N]`), giving the LLM clear message
+  boundaries and chronological metadata to work with.
+
 ### Security
 - **WhatsApp message filtering** — DM and group messages are now silently discarded
   unless there is at least one **enabled** trigger configured for the sender/group.

@@ -1,7 +1,7 @@
-from mee6.pipelines.base import FieldSchema
+from mee6.pipelines.base import AgentPlugin, FieldSchema
 
 
-class LlmAgentPlugin:
+class LlmAgentPlugin(AgentPlugin):
     name = "llm_agent"
     label = "LLM Agent"
     fields = [
@@ -23,6 +23,7 @@ class LlmAgentPlugin:
                 "claude-sonnet-4-6",
                 "claude-haiku-4-5-20251001",
                 "claude-opus-4-6",
+                "phi4:14b",
                 "llama3.2",
                 "llama3.1",
                 "mistral",

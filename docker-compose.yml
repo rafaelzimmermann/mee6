@@ -13,6 +13,37 @@ services:
       timeout: 5s
       retries: 5
 
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11435:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "phi4:14b"]
+    restart: "no"
+
   mee6:
     build: .
     env_file:
@@ -24,6 +55,7 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://mee6:mee6@postgres:5432/mee6
+      OLLAMA_BASE_URL: http://ollama:11434
       ANONYMIZED_TELEMETRY: "false"
     ports:
       - "8080:8080"
@@ -34,8 +66,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      ollama:
+        condition: service_started
     restart: unless-stopped
 
 volumes:
   postgres_data:
   mee6_storage:
+  ollama_data:
