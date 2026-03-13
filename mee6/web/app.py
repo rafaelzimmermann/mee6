@@ -5,11 +5,13 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from mee6.db.engine import get_engine
 from mee6.db.models import Base
 from mee6.scheduler.engine import scheduler
 from mee6.web.routes import history, integrations, pipelines, triggers
+from mee6.web.api import agents, pipelines as api_pipelines
 
 logging.basicConfig(
     level=logging.INFO,
@@ -67,11 +69,29 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="mee6", lifespan=lifespan)
+
+    # Add CORS middleware for frontend development
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Configure appropriately for production
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Static files
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-    app.include_router(history.router)
-    app.include_router(triggers.router)
+
+    # Existing template-based routes (for backward compatibility)
     app.include_router(pipelines.router)
+    app.include_router(triggers.router)
     app.include_router(integrations.router)
+    app.include_router(history.router)
+
+    # New JSON API routes
+    app.include_router(api_pipelines.router, prefix="/api/v1/pipelines")
+    app.include_router(agents.router, prefix="/api/v1/agents")
+
     return app
 
 
