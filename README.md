@@ -1,6 +1,5 @@
-# mee6
+<img src="mee6/web/static/mee6.png" style="width:60px;"/> A personal AI assistant that automates life tasks using LLMs.  
 
-A personal AI assistant that automates life tasks using LLMs.
 Powered by [agntrick](https://github.com/jeancsil/agntrick).
 
 ## Overview
