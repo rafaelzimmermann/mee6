@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { usePipelines, useDeletePipeline } from "@/hooks/usePipelines";
 import { Button } from "@/components/common/Button";
 import { Layout } from "@/components/common/Layout";
-import { Trash2, Play } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 export function PipelineList() {
   const { data: pipelines, isLoading, error } = usePipelines();

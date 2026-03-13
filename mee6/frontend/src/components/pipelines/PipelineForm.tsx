@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { usePipeline, useUpdatePipeline, useCreatePipeline, useAgents } from "@/hooks/usePipelines";
-import { useAgentFields } from "@/hooks/useAgents";
+import { usePipeline, useUpdatePipeline, useCreatePipeline } from "@/hooks/usePipelines";
 import { Button } from "@/components/common/Button";
 import { Input } from "@/components/common/Input";
 import { Layout } from "@/components/common/Layout";
@@ -188,7 +187,7 @@ export function PipelineForm() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">— select agent —</option>
-                {agents?.map((agent) => (
+                {agents?.map((agent: { name: string; label: string }) => (
                   <option key={agent.name} value={agent.name}>
                     {agent.label}
                   </option>

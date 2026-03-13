@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, Pipeline, PipelineCreateRequest } from "@/lib/api";
+import { api, PipelineCreateRequest } from "@/lib/api";
 
 export function usePipelines() {
   return useQuery({
