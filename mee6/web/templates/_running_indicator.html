@@ -1,0 +1,8 @@
+<span id="running-indicator"
+  hx-get="/api/running"
+  hx-trigger="every 2s"
+  hx-swap="outerHTML">
+  {% if count > 0 %}
+  <span class="nav-running">⟳ {{ count }} running</span>
+  {% endif %}
+</span>

@@ -6,16 +6,18 @@ body { font-family: system-ui, sans-serif; font-size: 14px; background: #f0f2f5;
 nav {
   background: #1a1a2e;
   color: #fff;
-  padding: 0.75rem 1.5rem;
+  padding: 0.1rem 1.5rem;
   display: flex;
   align-items: center;
   gap: 1.5rem;
 }
-nav .brand { font-weight: 700; font-size: 1.1rem; margin-right: auto; }
+nav .brand { margin-right: auto; display: flex; align-items: center; }
+nav .brand img { display: block; height: 60px;}
 nav a { color: #aac; text-decoration: none; padding-bottom: 2px; }
 nav a:hover { color: #fff; }
 nav a.nav-active { color: #fff; font-weight: 600; border-bottom: 2px solid rgba(120,180,255,.7); }
 nav .status { font-size: 0.8rem; color: #8af; margin-left: auto; }
+.nav-running { font-size: 0.8rem; color: #ffd166; animation: livepulse 1.5s ease-in-out infinite; }
 
 /* ── Layout ─────────────────────────────────────────────────── */
 main { padding: 2rem 1.5rem; max-width: 1100px; margin: 0 auto; }
@@ -67,7 +69,7 @@ h2 { margin: 1.5rem 0 0.75rem; font-size: 0.85rem; font-weight: 700; color: #555
 /* ── Tables ─────────────────────────────────────────────────── */
 .card table { box-shadow: none; border-radius: 0; }
 table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-th, td { padding: 0.6rem 0.9rem; text-align: left; border-bottom: 1px solid #eee; }
+th, td { padding: 0.6rem 0.9rem; text-align: left; border-bottom: 1px solid #eee; vertical-align: middle; }
 th { background: #f5f6f8; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: #555; }
 tr:last-child td { border-bottom: none; }
 tr.status-success td { background: #f0fff4; }
@@ -76,7 +78,7 @@ td code { font-size: 0.75rem; }
 
 /* ── Row actions (multiple forms / buttons in a table cell) ─── */
 .row-actions { display: flex; gap: 0.25rem; align-items: center; }
-.row-actions form,
+.row-actions form { display: contents; }
 td form { margin: 0; }
 
 /* ── Forms & inputs ─────────────────────────────────────────── */
@@ -121,9 +123,36 @@ button,
   cursor: pointer;
   text-decoration: none;
 }
-button:hover, .btn:hover { background: #2e2e5e; color: #fff; }
+button:not(.toggle):hover, .btn:hover { background: #2e2e5e; color: #fff; }
 button.secondary, .btn.secondary { background: #777; }
 button.secondary:hover, .btn.secondary:hover { background: #555; }
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: #bbb;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  transition: transform 0.15s;
+}
+.toggle.on { background: #27ae60; }
+.toggle.on::after { transform: translateX(16px); }
+.toggle:hover { opacity: 0.8; }
 button.danger { background: #c0392b; }
 button.danger:hover { background: #9b2d23; }
 button.sm, .btn.sm { padding: 0.2rem 0.55rem; font-size: 0.8rem; }

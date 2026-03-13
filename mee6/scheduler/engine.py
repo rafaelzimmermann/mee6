@@ -249,6 +249,10 @@ class SchedulerEngine:
     def active_job_count(self) -> int:
         return sum(1 for j in self._jobs.values() if j.enabled)
 
+    def running_count(self) -> int:
+        """Number of pipelines currently executing."""
+        return len(self._pending_run)
+
     def get_recent_runs(self, limit: int = 50) -> list[RunRecord]:
         return list(reversed(self._runs[-limit:]))
 

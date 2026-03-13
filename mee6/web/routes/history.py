@@ -21,3 +21,11 @@ async def history_rows(request: Request):
     """HTMX partial — returns only the table rows for auto-polling."""
     runs = scheduler.get_recent_runs()
     return templates.TemplateResponse(request, "_history_rows.html", {"runs": runs})
+
+
+@router.get("/api/running", response_class=HTMLResponse)
+async def running_indicator(request: Request):
+    """HTMX partial — self-refreshing running-pipeline indicator for the nav."""
+    return templates.TemplateResponse(
+        request, "_running_indicator.html", {"count": scheduler.running_count()}
+    )

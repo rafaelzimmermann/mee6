@@ -75,7 +75,6 @@ onTriggerTypeChange('cron');
         <th>Pipeline</th>
         <th>Type</th>
         <th>Schedule / Config</th>
-        <th>Enabled</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -98,11 +97,11 @@ onTriggerTypeChange('cron');
             {{ job.cron_expr }}
           {%- endif -%}
         </td>
-        <td>{{ "Yes" if job.enabled else "No" }}</td>
         <td>
           <div class="row-actions">
             <form method="post" action="/triggers/{{ job.id }}/toggle">
-              <button type="submit" class="sm secondary">{{ "Disable" if job.enabled else "Enable" }}</button>
+              <button type="submit" class="toggle {{ 'on' if job.enabled else '' }}"
+                      title="{{ 'Disable' if job.enabled else 'Enable' }}"></button>
             </form>
             <form method="post" action="/triggers/{{ job.id }}/run-now">
               <button type="submit" class="sm">Run now</button>
@@ -114,7 +113,7 @@ onTriggerTypeChange('cron');
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5">No triggers configured.</td></tr>
+      <tr><td colspan="4">No triggers configured.</td></tr>
       {% endfor %}
     </tbody>
   </table>
