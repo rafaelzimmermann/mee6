@@ -32,10 +32,10 @@
       <span id="field-cron">
         <label>Cron <input type="text" name="cron_expr" id="cron_expr" placeholder="0 8 * * *"></label>
       </span>
-      <span id="field-whatsapp" style="display:none">
+      <span id="field-whatsapp" class="hidden">
         <label>Phone <input type="tel" name="phone" id="phone" placeholder="+34612345678"></label>
       </span>
-      <span id="field-wa-group" style="display:none">
+      <span id="field-wa-group" class="hidden">
         <label>Group
           <select name="group_jid" id="group_jid">
             <option value="">— select group —</option>
@@ -54,9 +54,9 @@
 
 <script>
 function onTriggerTypeChange(type) {
-  document.getElementById('field-cron').style.display = type === 'cron' ? '' : 'none';
-  document.getElementById('field-whatsapp').style.display = type === 'whatsapp' ? '' : 'none';
-  document.getElementById('field-wa-group').style.display = type === 'wa_group' ? '' : 'none';
+  document.getElementById('field-cron').classList.toggle('hidden', type !== 'cron');
+  document.getElementById('field-whatsapp').classList.toggle('hidden', type !== 'whatsapp');
+  document.getElementById('field-wa-group').classList.toggle('hidden', type !== 'wa_group');
   document.getElementById('cron_expr').required = type === 'cron';
   document.getElementById('phone').required = type === 'whatsapp';
   document.getElementById('group_jid').required = type === 'wa_group';
@@ -100,15 +100,17 @@ onTriggerTypeChange('cron');
         </td>
         <td>{{ "Yes" if job.enabled else "No" }}</td>
         <td>
-          <form method="post" action="/triggers/{{ job.id }}/toggle" style="display:inline">
-            <button type="submit" class="sm secondary">{{ "Disable" if job.enabled else "Enable" }}</button>
-          </form>
-          <form method="post" action="/triggers/{{ job.id }}/run-now" style="display:inline">
-            <button type="submit" class="sm">Run now</button>
-          </form>
-          <form method="post" action="/triggers/{{ job.id }}/delete" style="display:inline">
-            <button type="submit" class="sm danger" onclick="return confirm('Delete this trigger?')">Delete</button>
-          </form>
+          <div class="row-actions">
+            <form method="post" action="/triggers/{{ job.id }}/toggle">
+              <button type="submit" class="sm secondary">{{ "Disable" if job.enabled else "Enable" }}</button>
+            </form>
+            <form method="post" action="/triggers/{{ job.id }}/run-now">
+              <button type="submit" class="sm">Run now</button>
+            </form>
+            <form method="post" action="/triggers/{{ job.id }}/delete">
+              <button type="submit" class="sm danger" onclick="return confirm('Delete this trigger?')">Delete</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% else %}
