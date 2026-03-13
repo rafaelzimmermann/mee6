@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `style.display`.
 
 ### Added
+- **Pipeline delete guard** — deleting a pipeline is blocked if it has associated triggers;
+  an error message is shown on the Pipelines page. Implemented via
+  `TriggerRepository.exists_for_pipeline()` checked before the delete.
 - **WhatsApp phone number configurable from Integrations page** — removed `WHATSAPP_PHONE_NUMBER`
   env var; phone number is now stored in a new `whatsapp_settings` DB table and editable
   directly from the Integrations page. Migration `004_whatsapp_settings.sql` seeds the

@@ -6,6 +6,10 @@
   <a href="/pipelines/new" class="btn">New pipeline</a>
 </div>
 
+{% if error %}
+<p class="hint-error">{{ error }}</p>
+{% endif %}
+
 <div class="card">
   <table>
     <thead>
