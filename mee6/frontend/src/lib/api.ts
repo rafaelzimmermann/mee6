@@ -101,6 +101,14 @@ export const api = {
       return response.json();
     },
 
+    getAllFields: async (): Promise<Record<string, FieldSchema[]>> => {
+      const response = await fetch(`${API_BASE}/agents/fields/batch`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch all agent fields: ${response.statusText}`);
+      }
+      return response.json();
+    },
+
     getFields: async (type: string): Promise<FieldSchema[]> => {
       const response = await fetch(`${API_BASE}/agents/${type}/fields`);
       if (!response.ok) {

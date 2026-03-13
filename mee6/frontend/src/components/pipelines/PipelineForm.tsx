@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { usePipeline, useUpdatePipeline, useCreatePipeline } from "@/hooks/usePipelines";
-import { useAgents, useAgentFields } from "@/hooks/useAgents";
+import { useAgents, useAllAgentFields, useAgentFields } from "@/hooks/useAgents";
 import { Button } from "@/components/common/Button";
 import { Input } from "@/components/common/Input";
 import { Layout } from "@/components/common/Layout";
@@ -21,14 +21,11 @@ interface AgentFieldsProps {
   agentType: string;
   config: Record<string, string>;
   onChange: (field: string, value: string) => void;
+  allFields?: Record<string, FieldSchema[]>;
 }
 
-function AgentFields({ agentType, config, onChange }: AgentFieldsProps) {
-  const { data: fields, isLoading } = useAgentFields(agentType);
-
-  if (isLoading) {
-    return <div className="text-sm text-gray-500">Loading fields...</div>;
-  }
+function AgentFields({ agentType, config, onChange, allFields }: AgentFieldsProps) {
+  const fields = allFields?.[agentType];
 
   if (!fields || fields.length === 0) {
     return <div className="text-sm text-gray-500">No fields configured for this agent.</div>;
@@ -114,6 +111,7 @@ export function PipelineForm() {
   const navigate = useNavigate();
   const { data: pipeline, isLoading } = usePipeline(id || "");
   const { data: agents } = useAgents();
+  const { data: allAgentFields } = useAllAgentFields();
   const updatePipeline = useUpdatePipeline();
   const createPipeline = useCreatePipeline();
 
@@ -382,6 +380,7 @@ export function PipelineForm() {
                   <AgentFields
                     agentType={step.agent_type}
                     config={step.config}
+                    allFields={allAgentFields}
                     onChange={(field, value) => {
                       const newSteps = [...steps];
                       newSteps[index] = {
