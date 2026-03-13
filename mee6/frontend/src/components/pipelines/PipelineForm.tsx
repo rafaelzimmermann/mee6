@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { usePipeline, useUpdatePipeline, useCreatePipeline } from "@/hooks/usePipelines";
 import { useAgents, useAgentFields } from "@/hooks/useAgents";
 import { Button } from "@/components/common/Button";
 import { Input } from "@/components/common/Input";
 import { Layout } from "@/components/common/Layout";
-import { Trash2, Plus, ChevronUp, ChevronDown } from "lucide-react";
+import { Trash2, Plus, ChevronUp, ChevronDown, ArrowLeft } from "lucide-react";
 import { pipelineSchema, type PipelineInput } from "@/lib/validation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -118,6 +118,10 @@ export function PipelineForm() {
   const createPipeline = useCreatePipeline();
 
   const [steps, setSteps] = useState<Step[]>([]);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
+  const initialFormData = useRef<{ name: string; steps: Step[] } | null>(null);
 
   const {
     register,
@@ -132,6 +136,30 @@ export function PipelineForm() {
         }
       : { name: "", steps: [] },
   });
+
+  // Track initial form data for dirty checking
+  useEffect(() => {
+    if (pipeline && !initialFormData.current) {
+      initialFormData.current = {
+        name: pipeline.name,
+        steps: pipeline.steps.map((step, i) => ({
+          id: `step-${i}`,
+          agent_type: step.agent_type,
+          config: step.config,
+        })),
+      };
+    }
+  }, [pipeline]);
+
+  // Track changes to update dirty state
+  useEffect(() => {
+    if (!initialFormData.current) return;
+
+    const currentName = document.querySelector<HTMLInputElement>('input[name="name"]')?.value || "";
+    const nameChanged = currentName !== initialFormData.current.name;
+    const stepsChanged = JSON.stringify(steps) !== JSON.stringify(initialFormData.current.steps);
+    setIsDirty(nameChanged || stepsChanged);
+  }, [steps]);
 
   // Initialize steps from pipeline data
   if (pipeline && steps.length === 0 && pipeline.steps.length > 0) {
@@ -195,25 +223,84 @@ export function PipelineForm() {
     if (id) {
       updatePipeline.mutate(
         { id, data: pipelineData },
-        { onSuccess: () => navigate("/pipelines") }
+        {
+          onSuccess: () => {
+            setSuccessMessage("Pipeline updated successfully!");
+            setIsDirty(false);
+            setTimeout(() => {
+              navigate("/pipelines");
+            }, 1500);
+          },
+        }
       );
     } else {
       createPipeline.mutate(pipelineData, {
-        onSuccess: () => navigate("/pipelines"),
+        onSuccess: () => {
+          setSuccessMessage("Pipeline created successfully!");
+          setIsDirty(false);
+          setTimeout(() => {
+            navigate("/pipelines");
+          }, 1500);
+        },
       });
     }
   };
 
+  const handleCancel = () => {
+    if (isDirty) {
+      setShowConfirmDialog(true);
+    } else {
+      navigate("/pipelines");
+    }
+  };
+
+  const confirmLeave = () => {
+    setShowConfirmDialog(false);
+    navigate("/pipelines");
+  };
+
   if (isLoading && id) {
     return (
-      <Layout title={id ? "Edit Pipeline" : "New Pipeline"}>
+      <Layout
+        title={id ? "Edit Pipeline" : "New Pipeline"}
+        actions={
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate("/pipelines")}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+        }
+      >
         <div className="text-center py-12">Loading...</div>
       </Layout>
     );
   }
 
   return (
-    <Layout title={id ? "Edit Pipeline" : "New Pipeline"}>
+    <Layout
+      title={id ? "Edit Pipeline" : "New Pipeline"}
+      actions={
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={handleCancel}
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back
+        </Button>
+      }
+    >
+      {successMessage && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-green-800 font-medium">{successMessage}</p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)}>
         <Input
           label="Pipeline Name"
@@ -326,12 +413,42 @@ export function PipelineForm() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => navigate("/pipelines")}
+            onClick={handleCancel}
           >
             Cancel
           </Button>
         </div>
       </form>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Unsaved Changes
+            </h3>
+            <p className="text-gray-600 mb-6">
+              You have unsaved changes. Are you sure you want to leave without saving? Your changes will be lost.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowConfirmDialog(false)}
+              >
+                Stay
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={confirmLeave}
+              >
+                Leave
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
