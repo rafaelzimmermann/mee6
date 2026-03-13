@@ -47,6 +47,7 @@ async def new_pipeline(request: Request):
         {
             "pipeline": None,
             "plugin_list_json": _plugin_list_json(),
+            "placeholder_hints_json": json.dumps(PLACEHOLDER_HINTS),
             "initial_pipeline_json": "null",
             "active_count": 0,
         },
@@ -90,6 +91,7 @@ async def edit_pipeline(request: Request, pipeline_id: str):
         {
             "pipeline": pipeline,
             "plugin_list_json": _plugin_list_json(),
+            "placeholder_hints_json": json.dumps(PLACEHOLDER_HINTS),
             "initial_pipeline_json": pipeline.model_dump_json(),
             "active_count": 0,
         },

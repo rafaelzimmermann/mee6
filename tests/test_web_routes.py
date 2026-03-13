@@ -291,3 +291,66 @@ async def test_update_pipeline_replaces_steps(client):
     _, step_rows = mock_step_repo.upsert_steps.call_args.args
     assert step_rows[0].agent_type == "browser_agent"
     assert step_rows[0].config == {"task": "search"}
+
+
+# ---------------------------------------------------------------------------
+# Pipeline editor page structure
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_pipeline_editor_new_has_return_button(client):
+    """GET /pipelines/new contains 'Return to Pipelines' link, not 'Cancel'."""
+    c, _, _, _ = client
+    resp = await c.get("/pipelines/new")
+    assert resp.status_code == 200
+    assert b"Return to Pipelines" in resp.content
+    assert b"Cancel" not in resp.content
+
+
+@pytest.mark.asyncio
+async def test_pipeline_editor_new_has_batch_schema_url(client):
+    """GET /pipelines/new references the batch schema endpoint for client-side rendering."""
+    c, _, _, _ = client
+    resp = await c.get("/pipelines/new")
+    assert resp.status_code == 200
+    assert b"/api/v1/agents/fields/batch" in resp.content
+
+
+@pytest.mark.asyncio
+async def test_pipeline_editor_edit_renders_pipeline_json(client):
+    """GET /pipelines/{id} embeds pipeline JSON for initialisation."""
+    from mee6.pipelines.models import Pipeline, PipelineStep
+    c, _, mock_store, _ = client
+    mock_store.get.return_value = Pipeline(
+        id="pipe-1", name="My Pipeline",
+        steps=[PipelineStep(agent_type="llm_agent", config={"prompt": "hello"})],
+    )
+    resp = await c.get("/pipelines/pipe-1")
+    assert resp.status_code == 200
+    assert b"My Pipeline" in resp.content
+    assert b"llm_agent" in resp.content
+
+
+@pytest.mark.asyncio
+async def test_create_pipeline_multi_step_indices(client):
+    """Step index is assigned correctly for multi-step pipelines."""
+    c, _, _, mock_step_repo = client
+    payload = {
+        "name": "Multi-step",
+        "steps": [
+            {"agent_type": "whatsapp_read", "config": {"count": "5", "phone": "123"}},
+            {"agent_type": "llm_agent", "config": {"prompt": "summarise"}},
+            {"agent_type": "whatsapp_agent", "config": {"phone": "456", "message": "done"}},
+        ],
+    }
+    resp = await c.post("/pipelines", json=payload)
+    assert resp.status_code == 200
+    _, step_rows = mock_step_repo.upsert_steps.call_args.args
+    assert len(step_rows) == 3
+    assert step_rows[0].step_index == 0
+    assert step_rows[1].step_index == 1
+    assert step_rows[2].step_index == 2
+    assert step_rows[0].agent_type == "whatsapp_read"
+    assert step_rows[1].agent_type == "llm_agent"
+    assert step_rows[2].agent_type == "whatsapp_agent"
