@@ -70,7 +70,7 @@ async def create_pipeline(data: PipelineCreateRequest):
                 pipeline_id=pipeline_id,
                 step_index=idx,
                 agent_type=step.get("agent_type", ""),
-                config=step,
+                config=step.get("config", {}),
             )
             for idx, step in enumerate(data.steps)
         ]
@@ -112,7 +112,7 @@ async def update_pipeline(pipeline_id: str, data: PipelineCreateRequest):
                 pipeline_id=pipeline_id,
                 step_index=idx,
                 agent_type=step.get("agent_type", ""),
-                config=step,
+                config=step.get("config", {}),
             )
             for idx, step in enumerate(data.steps)
         ]
