@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select, delete, func
 
-from mee6.db.models import PipelineMemoryRow, PipelineMemoryConfig, PipelineStepRow
-from mee6.db.repository import PipelineMemoryRepository, PipelineStepRepository
+from mee6.db.models import MemoryEntryRow, MemoryRow, PipelineStepRow
+from mee6.db.repository import MemoryRepository, PipelineStepRepository
 
 
 # ---------------------------------------------------------------------------
@@ -30,184 +30,23 @@ def mock_session():
 
 @pytest.fixture()
 def memory_repository(mock_session):
-    """PipelineMemoryRepository instance."""
-    return PipelineMemoryRepository(mock_session)
+    """MemoryRepository instance."""
+    return MemoryRepository(mock_session)
 
 
 # ---------------------------------------------------------------------------
-# PipelineMemoryRepository - insert
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_repository_insert_memory(memory_repository, mock_session):
-    """insert adds a memory row to the database."""
-    memory = PipelineMemoryRow(
-        id=None,  # Will be set by database
-        pipeline_id="pipe-1",
-        trigger_id="trigger-1",
-        label="test_label",
-        created_at=datetime.utcnow(),
-        value="test value",
-    )
-
-    await memory_repository.insert(memory)
-
-    # Verify session.add was called
-    mock_session.add.assert_called_once_with(memory)
-    mock_session.commit.assert_awaited_once()
-
-
-# ---------------------------------------------------------------------------
-# PipelineMemoryRepository - get_recent (list)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_repository_get_recent_all(memory_repository, mock_session):
-    """get_recent returns all memories for a pipeline and label."""
-    now = datetime.utcnow()
-    mock_result = MagicMock()
-    # Returns in DESC order (newest first)
-    mock_result.scalars.return_value = [
-        PipelineMemoryRow(
-            id=1,
-            pipeline_id="pipe-1",
-            trigger_id=None,
-            label="test_label",
-            created_at=now,
-            value="value1",
-        ),
-        PipelineMemoryRow(
-            id=2,
-            pipeline_id="pipe-1",
-            trigger_id=None,
-            label="test_label",
-            created_at=now - timedelta(hours=1),
-            value="value2",
-        ),
-    ]
-    mock_session.execute.return_value = mock_result
-
-    memories = await memory_repository.get_recent(
-        pipeline_id="pipe-1", label="test_label", limit=10
-    )
-
-    assert len(memories) == 2
-    assert memories[0].value == "value2"  # Oldest first after reverse
-    assert memories[1].value == "value1"
-
-
-@pytest.mark.asyncio
-async def test_repository_get_recent_with_since(memory_repository, mock_session):
-    """get_recent filters memories by since timestamp."""
-    now = datetime.utcnow()
-    cutoff = now - timedelta(hours=24)
-    mock_result = MagicMock()
-    mock_result.scalars.return_value = [
-        PipelineMemoryRow(
-            id=1,
-            pipeline_id="pipe-1",
-            trigger_id=None,
-            label="test_label",
-            created_at=now - timedelta(hours=1),  # Within cutoff
-            value="recent",
-        ),
-    ]
-    mock_session.execute.return_value = mock_result
-
-    memories = await memory_repository.get_recent(
-        pipeline_id="pipe-1",
-        label="test_label",
-        limit=10,
-        since=cutoff,
-    )
-
-    assert len(memories) == 1
-    assert memories[0].value == "recent"
-
-
-@pytest.mark.asyncio
-async def test_repository_get_recent_with_limit(memory_repository, mock_session):
-    """get_recent limits returned memories."""
-    now = datetime.utcnow()
-    mock_result = MagicMock()
-    # Returns in DESC order (newest first)
-    mock_result.scalars.return_value = [
-        PipelineMemoryRow(
-            id=i,
-            pipeline_id="pipe-1",
-            trigger_id=None,
-            label="test_label",
-            created_at=now,
-            value=f"value{i}",
-        )
-        for i in range(3)  # Only 3 returned despite having more
-    ]
-    mock_session.execute.return_value = mock_result
-
-    memories = await memory_repository.get_recent(
-        pipeline_id="pipe-1", label="test_label", limit=3
-    )
-
-    assert len(memories) == 3
-
-
-@pytest.mark.asyncio
-async def test_repository_get_recent_ordered_by_created_at(memory_repository, mock_session):
-    """get_recent returns memories ordered by created_at DESC, then reversed."""
-    now = datetime.utcnow()
-    mock_result = MagicMock()
-    # Returns in DESC order (newest first)
-    mock_result.scalars.return_value = [
-        PipelineMemoryRow(
-            id=3,
-            pipeline_id="pipe-1",
-            trigger_id=None,
-            label="test_label",
-            created_at=now,  # Most recent
-            value="value3",
-        ),
-        PipelineMemoryRow(
-            id=2,
-            pipeline_id="pipe-1",
-            trigger_id=None,
-            label="test_label",
-            created_at=now - timedelta(hours=1),
-            value="value2",
-        ),
-        PipelineMemoryRow(
-            id=1,
-            pipeline_id="pipe-1",
-            trigger_id=None,
-            label="test_label",
-            created_at=now - timedelta(hours=2),
-            value="value1",
-        ),
-    ]
-    mock_session.execute.return_value = mock_result
-
-    memories = await memory_repository.get_recent(
-        pipeline_id="pipe-1", label="test_label", limit=10
-    )
-
-    assert len(memories) == 3
-    # After reverse(), should be oldest first
-    assert memories[0].id == 1
-    assert memories[1].id == 2
-    assert memories[2].id == 3
-
-
-# ---------------------------------------------------------------------------
-# PipelineMemoryRepository - get_config
+# MemoryRepository - get_config
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_repository_get_config(memory_repository, mock_session):
-    """get_config returns memory configuration for a label."""
+    """get_config returns MemoryRow for a label."""
+    import uuid
+    row_id = str(uuid.uuid4())
     mock_result = MagicMock()
-    mock_result.scalar_one_or_none = MagicMock(return_value=PipelineMemoryConfig(
+    mock_result.scalar_one_or_none = MagicMock(return_value=MemoryRow(
+        id=row_id,
         label="test_label",
         max_memories=50,
         ttl_hours=1440,
@@ -217,87 +56,204 @@ async def test_repository_get_config(memory_repository, mock_session):
 
     config = await memory_repository.get_config("test_label")
 
-    assert config["label"] == "test_label"
-    assert config["max_memories"] == 50
-    assert config["ttl_hours"] == 1440
-    assert config["max_value_size"] == 5000
+    assert config is not None
+    assert config.label == "test_label"
+    assert config.max_memories == 50
+    assert config.ttl_hours == 1440
+    assert config.max_value_size == 5000
 
 
 @pytest.mark.asyncio
 async def test_repository_get_config_not_found(memory_repository, mock_session):
-    """get_config returns default config when label not found."""
+    """get_config returns None when label not found."""
     mock_result = MagicMock()
     mock_result.scalar_one_or_none = MagicMock(return_value=None)
     mock_session.execute.return_value = mock_result
 
     config = await memory_repository.get_config("nonexistent_label")
 
-    # Should return default config
-    assert config["max_memories"] == 20
-    assert config["ttl_hours"] == 720
-    assert config["max_value_size"] == 2000
+    assert config is None
 
 
 # ---------------------------------------------------------------------------
-# PipelineMemoryRepository - delete_oldest (trim_to_max)
+# MemoryRepository - list_configs
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_repository_delete_oldest(memory_repository, mock_session):
-    """delete_oldest keeps only the most recent N memories."""
+async def test_repository_list_configs(memory_repository, mock_session):
+    """list_configs returns list of MemoryRow objects."""
+    import uuid
+    rows = [
+        MemoryRow(id=str(uuid.uuid4()), label="alpha", max_memories=10, ttl_hours=100, max_value_size=500),
+        MemoryRow(id=str(uuid.uuid4()), label="beta", max_memories=20, ttl_hours=200, max_value_size=1000),
+    ]
     mock_result = MagicMock()
-    mock_result.rowcount = 5  # Deleted 5 old memories
+    mock_result.scalars.return_value = rows
     mock_session.execute.return_value = mock_result
 
-    await memory_repository.delete_oldest(
-        pipeline_id="pipe-1", label="test_label", keep=20
+    configs = await memory_repository.list_configs()
+
+    assert len(configs) == 2
+    assert configs[0].label == "alpha"
+    assert configs[1].label == "beta"
+
+
+# ---------------------------------------------------------------------------
+# MemoryRepository - set_config (create new)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_repository_set_config_creates_new(memory_repository, mock_session):
+    """set_config creates a new MemoryRow when label does not exist."""
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none = MagicMock(return_value=None)
+    mock_session.execute.return_value = mock_result
+
+    await memory_repository.set_config(
+        label="new_label",
+        max_memories=30,
+        ttl_hours=360,
+        max_value_size=1500,
     )
 
-    # Verify DELETE was called
+    mock_session.add.assert_called_once()
+    added_row = mock_session.add.call_args[0][0]
+    assert added_row.label == "new_label"
+    assert added_row.max_memories == 30
+    assert added_row.ttl_hours == 360
+    assert added_row.max_value_size == 1500
+    mock_session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_repository_set_config_updates_existing(memory_repository, mock_session):
+    """set_config updates an existing MemoryRow."""
+    import uuid
+    existing = MemoryRow(
+        id=str(uuid.uuid4()),
+        label="existing_label",
+        max_memories=10,
+        ttl_hours=100,
+        max_value_size=500,
+    )
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none = MagicMock(return_value=existing)
+    mock_session.execute.return_value = mock_result
+
+    await memory_repository.set_config(
+        label="existing_label",
+        max_memories=99,
+        ttl_hours=999,
+        max_value_size=9999,
+    )
+
+    assert existing.max_memories == 99
+    assert existing.ttl_hours == 999
+    assert existing.max_value_size == 9999
+    mock_session.add.assert_not_called()
+    mock_session.commit.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# MemoryRepository - delete_config
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_repository_delete_config(memory_repository, mock_session):
+    """delete_config executes a delete and commits."""
+    mock_result = MagicMock()
+    mock_session.execute.return_value = mock_result
+
+    await memory_repository.delete_config("test_label")
+
     mock_session.execute.assert_awaited_once()
     mock_session.commit.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
-# PipelineMemoryRepository - delete_expired (cleanup_old_memories)
+# MemoryRepository - get_entries_by_label
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_repository_delete_expired(memory_repository, mock_session):
-    """delete_expired deletes memories older than cutoff."""
-    cutoff = datetime.utcnow() - timedelta(hours=720)
+async def test_repository_get_entries_by_label(memory_repository, mock_session):
+    """get_entries_by_label returns entries for a label ordered by created_at asc."""
+    import uuid
+    now = datetime.utcnow()
+    mem_id = str(uuid.uuid4())
+    entries = [
+        MemoryEntryRow(id=1, memory_id=mem_id, created_at=now - timedelta(hours=2), value="old"),
+        MemoryEntryRow(id=2, memory_id=mem_id, created_at=now - timedelta(hours=1), value="new"),
+    ]
     mock_result = MagicMock()
+    mock_result.scalars.return_value = entries
     mock_session.execute.return_value = mock_result
 
-    await memory_repository.delete_expired(
-        pipeline_id="pipe-1", label="test_label", before=cutoff
+    result = await memory_repository.get_entries_by_label("test_label")
+
+    assert len(result) == 2
+    assert result[0].value == "old"
+    assert result[1].value == "new"
+    mock_session.execute.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# MemoryRepository - insert_entry
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_repository_insert_entry(memory_repository, mock_session):
+    """insert_entry adds an entry to the session and commits."""
+    import uuid
+    entry = MemoryEntryRow(
+        memory_id=str(uuid.uuid4()),
+        created_at=datetime.utcnow(),
+        value="test value",
     )
 
-    # Verify session.execute was called
-    mock_session.execute.assert_awaited_once()
+    await memory_repository.insert_entry(entry)
+
+    mock_session.add.assert_called_once_with(entry)
     mock_session.commit.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
-# PipelineMemoryRepository - count
+# MemoryRepository - count_entries
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_repository_count(memory_repository, mock_session):
-    """count returns the count of memories for a label."""
+async def test_repository_count_entries(memory_repository, mock_session):
+    """count_entries returns the count of entries for a memory_id."""
     mock_result = MagicMock()
-    mock_result.scalar_one = MagicMock(return_value=42)
+    mock_result.scalar_one = MagicMock(return_value=7)
     mock_session.execute.return_value = mock_result
 
-    count = await memory_repository.count(
-        pipeline_id="pipe-1", label="test_label"
-    )
+    count = await memory_repository.count_entries("some-uuid")
 
-    assert count == 42
+    assert count == 7
     mock_session.execute.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# MemoryRepository - delete_oldest_entries
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_repository_delete_oldest_entries(memory_repository, mock_session):
+    """delete_oldest_entries executes a delete and commits."""
+    mock_result = MagicMock()
+    mock_session.execute.return_value = mock_result
+
+    await memory_repository.delete_oldest_entries("some-uuid", keep=5)
+
+    mock_session.execute.assert_awaited_once()
+    mock_session.commit.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

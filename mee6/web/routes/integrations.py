@@ -7,16 +7,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from mee6.config import settings
 from mee6.db.engine import AsyncSessionLocal
-from mee6.db.models import CalendarRow, PipelineMemoryRow, WhatsAppGroupRow
+from mee6.db.models import CalendarRow, WhatsAppGroupRow
 from mee6.db.repository import (
     CalendarRepository,
-    PipelineMemoryRepository,
     WhatsAppGroupRepository,
     WhatsAppSettingsRepository,
 )
 from mee6.integrations.whatsapp_session import wa_session
 from mee6.scheduler.engine import scheduler
-from sqlalchemy import delete, distinct, func, select
+from sqlalchemy import select
 from mee6.web.templates_env import templates
 
 logger = logging.getLogger(__name__)
@@ -52,11 +51,31 @@ async def integrations_page(request: Request):
         "integrations.html",
         {
             "active_count": 0,
-            "ctx": await _wa_ctx(),
+            **await _wa_ctx(),
             "wa_groups": await _wa_groups(),
             "calendars": await _calendars(),
         },
     )
+
+
+@router.get("/whatsapp/status", response_class=HTMLResponse)
+async def whatsapp_status_partial(request: Request):
+    """HTMX polling endpoint — returns the WhatsApp status card partial."""
+    ctx = await _wa_ctx()
+    return templates.TemplateResponse(request, "_whatsapp_status.html", ctx)
+
+
+@router.post("/whatsapp/connect")
+async def connect_whatsapp():
+    """Trigger a new WhatsApp connection attempt."""
+    from mee6.scheduler.engine import scheduler
+    await wa_session.connect(
+        on_dm=scheduler.check_wa_triggers,
+        on_group=scheduler.check_wa_group_triggers,
+        on_dm_allowed=scheduler.has_wa_trigger,
+        on_group_allowed=scheduler.has_wa_group_trigger,
+    )
+    return RedirectResponse("/integrations", status_code=303)
 
 
 @router.post("/whatsapp/status")
@@ -129,43 +148,16 @@ async def get_memory_labels():
     """API endpoint to get available memory labels for pipeline editor."""
     try:
         async with AsyncSessionLocal() as session:
-            from sqlalchemy import distinct, select
-
+            from mee6.db.models import MemoryRow
             result = await session.execute(
-                select(distinct(PipelineMemoryRow.label)).order_by(PipelineMemoryRow.label)
+                select(MemoryRow.label).order_by(MemoryRow.label)
             )
             memory_labels = [row[0] for row in result.fetchall()]
-
             logger.info(f"Found {len(memory_labels)} memory labels: {memory_labels}")
             return memory_labels
     except Exception as e:
         logger.error(f"Error fetching memory labels: {e}")
         return []
-
-
-@router.get("/memories/debug")
-async def debug_memory():
-    """Debug endpoint to check memory table and labels."""
-    try:
-        async with AsyncSessionLocal() as session:
-            from sqlalchemy import select, func
-
-            # Check if table exists and has data
-            count_result = await session.execute(select(func.count(PipelineMemoryRow.id)))
-            total_count = count_result.scalar_one()
-
-            # Get sample labels
-            sample_result = await session.execute(select(PipelineMemoryRow.label).limit(5))
-            sample_labels = [row[0] for row in sample_result.fetchall()]
-
-            return {
-                "total_memory_entries": total_count,
-                "sample_labels": sample_labels,
-                "status": "ok",
-            }
-    except Exception as e:
-        logger.error(f"Debug error: {e}")
-        return {"total_memory_entries": 0, "sample_labels": [], "status": f"error: {str(e)}"}
 
 
 @router.get("/memories/new", response_class=HTMLResponse)
@@ -176,21 +168,23 @@ async def new_memory_form(request: Request):
 
 @router.get("/memories", response_class=HTMLResponse)
 async def list_memories(request: Request):
+    from mee6.db.models import MemoryEntryRow
+    from mee6.db.repository import MemoryRepository
     async with AsyncSessionLocal() as session:
-        repository = PipelineMemoryRepository(session)
-
-        # Get all memory configurations
-        configs = await repository.list_configs()
-
-        # Get memory counts for each label
-        for config in configs:
-            count_result = await session.execute(
-                select(func.count(PipelineMemoryRow.id)).where(PipelineMemoryRow.label == config["label"])
-            )
-            config["count"] = count_result.scalar_one()
-
+        repo = MemoryRepository(session)
+        configs = await repo.list_configs()
+        memory_configs = []
+        for cfg in configs:
+            count = await repo.count_entries(cfg.id)
+            memory_configs.append({
+                "label": cfg.label,
+                "max_memories": cfg.max_memories,
+                "ttl_hours": cfg.ttl_hours,
+                "max_value_size": cfg.max_value_size,
+                "count": count,
+            })
     return templates.TemplateResponse(
-        request, "memories.html", {"memory_configs": configs, "active_count": 0}
+        request, "memories.html", {"memory_configs": memory_configs, "active_count": 0}
     )
 
 
@@ -201,28 +195,22 @@ async def create_memory(
     ttl_hours: str = Form("720"),
     max_value_size: str = Form("2000"),
 ):
+    from mee6.db.repository import MemoryRepository
     async with AsyncSessionLocal() as session:
-        repository = PipelineMemoryRepository(session)
-        await repository.set_config(
+        repo = MemoryRepository(session)
+        await repo.set_config(
             label=label.strip(),
             max_memories=int(max_memories),
             ttl_hours=int(ttl_hours),
             max_value_size=int(max_value_size),
         )
-
     return RedirectResponse("/integrations/memories", status_code=303)
 
 
 @router.post("/memories/{label}/delete")
 async def delete_memory(label: str):
+    from mee6.db.repository import MemoryRepository
     async with AsyncSessionLocal() as session:
-        repository = PipelineMemoryRepository(session)
-
-        # Delete all entries for this memory label
-        await session.execute(delete(PipelineMemoryRow).where(PipelineMemoryRow.label == label))
-
-        # Delete the configuration
-        await repository.delete_config(label)
-
-        await session.commit()
+        repo = MemoryRepository(session)
+        await repo.delete_config(label)
     return RedirectResponse("/integrations/memories", status_code=303)

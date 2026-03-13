@@ -7,8 +7,8 @@ from sqlalchemy import inspect
 
 from mee6.db.models import (
     Base,
-    PipelineMemoryRow,
-    PipelineMemoryConfig,
+    MemoryEntryRow,
+    MemoryRow,
     WhatsAppSettingsRow,
     PipelineRow,
     TriggerRow,
@@ -21,34 +21,34 @@ from mee6.db.models import (
 
 
 def test_pipeline_memory_row_instantiation():
-    """PipelineMemoryRow can be instantiated with required fields."""
+    """MemoryEntryRow can be instantiated with required fields."""
     now = datetime.utcnow()
-    memory = PipelineMemoryRow(
-        pipeline_id="pipe-1",
-        trigger_id="trigger-1",
-        label="test_label",
+    entry = MemoryEntryRow(
+        memory_id="some-uuid-1234",
         created_at=now,
         value="test value",
     )
 
-    assert memory.pipeline_id == "pipe-1"
-    assert memory.trigger_id == "trigger-1"
-    assert memory.label == "test_label"
-    assert memory.created_at == now
-    assert memory.value == "test value"
+    assert entry.memory_id == "some-uuid-1234"
+    assert entry.created_at == now
+    assert entry.value == "test value"
     # id is auto-increment, should be None before insert
-    assert memory.id is None
+    assert entry.id is None
 
 
 def test_pipeline_memory_config_instantiation():
-    """PipelineMemoryConfig can be instantiated with required fields."""
-    config = PipelineMemoryConfig(
+    """MemoryRow can be instantiated with required fields."""
+    import uuid
+    row_id = str(uuid.uuid4())
+    config = MemoryRow(
+        id=row_id,
         label="test_label",
         max_memories=50,
         ttl_hours=1440,
         max_value_size=5000,
     )
 
+    assert config.id == row_id
     assert config.label == "test_label"
     assert config.max_memories == 50
     assert config.ttl_hours == 1440
@@ -103,20 +103,6 @@ def test_trigger_row_instantiation():
 # ---------------------------------------------------------------------------
 
 
-def test_pipeline_memory_row_optional_fields():
-    """PipelineMemoryRow works with optional trigger_id as None."""
-    now = datetime.utcnow()
-    memory = PipelineMemoryRow(
-        pipeline_id="pipe-1",
-        trigger_id=None,  # Optional, can be None
-        label="test_label",
-        created_at=now,
-        value="test value",
-    )
-
-    assert memory.trigger_id is None
-
-
 def test_trigger_row_optional_cron_expression():
     """TriggerRow works without cron_expression for non-cron triggers."""
     trigger = TriggerRow(
@@ -136,9 +122,8 @@ def test_trigger_row_optional_cron_expression():
 
 
 def test_pipeline_memory_config_defaults():
-    """PipelineMemoryConfig has sensible defaults."""
-    # Model doesn't have server_default, so values must be explicitly set
-    config = PipelineMemoryConfig(
+    """MemoryRow has sensible defaults."""
+    config = MemoryRow(
         label="test_label",
         max_memories=20,  # Default value
         ttl_hours=720,    # Default value
@@ -148,6 +133,15 @@ def test_pipeline_memory_config_defaults():
     assert config.max_memories == 20
     assert config.ttl_hours == 720
     assert config.max_value_size == 2000
+
+
+def test_memory_row_id_explicit():
+    """MemoryRow accepts an explicit UUID id."""
+    import uuid
+    row_id = str(uuid.uuid4())
+    config = MemoryRow(id=row_id, label="test_label")
+    assert config.id == row_id
+    assert len(config.id) == 36  # UUID string length
 
 
 def test_whatsapp_settings_default_phone():
@@ -166,22 +160,22 @@ def test_whatsapp_settings_default_phone():
 # ---------------------------------------------------------------------------
 
 
-def test_pipeline_memory_config_label_is_primary_key():
-    """PipelineMemoryConfig label is the primary key."""
-    config1 = PipelineMemoryConfig(
+def test_pipeline_memory_config_label_is_unique():
+    """MemoryRow label is unique."""
+    config1 = MemoryRow(
         label="test_label",
         max_memories=50,
         ttl_hours=1440,
         max_value_size=5000,
     )
-    config2 = PipelineMemoryConfig(
+    config2 = MemoryRow(
         label="test_label",  # Same label
         max_memories=100,
         ttl_hours=2880,
         max_value_size=10000,
     )
 
-    # These would conflict in the database (same primary key)
+    # These would conflict in the database (same unique label)
     assert config1.label == config2.label
 
 
@@ -190,17 +184,15 @@ def test_pipeline_memory_config_label_is_primary_key():
 # ---------------------------------------------------------------------------
 
 
-def test_pipeline_memory_belongs_to_pipeline():
-    """PipelineMemoryRow has a pipeline_id foreign relationship."""
-    memory = PipelineMemoryRow(
-        pipeline_id="pipe-1",
-        trigger_id="trigger-1",
-        label="test_label",
+def test_memory_entry_has_memory_id():
+    """MemoryEntryRow has a memory_id foreign key."""
+    entry = MemoryEntryRow(
+        memory_id="some-uuid",
         created_at=datetime.utcnow(),
         value="test value",
     )
 
-    assert memory.pipeline_id == "pipe-1"
+    assert entry.memory_id == "some-uuid"
 
 
 def test_trigger_belongs_to_pipeline():
@@ -222,24 +214,22 @@ def test_trigger_belongs_to_pipeline():
 
 
 def test_pipeline_memory_row_timestamp_precision():
-    """PipelineMemoryRow stores timestamps with datetime precision."""
+    """MemoryEntryRow stores timestamps with datetime precision."""
     now = datetime.utcnow()
-    memory = PipelineMemoryRow(
-        pipeline_id="pipe-1",
-        trigger_id=None,
-        label="test_label",
+    entry = MemoryEntryRow(
+        memory_id="some-uuid",
         created_at=now,
         value="test value",
     )
 
     # The timestamp should be preserved
-    assert isinstance(memory.created_at, datetime)
-    assert memory.created_at.replace(microsecond=0) == now.replace(microsecond=0)
+    assert isinstance(entry.created_at, datetime)
+    assert entry.created_at.replace(microsecond=0) == now.replace(microsecond=0)
 
 
 def test_pipeline_memory_config_no_timestamp():
-    """PipelineMemoryConfig doesn't have timestamps (static config)."""
-    config = PipelineMemoryConfig(
+    """MemoryRow doesn't have timestamps (static config)."""
+    config = MemoryRow(
         label="test_label",
         max_memories=50,
         ttl_hours=1440,
@@ -257,24 +247,22 @@ def test_pipeline_memory_config_no_timestamp():
 
 
 def test_pipeline_memory_row_str():
-    """PipelineMemoryRow has a useful string representation."""
-    memory = PipelineMemoryRow(
+    """MemoryEntryRow has a useful string representation."""
+    entry = MemoryEntryRow(
         id=1,
-        pipeline_id="pipe-1",
-        trigger_id=None,
-        label="test_label",
+        memory_id="some-uuid",
         created_at=datetime(2026, 3, 13, 10, 0, 0),
         value="test value",
     )
 
-    str_repr = str(memory)
+    str_repr = str(entry)
     # The string representation should contain identifying information
-    assert "PipelineMemoryRow" in str_repr or "test_label" in str_repr
+    assert "MemoryEntryRow" in str_repr or "some-uuid" in str_repr
 
 
 def test_pipeline_memory_config_str():
-    """PipelineMemoryConfig has a useful string representation."""
-    config = PipelineMemoryConfig(
+    """MemoryRow has a useful string representation."""
+    config = MemoryRow(
         label="test_label",
         max_memories=50,
         ttl_hours=1440,
@@ -282,7 +270,7 @@ def test_pipeline_memory_config_str():
     )
 
     str_repr = str(config)
-    assert "test_label" in str_repr or "PipelineMemoryConfig" in str_repr
+    assert "test_label" in str_repr or "MemoryRow" in str_repr
 
 
 # ---------------------------------------------------------------------------
@@ -291,13 +279,13 @@ def test_pipeline_memory_config_str():
 
 
 def test_pipeline_memory_row_table_name():
-    """PipelineMemoryRow uses the correct table name."""
-    assert PipelineMemoryRow.__tablename__ == "pipeline_memories"
+    """MemoryEntryRow uses the correct table name."""
+    assert MemoryEntryRow.__tablename__ == "memory_entry"
 
 
 def test_pipeline_memory_config_table_name():
-    """PipelineMemoryConfig uses the correct table name."""
-    assert PipelineMemoryConfig.__tablename__ == "pipeline_memory_configs"
+    """MemoryRow uses the correct table name."""
+    assert MemoryRow.__tablename__ == "memory"
 
 
 def test_whatsapp_settings_row_table_name():
@@ -321,19 +309,17 @@ def test_trigger_row_table_name():
 
 
 def test_pipeline_memory_row_column_types():
-    """PipelineMemoryRow has correct column types."""
-    # This is a basic check - in real testing you'd inspect the columns
-    assert hasattr(PipelineMemoryRow, "id")
-    assert hasattr(PipelineMemoryRow, "pipeline_id")
-    assert hasattr(PipelineMemoryRow, "trigger_id")
-    assert hasattr(PipelineMemoryRow, "label")
-    assert hasattr(PipelineMemoryRow, "created_at")
-    assert hasattr(PipelineMemoryRow, "value")
+    """MemoryEntryRow has correct column types."""
+    assert hasattr(MemoryEntryRow, "id")
+    assert hasattr(MemoryEntryRow, "memory_id")
+    assert hasattr(MemoryEntryRow, "created_at")
+    assert hasattr(MemoryEntryRow, "value")
 
 
 def test_pipeline_memory_config_column_types():
-    """PipelineMemoryConfig has correct column types."""
-    assert hasattr(PipelineMemoryConfig, "label")
-    assert hasattr(PipelineMemoryConfig, "max_memories")
-    assert hasattr(PipelineMemoryConfig, "ttl_hours")
-    assert hasattr(PipelineMemoryConfig, "max_value_size")
+    """MemoryRow has correct column types."""
+    assert hasattr(MemoryRow, "id")
+    assert hasattr(MemoryRow, "label")
+    assert hasattr(MemoryRow, "max_memories")
+    assert hasattr(MemoryRow, "ttl_hours")
+    assert hasattr(MemoryRow, "max_value_size")

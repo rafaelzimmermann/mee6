@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -7,7 +8,6 @@ from sqlalchemy.orm import selectinload
 
 from mee6.db.models import (
     CalendarRow,
-    PipelineMemoryRow,
     PipelineRow,
     PipelineStepRow,
     RunRecordRow,
@@ -235,126 +235,77 @@ class WhatsAppSettingsRepository:
         await self._s.commit()
 
 
-class PipelineMemoryRepository:
+class MemoryRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
 
-    async def get_recent(
-        self, pipeline_id: str, label: str, limit: int, since: Optional[datetime] = None
-    ) -> list[PipelineMemoryRow]:
-        """Return the most recent *limit* memories for pipeline_id/label, oldest first."""
-        query = select(PipelineMemoryRow).where(
-            PipelineMemoryRow.pipeline_id == pipeline_id,
-            PipelineMemoryRow.label == label,
-        )
+    # --- Config CRUD ---
 
-        if since is not None:
-            query = query.where(PipelineMemoryRow.created_at >= since)
+    async def get_config(self, label: str) -> "MemoryRow | None":
+        from mee6.db.models import MemoryRow
+        result = await self._s.execute(select(MemoryRow).where(MemoryRow.label == label))
+        return result.scalar_one_or_none()
 
-        result = await self._s.execute(
-            query.order_by(PipelineMemoryRow.created_at.desc()).limit(limit)
-        )
-        rows = list(result.scalars())
-        rows.reverse()
-        return rows
+    async def list_configs(self) -> list["MemoryRow"]:
+        from mee6.db.models import MemoryRow
+        result = await self._s.execute(select(MemoryRow).order_by(MemoryRow.label))
+        return list(result.scalars())
 
-    async def insert(self, row: PipelineMemoryRow) -> None:
-        self._s.add(row)
+    async def set_config(self, label: str, max_memories: int, ttl_hours: int, max_value_size: int) -> None:
+        from mee6.db.models import MemoryRow
+        result = await self._s.execute(select(MemoryRow).where(MemoryRow.label == label))
+        row = result.scalar_one_or_none()
+        if row is None:
+            row = MemoryRow(
+                id=str(uuid.uuid4()),
+                label=label,
+                max_memories=max_memories,
+                ttl_hours=ttl_hours,
+                max_value_size=max_value_size,
+            )
+            self._s.add(row)
+        else:
+            row.max_memories = max_memories
+            row.ttl_hours = ttl_hours
+            row.max_value_size = max_value_size
         await self._s.commit()
 
-    async def count(self, pipeline_id: str, label: str) -> int:
-        """Count memories for pipeline_id/label."""
+    async def delete_config(self, label: str) -> None:
+        from mee6.db.models import MemoryRow
+        await self._s.execute(delete(MemoryRow).where(MemoryRow.label == label))
+        await self._s.commit()
+
+    # --- Entry CRUD ---
+
+    async def get_entries_by_label(self, label: str, limit: int = 100) -> list["MemoryEntryRow"]:
+        from mee6.db.models import MemoryEntryRow, MemoryRow
         result = await self._s.execute(
-            select(func.count(PipelineMemoryRow.id)).where(
-                PipelineMemoryRow.pipeline_id == pipeline_id,
-                PipelineMemoryRow.label == label,
-            )
+            select(MemoryEntryRow)
+            .join(MemoryRow, MemoryEntryRow.memory_id == MemoryRow.id)
+            .where(MemoryRow.label == label)
+            .order_by(MemoryEntryRow.created_at.asc())
+            .limit(limit)
+        )
+        return list(result.scalars())
+
+    async def insert_entry(self, entry: "MemoryEntryRow") -> None:
+        self._s.add(entry)
+        await self._s.commit()
+
+    async def count_entries(self, memory_id: str) -> int:
+        from mee6.db.models import MemoryEntryRow
+        result = await self._s.execute(
+            select(func.count(MemoryEntryRow.id)).where(MemoryEntryRow.memory_id == memory_id)
         )
         return result.scalar_one()
 
-    async def delete_oldest(self, pipeline_id: str, label: str, keep: int) -> None:
-        """Delete oldest memories beyond *keep* count."""
+    async def delete_oldest_entries(self, memory_id: str, keep: int) -> None:
+        from mee6.db.models import MemoryEntryRow
         subquery = (
-            select(PipelineMemoryRow.id)
-            .where(
-                PipelineMemoryRow.pipeline_id == pipeline_id,
-                PipelineMemoryRow.label == label,
-            )
-            .order_by(PipelineMemoryRow.created_at.desc())
+            select(MemoryEntryRow.id)
+            .where(MemoryEntryRow.memory_id == memory_id)
+            .order_by(MemoryEntryRow.created_at.desc())
             .offset(keep)
         )
-
-        await self._s.execute(delete(PipelineMemoryRow).where(PipelineMemoryRow.id.in_(subquery)))
-        await self._s.commit()
-
-    async def delete_expired(self, pipeline_id: str, label: str, before: datetime) -> None:
-        """Delete memories older than *before* timestamp."""
-        await self._s.execute(
-            delete(PipelineMemoryRow).where(
-                PipelineMemoryRow.pipeline_id == pipeline_id,
-                PipelineMemoryRow.label == label,
-                PipelineMemoryRow.created_at < before,
-            )
-        )
-        await self._s.commit()
-
-    async def get_config(self, label: str) -> dict | None:
-        """Get memory configuration for a label, or default values if not configured."""
-        from mee6.db.models import PipelineMemoryConfig
-
-        result = await self._s.execute(
-            select(PipelineMemoryConfig).where(PipelineMemoryConfig.label == label)
-        )
-        config = result.scalar_one_or_none()
-
-        if config is None:
-            return {
-                "label": label,
-                "max_memories": 20,
-                "ttl_hours": 720,
-                "max_value_size": 2000,
-            }
-
-        return {
-            "label": config.label,
-            "max_memories": config.max_memories,
-            "ttl_hours": config.ttl_hours,
-            "max_value_size": config.max_value_size,
-        }
-
-    async def set_config(self, label: str, max_memories: int, ttl_hours: int, max_value_size: int) -> None:
-        """Set memory configuration for a label."""
-        from mee6.db.models import PipelineMemoryConfig
-
-        config = PipelineMemoryConfig(
-            label=label,
-            max_memories=max_memories,
-            ttl_hours=ttl_hours,
-            max_value_size=max_value_size,
-        )
-        await self._s.merge(config)
-        await self._s.commit()
-
-    async def list_configs(self) -> list[dict]:
-        """List all memory configurations."""
-        from mee6.db.models import PipelineMemoryConfig
-
-        result = await self._s.execute(select(PipelineMemoryConfig).order_by(PipelineMemoryConfig.label))
-        configs = result.scalars().all()
-
-        return [
-            {
-                "label": config.label,
-                "max_memories": config.max_memories,
-                "ttl_hours": config.ttl_hours,
-                "max_value_size": config.max_value_size,
-            }
-            for config in configs
-        ]
-
-    async def delete_config(self, label: str) -> None:
-        """Delete memory configuration for a label."""
-        from mee6.db.models import PipelineMemoryConfig
-
-        await self._s.execute(delete(PipelineMemoryConfig).where(PipelineMemoryConfig.label == label))
+        await self._s.execute(delete(MemoryEntryRow).where(MemoryEntryRow.id.in_(subquery)))
         await self._s.commit()

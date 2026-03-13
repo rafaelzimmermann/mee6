@@ -22,15 +22,11 @@ async def load_calendar_options() -> list[str]:
 
 
 async def load_memory_options() -> list[str]:
-    """Return available memory labels for combobox fields."""
+    """Return configured memory labels for select fields."""
     from mee6.db.engine import AsyncSessionLocal
-    from mee6.db.models import PipelineMemoryRow
-    from sqlalchemy import distinct, select
+    from mee6.db.models import MemoryRow
+    from sqlalchemy import select
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(distinct(PipelineMemoryRow.label))
-            .order_by(PipelineMemoryRow.label)
-        )
-        labels = [row[0] for row in result.fetchall()]
-    return labels
+        result = await session.execute(select(MemoryRow.label).order_by(MemoryRow.label))
+        return [row[0] for row in result.fetchall()]

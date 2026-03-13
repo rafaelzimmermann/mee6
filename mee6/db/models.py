@@ -1,3 +1,4 @@
+import uuid as _uuid
 from datetime import datetime
 from typing import Optional
 
@@ -119,21 +120,36 @@ class WhatsAppSettingsRow(Base):
     phone_number: Mapped[str] = mapped_column(String, nullable=False, server_default="")
 
 
-class PipelineMemoryRow(Base):
-    __tablename__ = "pipeline_memories"
+class MemoryRow(Base):
+    __tablename__ = "memory"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    pipeline_id: Mapped[str] = mapped_column(String, nullable=False)
-    trigger_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    label: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    value: Mapped[str] = mapped_column(Text, nullable=False)
-
-
-class PipelineMemoryConfig(Base):
-    __tablename__ = "pipeline_memory_configs"
-
-    label: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(_uuid.uuid4()))
+    label: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     max_memories: Mapped[int] = mapped_column(Integer, nullable=False, server_default="20")
     ttl_hours: Mapped[int] = mapped_column(Integer, nullable=False, server_default="720")
     max_value_size: Mapped[int] = mapped_column(Integer, nullable=False, server_default="2000")
+
+    entries: Mapped[list["MemoryEntryRow"]] = relationship(
+        "MemoryEntryRow",
+        back_populates="memory",
+        cascade="all, delete-orphan",
+    )
+
+
+class MemoryEntryRow(Base):
+    __tablename__ = "memory_entry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    memory_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("memory.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+
+    memory: Mapped["MemoryRow"] = relationship("MemoryRow", back_populates="entries")
+
+    __table_args__ = (
+        Index("ix_memory_entry_memory_id_created", "memory_id", "created_at"),
+    )
