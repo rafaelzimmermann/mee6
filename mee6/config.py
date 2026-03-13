@@ -36,9 +36,6 @@ class Settings(BaseSettings):
     # PostgreSQL connection URL (asyncpg driver)
     database_url: str = "postgresql+asyncpg://mee6:mee6@localhost:5432/mee6"
 
-    # Notification target — project-specific, in .mee6.conf
-    notify_phone_number: str = ""
-
     # Google Calendar — project-specific, in .mee6.conf
     google_calendar_id: str = ""
     google_credentials_file: str = "/app/data/credentials.json"

@@ -9,6 +9,13 @@
   <div class="card-header">WhatsApp</div>
   <div class="card-body">
     {% include "_whatsapp_status.html" %}
+    <hr style="margin:1rem 0">
+    <h2>Phone Number</h2>
+    <form method="post" action="/integrations/whatsapp/phone">
+      <label>Default number <input type="tel" name="phone" value="{{ notify_phone }}" placeholder="+34612345678" style="width:14rem"></label>
+      <button type="submit">Save</button>
+    </form>
+    <p class="hint">Used as the default recipient for test messages and WhatsApp Send steps.</p>
   </div>
 </section>
 

@@ -80,3 +80,10 @@ class WhatsAppGroupRow(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     # User-editable friendly label; defaults to name on first sync
     label: Mapped[str] = mapped_column(String, nullable=False, server_default="")
+
+
+class WhatsAppSettingsRow(Base):
+    __tablename__ = "whatsapp_settings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    phone_number: Mapped[str] = mapped_column(String, nullable=False, server_default="")

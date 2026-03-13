@@ -2,10 +2,6 @@
 # Copy to .mee6.conf (gitignored) and fill in your values.
 # These settings are specific to this mee6 instance.
 
-# WhatsApp notification target (E.164 format, e.g. +34612345678)
-# Must match the allowed_contact in ~/.config/agntrick/whatsapp.yaml
-NOTIFY_PHONE_NUMBER=+34612345678
-
 # Google Calendar
 # Events are written via the Google Calendar API using a service account.
 # Share your calendar with the service account email and place the JSON key at GOOGLE_CREDENTIALS_FILE.

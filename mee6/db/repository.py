@@ -1,7 +1,7 @@
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mee6.db.models import CalendarRow, PipelineRow, RunRecordRow, TriggerRow, WhatsAppGroupRow, WhatsAppMessageRow
+from mee6.db.models import CalendarRow, PipelineRow, RunRecordRow, TriggerRow, WhatsAppGroupRow, WhatsAppMessageRow, WhatsAppSettingsRow
 
 
 class PipelineRepository:
@@ -152,4 +152,22 @@ class WhatsAppGroupRepository:
         await self._s.execute(
             delete(WhatsAppGroupRow).where(WhatsAppGroupRow.jid == jid)
         )
+        await self._s.commit()
+
+
+class WhatsAppSettingsRepository:
+    _ID = "default"
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def get_phone_number(self) -> str:
+        result = await self._s.execute(
+            select(WhatsAppSettingsRow).where(WhatsAppSettingsRow.id == self._ID)
+        )
+        row = result.scalar_one_or_none()
+        return row.phone_number if row else ""
+
+    async def set_phone_number(self, phone: str) -> None:
+        await self._s.merge(WhatsAppSettingsRow(id=self._ID, phone_number=phone))
         await self._s.commit()
