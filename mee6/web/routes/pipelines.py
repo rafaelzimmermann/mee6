@@ -11,7 +11,8 @@ from pydantic import BaseModel
 
 from mee6.db.engine import AsyncSessionLocal
 from mee6.db.repository import TriggerRepository, PipelineStepRepository
-from mee6.pipelines.models import Pipeline, PipelineStepRow
+from mee6.db.models import PipelineStepRow
+from mee6.pipelines.models import Pipeline
 from mee6.pipelines.placeholders import AVAILABLE as PLACEHOLDER_HINTS
 from mee6.pipelines.plugin_registry import AGENT_PLUGINS
 from mee6.pipelines.store import pipeline_store
@@ -75,7 +76,7 @@ async def create_pipeline(data: PipelineCreateRequest):
         ]
         await step_repo.upsert_steps(pipeline_id, step_rows)
 
-    return RedirectResponse("/pipelines", status_code=303)
+    return {"id": pipeline_id, "name": data.name, "steps": data.steps}
 
 
 @router.get("/pipelines/{pipeline_id}", response_class=HTMLResponse)
@@ -117,14 +118,7 @@ async def update_pipeline(pipeline_id: str, data: PipelineCreateRequest):
         ]
         await step_repo.upsert_steps(pipeline_id, step_rows)
 
-    return PipelineResponse(
-        id=pipeline.id,
-        name=pipeline.name,
-        steps=[step.model_dump() for step in pipeline.steps_list],
-    )
-        name=pipeline.name,
-        steps=[step.model_dump() for step in pipeline.steps],
-    )
+    return {"id": pipeline_id, "name": data.name, "steps": data.steps}
 
 
 @router.post("/pipelines/{pipeline_id}/delete")

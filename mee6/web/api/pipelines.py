@@ -8,7 +8,8 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 
 from mee6.db.engine import AsyncSessionLocal
-from mee6.db.repository import TriggerRepository
+from mee6.db.models import PipelineStepRow
+from mee6.db.repository import PipelineStepRepository, TriggerRepository
 from mee6.pipelines.models import Pipeline, PipelineStep
 from mee6.pipelines.store import pipeline_store
 from mee6.scheduler.engine import scheduler
@@ -54,12 +55,20 @@ async def get_pipeline(pipeline_id: str):
 async def create_pipeline(data: PipelineCreateRequest):
     """Create a new pipeline."""
     pipeline_id = str(uuid.uuid4())
-    pipeline = Pipeline(
-        id=pipeline_id,
-        name=data.name,
-        steps=[PipelineStep(**step) for step in data.steps],
-    )
-    await pipeline_store.upsert(pipeline)
+    await pipeline_store.upsert(Pipeline(id=pipeline_id, name=data.name))
+    async with AsyncSessionLocal() as session:
+        await PipelineStepRepository(session).upsert_steps(
+            pipeline_id,
+            [
+                PipelineStepRow(
+                    pipeline_id=pipeline_id,
+                    step_index=idx,
+                    agent_type=step.get("agent_type", ""),
+                    config=step,
+                )
+                for idx, step in enumerate(data.steps)
+            ],
+        )
     return PipelineCreateResponse(
         id=pipeline_id, message=f"Pipeline '{data.name}' created"
     )
@@ -74,18 +83,23 @@ async def update_pipeline(pipeline_id: str, data: PipelineCreateRequest):
             status_code=status.HTTP_404_NOT_FOUND, detail="Pipeline not found"
         )
 
-    pipeline = Pipeline(
-        id=pipeline_id,
-        name=data.name,
-        steps=[PipelineStep(**step) for step in data.steps],
-    )
+    pipeline = Pipeline(id=pipeline_id, name=data.name)
     await pipeline_store.upsert(pipeline)
     scheduler.update_pipeline_name(pipeline_id, pipeline.name)
-    return PipelineResponse(
-        id=pipeline.id,
-        name=pipeline.name,
-        steps=[step.model_dump() for step in pipeline.steps],
-    )
+    async with AsyncSessionLocal() as session:
+        await PipelineStepRepository(session).upsert_steps(
+            pipeline_id,
+            [
+                PipelineStepRow(
+                    pipeline_id=pipeline_id,
+                    step_index=idx,
+                    agent_type=step.get("agent_type", ""),
+                    config=step,
+                )
+                for idx, step in enumerate(data.steps)
+            ],
+        )
+    return PipelineResponse(id=pipeline_id, name=data.name, steps=data.steps)
 
 
 @router.delete("/{pipeline_id}", status_code=status.HTTP_204_NO_CONTENT)

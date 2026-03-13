@@ -11,4 +11,4 @@ class PipelineStep(BaseModel):
 class Pipeline(BaseModel):
     id: str
     name: str
-    steps: list[PipelineStep]
+    steps: list[PipelineStep] = []

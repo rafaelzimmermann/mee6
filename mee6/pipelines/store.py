@@ -3,7 +3,7 @@
 import uuid
 
 from mee6.db.engine import AsyncSessionLocal
-from mee6.db.models import PipelineRow, PipelineStepRow
+from mee6.db.models import PipelineRow
 from mee6.db.repository import PipelineRepository, PipelineStepRepository
 from mee6.pipelines.models import Pipeline, PipelineStep
 
@@ -12,7 +12,7 @@ def _row_to_pipeline(row: PipelineRow) -> Pipeline:
     return Pipeline(
         id=row.id,
         name=row.name,
-        steps=[PipelineStep(**s) for s in row.steps],
+        steps=[PipelineStep(agent_type=s.agent_type, config=s.config) for s in row.steps_list],
     )
 
 
@@ -31,7 +31,7 @@ class PipelineStore:
         row = PipelineRow(
             id=pipeline.id,
             name=pipeline.name,
-            steps=[s.model_dump() for s in pipeline.steps],
+            steps=[],
         )
         async with AsyncSessionLocal() as session:
             await PipelineRepository(session).upsert(row)

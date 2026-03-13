@@ -3,6 +3,7 @@ from typing import Optional
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from mee6.db.models import (
     CalendarRow,
@@ -22,11 +23,17 @@ class PipelineRepository:
         self._s = session
 
     async def list_all(self) -> list[PipelineRow]:
-        result = await self._s.execute(select(PipelineRow))
+        result = await self._s.execute(
+            select(PipelineRow).options(selectinload(PipelineRow.steps_list))
+        )
         return list(result.scalars())
 
     async def get(self, pipeline_id: str) -> PipelineRow | None:
-        result = await self._s.execute(select(PipelineRow).where(PipelineRow.id == pipeline_id))
+        result = await self._s.execute(
+            select(PipelineRow)
+            .where(PipelineRow.id == pipeline_id)
+            .options(selectinload(PipelineRow.steps_list))
+        )
         return result.scalar_one_or_none()
 
     async def upsert(self, row: PipelineRow) -> None:
