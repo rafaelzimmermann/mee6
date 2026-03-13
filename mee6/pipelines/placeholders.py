@@ -39,7 +39,11 @@ def resolve(text: str, *, input: str = "") -> str:
     """
     now = datetime.now(timezone.utc)
 
-    return text.format_map(
+    # Escape {memory:...} so format_map treats them as literals.
+    # resolve_with_memory() will expand them asynchronously afterward.
+    safe = re.sub(r'\{(memory:[^}]+)\}', r'{{\1}}', text)
+
+    return safe.format_map(
         {
             "input": input,
             "previous_output": input,  # backward compat
