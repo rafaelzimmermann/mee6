@@ -1,24 +1,34 @@
-FROM node:20-alpine AS base
+# Build stage
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# Copy package files first
+COPY package.json package-lock.json* ./
 
 # Install dependencies
-FROM base AS deps
-WORKDIR /app
-COPY package.json ./
-RUN npm install
+RUN npm ci
+
+# Copy source code
+COPY . .
 
 # Build
-FROM base AS build
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
 RUN npm run build
 
-# Production image
-FROM base AS production
+# Production stage
+FROM node:20-alpine AS production
+
 WORKDIR /app
-ENV NODE_ENV=production
+
+# Copy built files from build stage
 COPY --from=build /app/dist ./dist
+
+# Copy package.json for runtime
 COPY package.json ./
-RUN npm install --production
+
+# Install only production dependencies
+RUN npm ci --omit=dev
+
 EXPOSE 5173
+
 CMD ["npm", "run", "preview"]
