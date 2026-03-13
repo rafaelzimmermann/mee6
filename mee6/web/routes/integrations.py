@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from mee6.config import settings
 from mee6.db.engine import AsyncSessionLocal
 from mee6.db.models import CalendarRow, WhatsAppGroupRow
-from mee6.db.repository import CalendarRepository, WhatsAppGroupRepository
+from mee6.db.repository import CalendarRepository, WhatsAppGroupRepository, WhatsAppSettingsRepository
 from mee6.integrations.whatsapp_session import wa_session
 from mee6.scheduler.engine import scheduler
 from mee6.web.templates_env import templates
@@ -18,12 +18,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/integrations")
 
 
-def _wa_ctx() -> dict:
+async def _wa_ctx() -> dict:
+    async with AsyncSessionLocal() as session:
+        phone = await WhatsAppSettingsRepository(session).get_phone_number()
     return {
         "wa_status": wa_session.status.value,
         "wa_qr_svg": wa_session.get_qr_svg(),
         "wa_error": wa_session.error,
-        "notify_phone": settings.notify_phone_number,
+        "notify_phone": phone,
     }
 
 
@@ -46,9 +48,16 @@ async def integrations_page(request: Request):
             "active_count": scheduler.active_job_count(),
             "wa_groups": await _wa_groups(),
             "calendars": await _calendars(),
-            **_wa_ctx(),
+            **await _wa_ctx(),
         },
     )
+
+
+@router.post("/whatsapp/phone")
+async def save_whatsapp_phone(phone: str = Form(...)):
+    async with AsyncSessionLocal() as session:
+        await WhatsAppSettingsRepository(session).set_phone_number(phone.strip())
+    return RedirectResponse("/integrations", status_code=303)
 
 
 @router.post("/whatsapp/connect")
@@ -60,7 +69,7 @@ async def whatsapp_connect():
 @router.get("/whatsapp/status", response_class=HTMLResponse)
 async def whatsapp_status(request: Request):
     """HTMX partial — returns the WhatsApp status card fragment."""
-    return templates.TemplateResponse(request, "_whatsapp_status.html", _wa_ctx())
+    return templates.TemplateResponse(request, "_whatsapp_status.html", await _wa_ctx())
 
 
 @router.post("/whatsapp/test", response_class=HTMLResponse)

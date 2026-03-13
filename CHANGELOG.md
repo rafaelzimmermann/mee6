@@ -7,6 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **WhatsApp phone number configurable from Integrations page** — removed `WHATSAPP_PHONE_NUMBER`
+  env var; phone number is now stored in a new `whatsapp_settings` DB table and editable
+  directly from the Integrations page. Migration `004_whatsapp_settings.sql` seeds the
+  single-row table on first startup.
 - **Ollama in docker-compose** — `ollama` service with NVIDIA GPU passthrough (RTX 4080),
   `ollama_data` named volume, exposed on host port 11435. `ollama-init` one-shot service
   pulls `phi4:14b` automatically after Ollama is healthy. `mee6` service receives
