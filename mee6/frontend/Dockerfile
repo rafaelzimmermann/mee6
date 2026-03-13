@@ -4,13 +4,14 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 # Copy package files first
-COPY package.json package-lock.json* ./
+COPY package.json ./
 
 # Install dependencies
 RUN npm install
 
 # Copy source code
-COPY . .
+COPY src/ ./src/
+COPY public/ ./public/
 
 # Build
 RUN npm run build
@@ -27,7 +28,7 @@ COPY --from=build /app/dist ./dist
 COPY package.json ./
 
 # Install only production dependencies
-RUN npm ci --omit=dev
+RUN npm install --production
 
 EXPOSE 5173
 
