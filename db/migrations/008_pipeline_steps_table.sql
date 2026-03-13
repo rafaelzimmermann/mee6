@@ -10,15 +10,11 @@ CREATE TABLE IF NOT EXISTS pipeline_steps (
     CONSTRAINT fk_pipeline_steps_pipeline
         FOREIGN KEY (pipeline_id)
         REFERENCES pipelines(id)
-        ON DELETE CASCADE,
-    CONSTRAINT uk_pipeline_steps_pipeline_index
-        UNIQUE (pipeline_id, step_index)
+        ON DELETE CASCADE
 );
 
--- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS ix_pipeline_steps_pipeline_index
+CREATE UNIQUE INDEX IF NOT EXISTS uk_pipeline_steps_pipeline_index
     ON pipeline_steps (pipeline_id, step_index);
 
--- Add comment to document the replace-all behavior
-COMMENT ON TABLE pipeline_steps IS 'Stores individual pipeline steps. All steps are removed and replaced on pipeline update.';
-COMMENT ON CONSTRAINT uk_pipeline_steps_pipeline_index ON pipeline_steps IS 'Ensures unique step ordering per pipeline';
+CREATE INDEX IF NOT EXISTS ix_pipeline_steps_pipeline_id
+    ON pipeline_steps (pipeline_id);
