@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { usePipeline, useUpdatePipeline, useCreatePipeline } from "@/hooks/usePipelines";
-import { useAgents } from "@/hooks/useAgents";
+import { useAgents, useAgentFields } from "@/hooks/useAgents";
 import { Button } from "@/components/common/Button";
 import { Input } from "@/components/common/Input";
 import { Layout } from "@/components/common/Layout";
@@ -9,11 +9,104 @@ import { Trash2, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { pipelineSchema, type PipelineInput } from "@/lib/validation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { FieldSchema } from "@/lib/api";
 
 interface Step {
   id: string;
   agent_type: string;
   config: Record<string, string>;
+}
+
+interface AgentFieldsProps {
+  agentType: string;
+  config: Record<string, string>;
+  onChange: (field: string, value: string) => void;
+}
+
+function AgentFields({ agentType, config, onChange }: AgentFieldsProps) {
+  const { data: fields, isLoading } = useAgentFields(agentType);
+
+  if (isLoading) {
+    return <div className="text-sm text-gray-500">Loading fields...</div>;
+  }
+
+  if (!fields || fields.length === 0) {
+    return <div className="text-sm text-gray-500">No fields configured for this agent.</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {fields.map((field: FieldSchema) => (
+        <div key={field.name}>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {field.label}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          {renderField(field, config, onChange)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function renderField(
+  field: FieldSchema,
+  config: Record<string, string>,
+  onChange: (field: string, value: string) => void
+) {
+  const value = config[field.name] || "";
+
+  switch (field.field_type) {
+    case "textarea":
+      return (
+        <textarea
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder={field.placeholder || ""}
+          value={value}
+          onChange={(e) => onChange(field.name, e.target.value)}
+          rows={3}
+        />
+      );
+
+    case "select":
+      return (
+        <select
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          value={value}
+          onChange={(e) => onChange(field.name, e.target.value)}
+          required={field.required}
+        >
+          <option value="">— select —</option>
+          {field.options?.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      );
+
+    case "checkbox":
+      return (
+        <input
+          type="checkbox"
+          checked={value === "on"}
+          onChange={(e) => onChange(field.name, e.target.checked ? "on" : "")}
+          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+        />
+      );
+
+    default:
+      return (
+        <input
+          type={field.field_type === "tel" ? "tel" : "text"}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder={field.placeholder || ""}
+          value={value}
+          onChange={(e) => onChange(field.name, e.target.value)}
+          required={field.required}
+        />
+      );
+  }
 }
 
 export function PipelineForm() {
@@ -197,10 +290,18 @@ export function PipelineForm() {
 
               {step.agent_type && (
                 <div className="mt-3">
-                  {/* Agent fields would be rendered here */}
-                  <p className="text-sm text-gray-500">
-                    Fields for {step.agent_type} would be rendered here
-                  </p>
+                  <AgentFields
+                    agentType={step.agent_type}
+                    config={step.config}
+                    onChange={(field, value) => {
+                      const newSteps = [...steps];
+                      newSteps[index] = {
+                        ...newSteps[index],
+                        config: { ...newSteps[index].config, [field]: value },
+                      };
+                      setSteps(newSteps);
+                    }}
+                  />
                 </div>
               )}
             </div>
