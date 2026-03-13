@@ -3,8 +3,8 @@ FROM node:20-alpine AS base
 # Install dependencies
 FROM base AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json ./
+RUN npm install
 
 # Build
 FROM base AS build
@@ -20,6 +20,5 @@ ENV NODE_ENV=production
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 RUN npm install --production
-COPY --from=build /app/node_modules ./node_modules
 EXPOSE 5173
 CMD ["npm", "run", "preview"]
