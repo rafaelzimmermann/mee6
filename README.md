@@ -1,4 +1,4 @@
-<img src="mee6/web/static/mee6.png" style="width:60px;"/> A personal AI assistant that automates life tasks using LLMs.  
+<img src="mee6/web/static/mee6.png" style="width:60px;"/> An AI agent pipeline builder and scheduler.
 
 Powered by [agntrick](https://github.com/jeancsil/agntrick).
 
