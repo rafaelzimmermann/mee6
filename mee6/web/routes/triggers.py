@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 
 from mee6.db.engine import AsyncSessionLocal
 from mee6.db.repository import WhatsAppGroupRepository
@@ -28,46 +28,3 @@ async def list_triggers(request: Request):
             "TriggerType": TriggerType,
         },
     )
-
-
-@router.post("")
-async def create_trigger(
-    pipeline_id: str = Form(...),
-    trigger_type: TriggerType = Form(TriggerType.CRON),
-    cron_expr: str = Form(""),
-    phone: str = Form(""),
-    group_jid: str = Form(""),
-    enabled: bool = Form(False),
-):
-    if trigger_type == TriggerType.WHATSAPP:
-        config: dict = {"phone": phone}
-    elif trigger_type == TriggerType.WA_GROUP:
-        config = {"group_jid": group_jid}
-    else:
-        config = {}
-    await scheduler.add_trigger(
-        pipeline_id,
-        cron_expr or None,
-        trigger_type=trigger_type,
-        config=config,
-        enabled=enabled,
-    )
-    return RedirectResponse("/triggers", status_code=303)
-
-
-@router.post("/{job_id}/toggle")
-async def toggle_trigger(job_id: str):
-    await scheduler.toggle_trigger(job_id)
-    return RedirectResponse("/triggers", status_code=303)
-
-
-@router.post("/{job_id}/run-now")
-async def run_now(job_id: str):
-    await scheduler.run_now(job_id)
-    return RedirectResponse("/triggers", status_code=303)
-
-
-@router.post("/{job_id}/delete")
-async def delete_trigger(job_id: str):
-    await scheduler.remove_trigger(job_id)
-    return RedirectResponse("/triggers", status_code=303)

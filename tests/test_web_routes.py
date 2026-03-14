@@ -129,96 +129,13 @@ async def test_triggers_list_shows_jobs(client):
 
 
 # ---------------------------------------------------------------------------
-# Create trigger
+# Pipelines list
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_create_trigger_calls_add_and_redirects(client):
-    c, sched, _, _ = client
-    resp = await c.post(
-        "/triggers",
-        data={
-            "pipeline_id": "pipe-1",
-            "pipeline_name": "My Pipeline",
-            "cron_expr": "0 8 * * *",
-        },
-        follow_redirects=False,
-    )
-    assert resp.status_code == 303
-    assert resp.headers["location"] == "/triggers"
-    from mee6.scheduler.engine import TriggerType
-
-    sched.add_trigger.assert_awaited_once_with(
-        "pipe-1",
-        "0 8 * * *",
-        trigger_type=TriggerType.CRON,
-        config={},
-        enabled=False,
-    )
-
-
-@pytest.mark.asyncio
-async def test_create_trigger_enabled_flag(client):
-    c, sched, _, _ = client
-    await c.post(
-        "/triggers",
-        data={
-            "pipeline_id": "pipe-1",
-            "pipeline_name": "My Pipeline",
-            "cron_expr": "0 8 * * *",
-            "enabled": "true",
-        },
-        follow_redirects=False,
-    )
-    from mee6.scheduler.engine import TriggerType
-
-    sched.add_trigger.assert_awaited_once_with(
-        "pipe-1",
-        "0 8 * * *",
-        trigger_type=TriggerType.CRON,
-        config={},
-        enabled=True,
-    )
-
-
 # ---------------------------------------------------------------------------
-# Toggle trigger
+# Delete trigger (POST route removed — keeping only GET /triggers tests)
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_toggle_trigger_calls_engine_and_redirects(client):
-    c, sched, _, _ = client
-    resp = await c.post("/triggers/job-123/toggle", follow_redirects=False)
-    assert resp.status_code == 303
-    sched.toggle_trigger.assert_awaited_once_with("job-123")
-
-
-# ---------------------------------------------------------------------------
-# Run now
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_run_now_calls_engine_and_redirects(client):
-    c, sched, _, _ = client
-    resp = await c.post("/triggers/job-123/run-now", follow_redirects=False)
-    assert resp.status_code == 303
-    sched.run_now.assert_awaited_once_with("job-123")
-
-
-# ---------------------------------------------------------------------------
-# Delete trigger
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_delete_trigger_calls_engine_and_redirects(client):
-    c, sched, _, _ = client
-    resp = await c.post("/triggers/job-123/delete", follow_redirects=False)
-    assert resp.status_code == 303
-    sched.remove_trigger.assert_awaited_once_with("job-123")
 
 
 # ---------------------------------------------------------------------------
