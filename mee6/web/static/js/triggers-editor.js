@@ -36,8 +36,8 @@ function showBanner(el, msg, type) {
 export function initializeTriggerEditor() {
   const container = document.getElementById('triggers-container');
   const form = document.getElementById('add-trigger-form');
-  const saveBanner = document.getElementById('save-banner');
-  const validationBanner = document.getElementById('validation-banner');
+  const saveBanner = document.getElementById('action-banner');
+  const validationBanner = document.getElementById('form-errors');
 
   if (!container || !form) return;
 
