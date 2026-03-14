@@ -3,6 +3,7 @@
 from mee6.pipelines.base import AgentPlugin
 from mee6.pipelines.plugins.browser_agent import BrowserAgentPlugin
 from mee6.pipelines.plugins.calendar_agent import CalendarAgentPlugin
+from mee6.pipelines.plugins.debug_agent import DebugAgentPlugin
 from mee6.pipelines.plugins.llm_agent import LlmAgentPlugin
 from mee6.pipelines.plugins.memory_agent import MemoryAgentPlugin
 from mee6.pipelines.plugins.whatsapp_agent import WhatsAppAgentPlugin
@@ -13,6 +14,7 @@ from mee6.pipelines.plugins.whatsapp_read import WhatsAppReadPlugin
 _ALL_PLUGINS = [
     LlmAgentPlugin(),
     BrowserAgentPlugin(),
+    DebugAgentPlugin(),
     WhatsAppReadPlugin(),
     WhatsAppGroupReadPlugin(),
     WhatsAppGroupSendPlugin(),

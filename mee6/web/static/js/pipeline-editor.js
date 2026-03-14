@@ -62,6 +62,13 @@ export function initializePipelineEditor(config) {
     placeholderHints,
   });
 
+  // When editing an existing pipeline the steps already have agent_type values,
+  // so handleAgentTypeChange is never triggered and schemas are never fetched.
+  // Fetch them now so the initial render can show fields.
+  if (pipeline?.steps?.some(s => s.agent_type) && !Object.keys(schemas).length) {
+    apiClient.fetchSchemas().then(s => state.setSchemas(s)).catch(() => {});
+  }
+
   setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, apiClient, {
     onSaveSuccess: () => showBanner(saveBanner, 'Pipeline saved successfully'),
     onSaveError: (err) => showBanner(saveBanner, err.message || 'Save failed'),

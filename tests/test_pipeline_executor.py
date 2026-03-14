@@ -138,3 +138,42 @@ async def test_whatsapp_plugin_returns_rendered_message():
         )
 
     assert result == "WhatsApp message sent to +34000 Body: Hello world!"
+
+
+# ---------------------------------------------------------------------------
+# DebugAgentPlugin
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_debug_plugin_logs_resolved_message():
+    with patch("mee6.pipelines.plugins.debug_agent.logger") as mock_logger:
+        from mee6.pipelines.plugins.debug_agent import DebugAgentPlugin
+
+        plugin = DebugAgentPlugin()
+        result = await plugin.run({"message_template": "debug: {input}"}, input="hello")
+
+    mock_logger.info.assert_called_once_with("DebugAgent: %s", "debug: hello")
+    assert result == "hello"
+
+
+@pytest.mark.asyncio
+async def test_debug_plugin_returns_input_unchanged():
+    from mee6.pipelines.plugins.debug_agent import DebugAgentPlugin
+
+    plugin = DebugAgentPlugin()
+    result = await plugin.run({"message_template": "debug: {input}"}, input="hello")
+
+    assert result == "hello"
+
+
+@pytest.mark.asyncio
+async def test_debug_plugin_default_template_logs_input():
+    with patch("mee6.pipelines.plugins.debug_agent.logger") as mock_logger:
+        from mee6.pipelines.plugins.debug_agent import DebugAgentPlugin
+
+        plugin = DebugAgentPlugin()
+        result = await plugin.run({}, input="raw input")
+
+    mock_logger.info.assert_called_once_with("DebugAgent: %s", "raw input")
+    assert result == "raw input"
