@@ -304,17 +304,21 @@ describe('PipelineEditorState', () => {
       expect(state.getSteps()[1].config).toEqual({ read_memory: 'on' });
     });
 
-    it('updateStepField() emits step-updated with correct payload', () => {
+    it('updateStepField() emits field-updated (not step-updated) to avoid re-render', () => {
       state.initialize(mockConfig);
-      const callback = vi.fn();
-      state.subscribe('step-updated', callback);
+      const fieldCallback = vi.fn();
+      const stepCallback = vi.fn();
+      state.subscribe('field-updated', fieldCallback);
+      state.subscribe('step-updated', stepCallback);
 
       state.updateStepField(0, 'prompt', 'test');
 
-      expect(callback).toHaveBeenCalledTimes(1);
-      const payload = callback.mock.calls[0][0];
+      expect(fieldCallback).toHaveBeenCalledTimes(1);
+      expect(stepCallback).not.toHaveBeenCalled();
+      const payload = fieldCallback.mock.calls[0][0];
       expect(payload.index).toBe(0);
-      expect(payload.step.config.prompt).toBe('test');
+      expect(payload.fieldName).toBe('prompt');
+      expect(payload.value).toBe('test');
     });
   });
 

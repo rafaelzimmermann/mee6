@@ -16,7 +16,8 @@ import { renderStepCard } from './step-renderer.js';
 export function renderPipeline(steps, agentList, schema, placeholderHints) {
   return steps.map((step, index) => {
     const fields = step.agent_type ? schema[step.agent_type] || [] : [];
-    return renderStepCard(step, index, agentList, fields, placeholderHints, schema);
+    const inner = renderStepCard(step, index, agentList, fields, placeholderHints, schema);
+    return `<div class="step-card" data-idx="${index}">${inner}</div>`;
   }).join('');
 }
 

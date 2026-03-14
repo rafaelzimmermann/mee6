@@ -49,6 +49,7 @@ export function initializePipelineEditor(config) {
 
   state.subscribe('steps-updated', () => rerenderAll());
   state.subscribe('step-updated', ({ index }) => rerenderStep(index));
+  state.subscribe('schemas-loaded', () => rerenderAll());
   state.subscribe('pipeline-updated', () => {});
   state.subscribe('initialized', () => rerenderAll());
 

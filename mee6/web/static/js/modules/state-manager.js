@@ -74,7 +74,7 @@ export class PipelineEditorState {
     const step = this.pipeline.steps[index];
     if (!step) throw new Error(`updateStepField: index ${index} out of bounds`);
     step.config[fieldName] = value;
-    this.notify('step-updated', { index, step: copyStep(step) });
+    this.notify('field-updated', { index, fieldName, value });
   }
   getStep(index) {
     const step = this.pipeline.steps[index];

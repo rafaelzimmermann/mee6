@@ -89,8 +89,10 @@ describe('event-loop integration', () => {
     it('full event loop: click add → state mutation → subscription', async () => {
       let stepUpdatedCount = 0;
       let stepsUpdatedCount = 0;
+      let fieldUpdatedCount = 0;
       state.subscribe('step-updated', () => stepUpdatedCount++);
       state.subscribe('steps-updated', () => stepsUpdatedCount++);
+      state.subscribe('field-updated', () => fieldUpdatedCount++);
 
       setupDOM(state);
       const stepsContainer = document.getElementById('steps-container');
@@ -118,7 +120,8 @@ describe('event-loop integration', () => {
 
       state.updateStepField(0, 'prompt', 'Test prompt');
       expect(state.getSteps()[0].config.prompt).toBe('Test prompt');
-      expect(stepUpdatedCount).toBe(2);
+      expect(stepUpdatedCount).toBe(1);   // only setStepAgentType emits step-updated
+      expect(fieldUpdatedCount).toBe(1);  // updateStepField emits field-updated (no re-render)
     });
   });
 

@@ -31,16 +31,7 @@
 <!-- Pipeline editor module entry point -->
 <script type="module">
   import { initializePipelineEditor } from '/static/js/pipeline-editor.js';
-
-  const apiClient = {
-    fetchSchemas: async () => {
-      const resp = await fetch('/api/v1/agents/fields/batch');
-      if (!resp.ok) {
-        throw new Error(`Failed to fetch schemas: ${resp.status}`);
-      }
-      return resp.json();
-    }
-  };
+  import * as apiClient from '/static/js/modules/api-client.js';
 
   const config = {
     pipeline: {{ initial_pipeline_json | safe }},

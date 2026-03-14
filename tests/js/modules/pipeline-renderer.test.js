@@ -33,9 +33,24 @@ describe('Pipeline Renderer', () => {
 
       const html = renderPipeline(steps, mockAgentList, mockSchema, []);
 
+      expect(html).toContain('data-idx="0"');
+      expect(html).toContain('data-idx="1"');
+      expect(html).toContain('data-idx="2"');
       expect(html).toContain('id="step-fields-0"');
       expect(html).toContain('id="step-fields-1"');
       expect(html).toContain('id="step-fields-2"');
+    });
+
+    it('wraps each step in a step-card div with data-idx', () => {
+      const steps = [
+        { agent_type: 'llm_agent', config: {} },
+        { agent_type: '', config: {} },
+      ];
+
+      const html = renderPipeline(steps, mockAgentList, mockSchema, []);
+
+      expect(html).toContain('<div class="step-card" data-idx="0">');
+      expect(html).toContain('<div class="step-card" data-idx="1">');
     });
 
     it('passes correct index to each step', () => {

@@ -101,7 +101,7 @@ describe('Rendering Chain Integration', () => {
 
       // Should not throw - valid HTML structure
       const dom = new JSDOM(html);
-      expect(dom.window.document.querySelectorAll('[data-idx]').length).toBe(0);
+      expect(dom.window.document.querySelectorAll('[data-idx]').length).toBe(2);
       // Check that we can find step-fields elements
       const stepFields = dom.window.document.querySelectorAll('[id^="step-fields-"]');
       expect(stepFields.length).toBe(2);
