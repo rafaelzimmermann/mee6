@@ -16,3 +16,4 @@ prompts
 progress.log
 .data
 **/credentials.json
+node_modules/

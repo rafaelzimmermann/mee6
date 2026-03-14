@@ -1,0 +1,16 @@
+{
+  "name": "mee6-pipeline-editor",
+  "version": "0.1.1",
+  "description": "Pipeline editor frontend for mee6",
+  "type": "module",
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0",
+    "jsdom": "^24.0.0"
+  },
+  "testEnvironment": "jsdom"
+}
