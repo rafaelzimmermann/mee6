@@ -94,8 +94,7 @@ describe('Step Renderer', () => {
       );
 
       expect(html).toContain('class="step-move-buttons"');
-      expect(html).toContain('onclick="moveStepUp(5)"');
-      expect(html).toContain('onclick="moveStepDown(5)"');
+      expect(html).not.toContain('onclick=');
       expect(html).toContain('class="sm"');
       expect(html).toContain('title="Move up"');
       expect(html).toContain('title="Move down"');

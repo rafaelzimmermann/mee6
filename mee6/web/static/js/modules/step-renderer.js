@@ -88,8 +88,8 @@ export function renderStepCard(step, index, agentList, fields, placeholderHints,
     <div class="step-header">
       <strong>Step ${index + 1}</strong>
       <div class="step-move-buttons">
-        <button type="button" class="sm" onclick="moveStepUp(${index})" title="Move up">↑</button>
-        <button type="button" class="sm" onclick="moveStepDown(${index})" title="Move down">↓</button>
+        <button type="button" class="sm" title="Move up">↑</button>
+        <button type="button" class="sm" title="Move down">↓</button>
       </div>
       ${agentSelector}
       <button type="button" class="sm danger remove-step">Remove</button>
