@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Phase 2 refactoring** — component-based field rendering system for pipeline editor:
+  - Created reusable field components: `text-field`, `textarea-field`, `select-field`,
+    `checkbox-field`, `combobox-field`, `group-select-field`, `calendar-select-field`
+  - Implemented component registry in `field-components/index.js` with runtime registration support
+  - Created `field-renderer.js` to coordinate component rendering with placeholder hints
+  - All components follow strict security contract: every string interpolated into HTML passes through `esc()`
+  - Components have no DOM access; `render()` returns HTML string, `getValue()` extracts from DOM element
+  - No cross-module imports in components (only from `utils/esc.js`)
+  - Added comprehensive test coverage: 150 tests passing, covering all component types and edge cases
+  - `group-select-field` and `calendar-select-field` correctly parse `||` format options and display hints via inline onchange handlers
+  - `textarea-field` supports optional placeholder hints (e.g., `{previous_output}`, `{pipeline_name}`)
+
 ## [0.1.1] — 2026-03-13
 
 ### Added
