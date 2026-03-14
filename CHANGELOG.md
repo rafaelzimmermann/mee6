@@ -24,6 +24,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Added comprehensive test coverage: 150 tests passing, covering all component types and edge cases
   - `group-select-field` and `calendar-select-field` correctly parse `||` format options and display hints via inline onchange handlers
   - `textarea-field` supports optional placeholder hints (e.g., `{previous_output}`, `{pipeline_name}`)
+- **Phase 3 refactoring** — component-based rendering pipeline for pipeline editor:
+  - Created `step-renderer.js` to render complete step cards with agent selector, fields, move buttons, and remove button
+  - Created `pipeline-renderer.js` to render full list of step cards as a single HTML string
+  - `renderStepCard()` produces HTML structurally identical to original template with same CSS classes and data attributes
+  - `renderAgentSelector()` generates agent type dropdown with pre-selection based on current agent_type
+  - `renderStepFields()` delegates to field-renderer.js for field-level rendering
+  - All rendering functions return HTML strings without DOM manipulation
+  - Added rendering sandbox for visual verification of three realistic step cards
+  - Integration tests verify full rendering chain from component registry to pipeline output with XSS protection
+  - Test coverage: 183 tests passing, including 10 integration tests for end-to-end rendering
+  - `pipeline_editor.html` template remains unchanged (Phase 3 builds renderers in parallel)
 
 ## [0.1.1] — 2026-03-13
 
