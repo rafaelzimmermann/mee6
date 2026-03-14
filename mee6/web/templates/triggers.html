@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Triggers{% endblock %}
 {% block content %}
+<div id="action-banner" style="display:none" class="save-banner"></div>
+<div id="form-errors" class="validation-summary" style="display:none"></div>
+
 <div class="page-header">
   <h1>Triggers</h1>
 </div>
@@ -9,7 +12,7 @@
 <section class="card">
   <div class="card-header">Add trigger</div>
   <div class="card-body">
-    <form method="post" action="/triggers">
+    <form id="add-trigger-form">
       <label>Pipeline
         <select name="pipeline_id" required>
           <option value="">— select —</option>
@@ -20,7 +23,7 @@
       </label>
 
       <label>Type
-        <select name="trigger_type" id="trigger_type" onchange="onTriggerTypeChange(this.value)">
+        <select name="trigger_type" id="trigger_type">
           <option value="cron">Cron schedule</option>
           <option value="whatsapp">On WhatsApp DM received</option>
           <option value="wa_group">On WhatsApp Group message received</option>
@@ -50,35 +53,26 @@
   </div>
 </section>
 
-<script>
-function onTriggerTypeChange(type) {
-  document.getElementById('field-cron').classList.toggle('hidden', type !== 'cron');
-  document.getElementById('field-whatsapp').classList.toggle('hidden', type !== 'whatsapp');
-  document.getElementById('field-wa-group').classList.toggle('hidden', type !== 'wa_group');
-  document.getElementById('cron_expr').required = type === 'cron';
-  document.getElementById('phone').required = type === 'whatsapp';
-  document.getElementById('group_jid').required = type === 'wa_group';
-}
-onTriggerTypeChange('cron');
-</script>
+<script type="module">import { initializeTriggerEditor } from '/static/js/triggers-editor.js'; initializeTriggerEditor();</script>
 {% else %}
 <p><a href="/pipelines/new">Create a pipeline</a> first, then come back to schedule it.</p>
 {% endif %}
 
 <section class="card">
   <div class="card-header">Configured triggers</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Pipeline</th>
-        <th>Type</th>
-        <th>Schedule / Config</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
+  <div id="triggers-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Pipeline</th>
+          <th>Type</th>
+          <th>Schedule / Config</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="triggers-list">
       {% for job in jobs %}
-      <tr>
+      <tr data-trigger-id="{{ job.id }}">
         <td>{{ job.pipeline_name }}</td>
         <td>
           {%- if job.trigger_type == TriggerType.WHATSAPP -%}WhatsApp DM
@@ -97,16 +91,16 @@ onTriggerTypeChange('cron');
         </td>
         <td>
           <div class="row-actions">
-            <form method="post" action="/triggers/{{ job.id }}/toggle">
-              <button type="submit" class="toggle {{ 'on' if job.enabled else '' }}"
-                      title="{{ 'Disable' if job.enabled else 'Enable' }}"></button>
-            </form>
-            <form method="post" action="/triggers/{{ job.id }}/run-now">
-              <button type="submit" class="sm">Run now</button>
-            </form>
-            <form method="post" action="/triggers/{{ job.id }}/delete">
-              <button type="submit" class="sm danger" onclick="return confirm('Delete this trigger?')">Delete</button>
-            </form>
+            <button type="button" class="toggle {{ 'on' if job.enabled else '' }}"
+                    data-action="toggle"
+                    data-trigger-id="{{ job.id }}"
+                    title="{{ 'Disable' if job.enabled else 'Enable' }}"></button>
+            <button type="button" class="sm"
+                    data-action="run-now"
+                    data-trigger-id="{{ job.id }}">Run now</button>
+            <button type="button" class="sm danger"
+                    data-action="delete"
+                    data-trigger-id="{{ job.id }}">Delete</button>
           </div>
         </td>
       </tr>
@@ -115,5 +109,6 @@ onTriggerTypeChange('cron');
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
 {% endblock %}
