@@ -81,7 +81,7 @@ describe('CalendarSelectField Component', () => {
       };
       const html = render(field, 'Calendar A', 0);
 
-      expect(html).toContain('id="calid-hint-0-calendar_id"');
+      expect(html).toContain('id="hint-0-calendar_id"');
       expect(html).toContain('>');
     });
 
@@ -96,12 +96,12 @@ describe('CalendarSelectField Component', () => {
       const html1 = render(field, '', 1);
       const html5 = render(field, '', 5);
 
-      expect(html0).toContain('id="calid-hint-0-calendar_id"');
-      expect(html1).toContain('id="calid-hint-1-calendar_id"');
-      expect(html5).toContain('id="calid-hint-5-calendar_id"');
+      expect(html0).toContain('id="hint-0-calendar_id"');
+      expect(html1).toContain('id="hint-1-calendar_id"');
+      expect(html5).toContain('id="hint-5-calendar_id"');
     });
 
-    it('includes onchange handler', () => {
+    it('uses data-hint-target instead of inline onchange handler', () => {
       const field = {
         name: 'calendar_id',
         label: 'Calendar',
@@ -110,8 +110,9 @@ describe('CalendarSelectField Component', () => {
       };
       const html = render(field, '', 0);
 
-      expect(html).toContain('onchange=');
-      expect(html).toContain('calid-hint-0-calendar_id');
+      expect(html).toContain('data-hint-target=');
+      expect(html).not.toContain('onchange=');
+      expect(html).toContain('hint-0-calendar_id');
     });
 
     it('includes data-calid attribute on options', () => {

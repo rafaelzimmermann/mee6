@@ -42,4 +42,20 @@ describe('esc utility', () => {
   it('handles multiple ampersands', () => {
     expect(esc('a & b & c')).toBe('a &amp; b &amp; c');
   });
+
+  it('escapes single quotes', () => {
+    expect(esc("it's")).toBe('it&#039;s');
+  });
+  it('escapes all five special characters', () => {
+    expect(esc(`&<>"'`)).toBe('&amp;&lt;&gt;&quot;&#039;');
+  });
+  it('handles null without throwing', () => {
+    expect(esc(null)).toBe('');
+  });
+  it('handles undefined without throwing', () => {
+    expect(esc(undefined)).toBe('');
+  });
+  it('handles numbers', () => {
+    expect(esc(42)).toBe('42');
+  });
 });

@@ -6,18 +6,11 @@ import { esc } from '../../utils/esc.js';
 
 export function render(field, value, index, options = {}) {
   const id = `field-${index}-${esc(field.name)}`;
-  const hintId = `calid-hint-${index}-${esc(field.name)}`;
+  const hintId = `hint-${index}-${esc(field.name)}`;
   const required = field.required ? ' required' : '';
 
-  // Build onchange handler that updates the hint span
-  const handleChange = `(function(s){
-    var o=s.options[s.selectedIndex];
-    var h=document.getElementById('${hintId}');
-    if(h)h.textContent=o?o.dataset.calid:'';
-  })(this)`;
-
   let html = `<label class="field-label">${esc(field.label)}`;
-  html += `<select name="${esc(field.name)}" id="${id}"${required} onchange="${handleChange}">`;
+  html += `<select name="${esc(field.name)}" id="${id}"${required} data-hint-target="${esc(hintId)}">`;
 
   // Add empty option
   html += `<option value="">— select calendar —</option>`;
@@ -44,7 +37,8 @@ export function getValue(element) {
 }
 
 export function validate(field, value) {
-  // Stub - will be implemented in Phase 6
+  // Field validation is handled by validator.js validateField().
+  // This stub satisfies the component interface contract.
   return null;
 }
 

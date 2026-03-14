@@ -2,6 +2,8 @@
  * Event Delegation - Routes events from DOM to handler functions
  */
 
+import * as eventHandlers from './event-handlers.js';
+
 let isSetup = false;
 let boundHandlers = {};
 
@@ -14,10 +16,19 @@ function getFieldValue(el) {
   return el.type === 'checkbox' ? (el.checked ? 'on' : '') : el.value;
 }
 
-async function handleFieldOrAgentChange(state, target, index, apiClient) {
-  const { handleAgentTypeChange, handleFieldChange } = await import('./event-handlers.js');
-  if (target.classList.contains('agent-select')) handleAgentTypeChange(state, apiClient, index, target.value);
-  else if (target.hasAttribute('name')) handleFieldChange(state, index, target.name, getFieldValue(target));
+function handleFieldOrAgentChange(state, target, index, apiClient) {
+  if (target.classList.contains('agent-select')) eventHandlers.handleAgentTypeChange(state, apiClient, index, target.value);
+  else if (target.hasAttribute('name')) eventHandlers.handleFieldChange(state, index, target.name, getFieldValue(target));
+
+  // Update hint span for group_select/calendar_select
+  const hintTarget = target.dataset.hintTarget;
+  if (hintTarget) {
+    const hintEl = document.getElementById(hintTarget);
+    if (hintEl) {
+      const selected = target.options[target.selectedIndex];
+      hintEl.textContent = selected ? (selected.dataset.hint || '') : '';
+    }
+  }
 }
 
 export function setupEventDelegation(container, pipelineNameEl, addStepBtn, saveBtn, state, apiClient, callbacks) {
@@ -26,19 +37,18 @@ export function setupEventDelegation(container, pipelineNameEl, addStepBtn, save
 
   const { onSaveSuccess, onSaveError, onValidationError } = callbacks;
 
-  boundHandlers.changeOrInput = async (e) => {
+  boundHandlers.changeOrInput = (e) => {
     const idx = getStepIndex(e.target);
     if (idx !== null) handleFieldOrAgentChange(state, e.target, idx, apiClient);
   };
 
-  boundHandlers.click = async (e) => {
+  boundHandlers.click = (e) => {
     const idx = getStepIndex(e.target);
     if (idx === null) return;
 
-    const { handleRemoveStep, handleMoveUp, handleMoveDown } = await import('./event-handlers.js');
-    if (e.target.classList.contains('remove-step')) handleRemoveStep(state, idx);
-    else if (e.target.title === 'Move up') handleMoveUp(state, idx);
-    else if (e.target.title === 'Move down') handleMoveDown(state, idx);
+    if (e.target.classList.contains('remove-step')) eventHandlers.handleRemoveStep(state, idx);
+    else if (e.target.title === 'Move up') eventHandlers.handleMoveUp(state, idx);
+    else if (e.target.title === 'Move down') eventHandlers.handleMoveDown(state, idx);
   };
 
   boundHandlers.blur = (e) => {
@@ -51,24 +61,18 @@ export function setupEventDelegation(container, pipelineNameEl, addStepBtn, save
     const fieldDef = schema.find(f => f.name === e.target.name);
 
     if (fieldDef) {
-      import('./event-handlers.js').then(({ handleFieldBlur }) => {
-        handleFieldBlur(state, idx, e.target.name, getFieldValue(e.target), fieldDef);
-      });
+      eventHandlers.handleFieldBlur(state, idx, e.target.name, getFieldValue(e.target), fieldDef);
     }
   };
 
   boundHandlers.nameInput = (e) => {
-    import('./event-handlers.js').then(({ handlePipelineNameChange }) => {
-      handlePipelineNameChange(state, e.target.value);
-    });
+    eventHandlers.handlePipelineNameChange(state, e.target.value);
   };
   boundHandlers.addStep = () => {
-    import('./event-handlers.js').then(({ handleAddStep }) => {
-      handleAddStep(state);
-    });
+    eventHandlers.handleAddStep(state);
   };
   boundHandlers.save = async () => {
-    const result = await (await import('./event-handlers.js')).handleSave(state, apiClient);
+    const result = await eventHandlers.handleSave(state, apiClient);
     if (result.success) {
       onSaveSuccess();
     } else if (result.errors && result.errors.length > 0) {

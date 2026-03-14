@@ -30,15 +30,16 @@ export class ValidationError {
 
 export function validateField(field, value) {
   if (!field.required) return null;
+  const strVal = String(value ?? '');
   const { field_type } = field;
   if (field_type === 'text' || field_type === 'textarea' || field_type === 'combobox') {
-    return !value || value.trim() === '' ? `${field.label} is required` : null;
+    return !strVal || strVal.trim() === '' ? `${field.label} is required` : null;
   }
   if (field_type === 'select' || field_type === 'group_select' || field_type === 'calendar_select') {
-    return !value || value === '' || value === null ? `${field.label} is required` : null;
+    return !strVal || strVal === '' ? `${field.label} is required` : null;
   }
   if (field_type === 'checkbox') {
-    return value !== 'on' ? `${field.label} is required` : null;
+    return strVal !== 'on' ? `${field.label} is required` : null;
   }
   return null;
 }
@@ -67,11 +68,12 @@ export function validateStep(step, stepIndex, schemas) {
 
 export function validatePipeline(pipeline, schemas) {
   const errors = [];
-  if (pipeline.steps.length === 0) {
+  const steps = pipeline?.steps ?? [];
+  if (steps.length === 0) {
     errors.push(new ValidationError('steps', -1, 'pipeline', 'Pipeline must have at least one step'));
   }
-  for (let i = 0; i < pipeline.steps.length; i++) {
-    errors.push(...validateStep(pipeline.steps[i], i, schemas));
+  for (let i = 0; i < steps.length; i++) {
+    errors.push(...validateStep(steps[i], i, schemas));
   }
   return errors;
 }

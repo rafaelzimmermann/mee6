@@ -197,6 +197,27 @@ describe('event-handlers', () => {
     });
   });
 
+  describe('handleAgentTypeChange — schema caching', () => {
+    it('does NOT fetch when schema already fetched with empty array', async () => {
+      const state = makeState({ schemas: { llm_agent: [] } });
+      state.addStep();
+      await handlers.handleAgentTypeChange(state, mockApiClient, 0, 'llm_agent');
+      expect(mockApiClient.fetchSchemas).not.toHaveBeenCalled();
+    });
+
+    it('fetches once and caches for subsequent calls with same agent type', async () => {
+      const apiWithResult = {
+        fetchSchemas: vi.fn().mockResolvedValue({ llm_agent: [] })
+      };
+      const state = makeState({ schemas: {} });
+      state.addStep();
+      state.addStep();
+      await handlers.handleAgentTypeChange(state, apiWithResult, 0, 'llm_agent');
+      await handlers.handleAgentTypeChange(state, apiWithResult, 1, 'llm_agent');
+      expect(apiWithResult.fetchSchemas).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('handleFieldChange', () => {
     it('updates the correct field in the correct step\'s config', () => {
       const state = makeState();

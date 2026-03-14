@@ -239,6 +239,26 @@ describe('PipelineEditorState', () => {
       expect(callback).toHaveBeenCalledTimes(2);
     });
 
+    it('moveStepUp(0) does not emit steps-updated', () => {
+      state.initialize({ ...mockConfig });
+      const callback = vi.fn();
+      state.subscribe('steps-updated', callback);
+
+      state.moveStepUp(0);
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('moveStepDown on last step does not emit steps-updated', () => {
+      state.initialize({ ...mockConfig });
+      const callback = vi.fn();
+      state.subscribe('steps-updated', callback);
+
+      state.moveStepDown(1); // 1 is the last index with 2 steps
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
     it('setStepAgentType() updates agent_type', () => {
       state.initialize({ ...mockConfig });
 
@@ -395,6 +415,30 @@ describe('PipelineEditorState', () => {
       const payload = callback.mock.calls[0][0];
       expect(payload.index).toBe(0);
       expect(payload.step).toBeDefined();
+    });
+  });
+
+  describe('notify — error isolation', () => {
+    it('calls remaining subscribers even if one throws', () => {
+      const state = new PipelineEditorState();
+      const secondCallback = vi.fn();
+      state.subscribe('steps-updated', () => { throw new Error('subscriber failed'); });
+      state.subscribe('steps-updated', secondCallback);
+      expect(() => state.addStep()).not.toThrow();
+      expect(secondCallback).toHaveBeenCalled();
+    });
+  });
+
+  describe('getSchema — defensive copy', () => {
+    it('mutating a returned schema field does not affect internal state', () => {
+      const state = new PipelineEditorState();
+      state.initialize(mockConfig);
+
+      const schema = state.getSchema('llm_agent');
+      schema[0].required = false;
+
+      const schema2 = state.getSchema('llm_agent');
+      expect(schema2[0].required).toBe(true);
     });
   });
 

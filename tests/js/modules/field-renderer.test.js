@@ -177,7 +177,7 @@ describe('Field Renderer', () => {
       expect(html).toContain('name="group"');
       expect(html).toContain('id="field-0-group"');
       expect(html).toContain('data-hint="eng-123"');
-      expect(html).toContain('id="ghint-0-group"');
+      expect(html).toContain('id="hint-0-group"');
       expect(html).toContain('>eng-123</span>');
     });
 
@@ -188,7 +188,7 @@ describe('Field Renderer', () => {
       expect(html).toContain('name="calendar"');
       expect(html).toContain('id="field-0-calendar"');
       expect(html).toContain('data-calid="cal-123"');
-      expect(html).toContain('id="calid-hint-0-calendar"');
+      expect(html).toContain('id="hint-0-calendar"');
       expect(html).toContain('>cal-123</span>');
     });
 

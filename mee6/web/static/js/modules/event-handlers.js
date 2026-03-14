@@ -24,7 +24,7 @@ export async function handleAgentTypeChange(state, apiClient, index, agentType) 
 
   if (!agentType) return;
 
-  if (!state.getSchema(agentType).length) {
+  if (!state.isSchemaFetched(agentType)) {
     const schemas = await apiClient.fetchSchemas();
     state.setSchemas(schemas);
   }

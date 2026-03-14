@@ -12,6 +12,7 @@ export class PipelineEditorState {
   constructor() {
     this.pipeline = { id: null, name: '', steps: [] };
     this.schemas = {};
+    this.schemasFetched = new Set();
     this.agentList = [];
     this.placeholderHints = [];
     this.subscribers = new Map();
@@ -22,6 +23,9 @@ export class PipelineEditorState {
     this.agentList = config.agentList ? [...config.agentList] : [];
     this.placeholderHints = config.placeholderHints ? [...config.placeholderHints] : [];
     this.schemas = config.schemas ? { ...config.schemas } : {};
+    if (config.schemas) {
+      Object.keys(config.schemas).forEach(type => this.schemasFetched.add(type));
+    }
     this.notify('initialized', this.getPipeline());
   }
   setPipelineName(name) { this.pipeline.name = name; this.notify('pipeline-updated', this.getPipeline()); }
@@ -30,7 +34,12 @@ export class PipelineEditorState {
       steps: pipeline.steps ? pipeline.steps.map(copyStep) : [] };
     this.notify('pipeline-updated', this.getPipeline());
   }
-  setSchemas(schemas) { this.schemas = { ...schemas }; this.notify('schemas-loaded', schemas); }
+  setSchemas(schemas) {
+    this.schemas = { ...schemas };
+    Object.keys(schemas).forEach(type => this.schemasFetched.add(type));
+    this.notify('schemas-loaded', schemas);
+  }
+  isSchemaFetched(agentType) { return this.schemasFetched.has(agentType); }
   setAgentList(agentList) { this.agentList = [...agentList]; }
   addStep() {
     this.pipeline.steps.push({ agent_type: '', config: {} });
@@ -73,7 +82,10 @@ export class PipelineEditorState {
   }
   getSteps() { return this.pipeline.steps.map(copyStep); }
   getPipeline() { return { id: this.pipeline.id, name: this.pipeline.name, steps: this.pipeline.steps.map(copyStep) }; }
-  getSchema(agentType) { return this.schemas[agentType] ? [...this.schemas[agentType]] : []; }
+  getSchema(agentType) {
+    if (!this.schemas[agentType]) return [];
+    return this.schemas[agentType].map(field => ({ ...field }));
+  }
   subscribe(event, callback) {
     if (!this.subscribers.has(event)) this.subscribers.set(event, []);
     this.subscribers.get(event).push(callback);
@@ -86,6 +98,12 @@ export class PipelineEditorState {
   }
   notify(event, data) {
     if (!this.subscribers.has(event)) return;
-    this.subscribers.get(event).forEach(cb => cb(data));
+    this.subscribers.get(event).forEach(cb => {
+      try {
+        cb(data);
+      } catch (err) {
+        console.error(`[StateManager] Subscriber error for event "${event}":`, err);
+      }
+    });
   }
 }

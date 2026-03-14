@@ -239,6 +239,24 @@ describe('validateField', () => {
     });
   });
 
+describe('validateField — null/undefined safety', () => {
+  const requiredText = { name: 'f', label: 'Field', field_type: 'text', required: true };
+  const requiredSelect = { name: 'f', label: 'Model', field_type: 'select', required: true };
+
+  it('handles null value without throwing', () => {
+    expect(() => validator.validateField(requiredText, null)).not.toThrow();
+  });
+  it('treats null as empty for required text', () => {
+    expect(validator.validateField(requiredText, null)).toBeTruthy();
+  });
+  it('handles undefined value without throwing', () => {
+    expect(() => validator.validateField(requiredText, undefined)).not.toThrow();
+  });
+  it('handles null for required select without throwing', () => {
+    expect(() => validator.validateField(requiredSelect, null)).not.toThrow();
+  });
+});
+
 describe('validateStep', () => {
   const schemas = {
     llm_agent: [
@@ -390,6 +408,19 @@ describe('validatePipeline', () => {
   });
 });
 
+
+describe('validatePipeline — null safety', () => {
+  it('handles null steps without throwing', () => {
+    expect(() => validator.validatePipeline({ steps: null }, {})).not.toThrow();
+  });
+  it('handles undefined steps without throwing', () => {
+    expect(() => validator.validatePipeline({}, {})).not.toThrow();
+  });
+  it('treats null steps as empty pipeline', () => {
+    const errors = validator.validatePipeline({ steps: null }, {});
+    expect(errors.some(e => e.message && e.message.includes('at least one step'))).toBe(true);
+  });
+});
 
   describe('validatePipeline edge cases', () => {
     it('handles undefined config gracefully (FIXED with optional chaining)', () => {
@@ -548,6 +579,15 @@ describe('DOM feedback functions', () => {
       validator.highlightInvalidFields(errors);
       const el = dom.window.document.getElementById('field-0-model');
       expect(el.classList.contains('has-error')).toBe(false);
+    });
+
+    it('does not throw when field element missing from DOM', () => {
+      const errors = [{ stepIndex: 0, fieldName: 'nonexistent', fieldType: 'text', message: 'Required' }];
+      expect(() => validator.highlightInvalidFields(errors)).not.toThrow();
+    });
+    it('skips pipeline-level errors (stepIndex -1)', () => {
+      const errors = [{ stepIndex: -1, fieldName: 'steps', fieldType: 'pipeline', message: 'Pipeline error' }];
+      expect(() => validator.highlightInvalidFields(errors)).not.toThrow();
     });
   });
 

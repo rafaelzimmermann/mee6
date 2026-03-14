@@ -83,7 +83,7 @@ describe('GroupSelectField Component', () => {
       };
       const html = render(field, 'ID-1', 0);
 
-      expect(html).toContain('<span class="field-hint" id="ghint-0-group_id">ID-1</span>');
+      expect(html).toContain('<span class="field-hint" id="hint-0-group_id">ID-1</span>');
     });
 
     it('generates correct hint span id', () => {
@@ -97,12 +97,12 @@ describe('GroupSelectField Component', () => {
       const html1 = render(field, '', 1);
       const html5 = render(field, '', 5);
 
-      expect(html0).toContain('id="ghint-0-group_id"');
-      expect(html1).toContain('id="ghint-1-group_id"');
-      expect(html5).toContain('id="ghint-5-group_id"');
+      expect(html0).toContain('id="hint-0-group_id"');
+      expect(html1).toContain('id="hint-1-group_id"');
+      expect(html5).toContain('id="hint-5-group_id"');
     });
 
-    it('includes onchange handler', () => {
+    it('uses data-hint-target instead of inline onchange handler', () => {
       const field = {
         name: 'group_id',
         label: 'Group',
@@ -111,8 +111,9 @@ describe('GroupSelectField Component', () => {
       };
       const html = render(field, '', 0);
 
-      expect(html).toContain('onchange=');
-      expect(html).toContain('ghint-0-group_id');
+      expect(html).toContain('data-hint-target=');
+      expect(html).not.toContain('onchange=');
+      expect(html).toContain('hint-0-group_id');
     });
 
     it('includes data-hint attribute on options', () => {

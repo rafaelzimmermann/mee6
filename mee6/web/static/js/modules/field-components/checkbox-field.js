@@ -23,7 +23,8 @@ export function getValue(element) {
 }
 
 export function validate(field, value) {
-  // Stub - will be implemented in Phase 6
+  // Field validation is handled by validator.js validateField().
+  // This stub satisfies the component interface contract.
   return null;
 }
 
