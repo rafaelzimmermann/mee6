@@ -2,8 +2,6 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
-
 
 # Pipeline responses
 class PipelineResponse(BaseModel):
@@ -93,17 +91,6 @@ class PipelineCreateRequest(BaseModel):
 
     name: str = Field(..., description="Pipeline name")
     steps: List[dict] = Field(..., description="Pipeline steps")
-
-
-class TriggerCreateRequest(BaseModel):
-    """Request model for trigger creation."""
-
-    pipeline_id: str = Field(..., description="Associated pipeline ID")
-    trigger_type: str = Field(..., description="Type of trigger: cron, whatsapp, wa_group")
-    cron_expr: Optional[str] = Field(None, description="Cron expression for scheduled triggers")
-    phone: Optional[str] = Field(None, description="Phone number for whatsapp triggers")
-    group_jid: Optional[str] = Field(None, description="Group JID for wa_group triggers")
-    enabled: bool = Field(default=True, description="Whether trigger is enabled")
 
 
 class WhatsAppPhoneRequest(BaseModel):
