@@ -23,273 +23,33 @@
   <div id="steps-container"></div>
 
   <div class="pipeline-actions">
-    <button type="button" onclick="addStep()">+ Add step</button>
-    <button type="button" id="save-btn" onclick="savePipeline()">Save pipeline</button>
+    <button type="button" id="add-step-btn">+ Add step</button>
+    <button type="button" id="save-btn">Save pipeline</button>
   </div>
 </form>
 
-<script>
-const AGENT_PLUGINS = {{ plugin_list_json | safe }};
-const PLACEHOLDER_HINTS = {{ placeholder_hints_json | safe }};
-const initialPipeline = {{ initial_pipeline_json | safe }};
-let steps = [];
-let isSaving = false;
-let ALL_SCHEMAS = {};
+<!-- Phase 8: new module entry point -->
+<script type="module">
+  import { initializePipelineEditor } from '/static/js/pipeline-editor.js';
 
-// --- Schema fetch (single request at init) ---
-
-async function loadAllSchemas() {
-  const resp = await fetch('/api/v1/agents/fields/batch');
-  ALL_SCHEMAS = await resp.json();
-}
-
-// --- Client-side field rendering ---
-
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function renderFields(idx, agentType, config) {
-  const container = document.getElementById(`step-fields-${idx}`);
-  if (!agentType || !ALL_SCHEMAS[agentType]) { container.innerHTML = ''; return; }
-
-  const fields = ALL_SCHEMAS[agentType];
-  let html = '';
-
-  for (const f of fields) {
-    const val = config[f.name] ?? '';
-    const id = `field-${idx}-${f.name}`;
-    const req = f.required ? 'required' : '';
-    html += `<label class="field-label">${esc(f.label)}`;
-
-    if (f.field_type === 'textarea') {
-      html += `<textarea name="${esc(f.name)}" id="${id}" placeholder="${esc(f.placeholder)}" ${req}>${esc(val)}</textarea>`;
-      if (PLACEHOLDER_HINTS.length) {
-        html += `<span class="field-hint">Placeholders: ${PLACEHOLDER_HINTS.map(p => `<code>${esc(p)}</code>`).join(' ')}</span>`;
+  const apiClient = {
+    fetchSchemas: async () => {
+      const resp = await fetch('/api/v1/agents/fields/batch');
+      if (!resp.ok) {
+        throw new Error(`Failed to fetch schemas: ${resp.status}`);
       }
-    } else if (f.field_type === 'select') {
-      html += `<select name="${esc(f.name)}" id="${id}" ${req}>`;
-      for (const opt of f.options) {
-        const sel = (val || f.options[0]) === opt ? ' selected' : '';
-        html += `<option value="${esc(opt)}"${sel}>${esc(opt)}</option>`;
-      }
-      html += `</select>`;
-    } else if (f.field_type === 'group_select') {
-      html += `<select name="${esc(f.name)}" id="${id}" ${req} onchange="(function(s){var o=s.options[s.selectedIndex];var h=document.getElementById('ghint-${idx}-${esc(f.name)}');if(h)h.textContent=o?o.dataset.hint:''})(this)">`;
-      html += `<option value="">— select group —</option>`;
-      let hintVal = '';
-      for (const opt of f.options) {
-        const parts = opt.split('||', 2);
-        const jid = parts.length > 1 ? parts[1] : parts[0];
-        const sel = val === jid ? ' selected' : '';
-        if (val === jid) hintVal = jid;
-        html += `<option value="${esc(jid)}" data-hint="${esc(jid)}"${sel}>${esc(parts[0])}</option>`;
-      }
-      html += `</select><span class="field-hint" id="ghint-${idx}-${esc(f.name)}">${esc(hintVal)}</span>`;
-    } else if (f.field_type === 'calendar_select') {
-      html += `<select name="${esc(f.name)}" id="${id}" ${req} onchange="(function(s){var o=s.options[s.selectedIndex];var h=document.getElementById('calid-hint-${idx}-${esc(f.name)}');if(h)h.textContent=o?o.dataset.calid:''})(this)">`;
-      html += `<option value="">— select calendar —</option>`;
-      let calHint = '';
-      for (const opt of f.options) {
-        const parts = opt.split('||', 2);
-        const calid = parts.length > 1 ? parts[1] : '';
-        const sel = val === parts[0] ? ' selected' : '';
-        if (val === parts[0]) calHint = calid;
-        html += `<option value="${esc(parts[0])}" data-calid="${esc(calid)}"${sel}>${esc(parts[0])}</option>`;
-      }
-      html += `</select><span class="field-hint" id="calid-hint-${idx}-${esc(f.name)}">${esc(calHint)}</span>`;
-    } else if (f.field_type === 'combobox') {
-      html += `<input type="text" list="dl-${idx}-${esc(f.name)}" name="${esc(f.name)}" id="${id}" placeholder="${esc(f.placeholder)}" value="${esc(val)}" ${req}>`;
-      html += `<datalist id="dl-${idx}-${esc(f.name)}">`;
-      for (const opt of f.options) html += `<option value="${esc(opt)}">`;
-      html += `</datalist>`;
-    } else if (f.field_type === 'checkbox') {
-      const checked = val === 'on' ? 'checked' : '';
-      html += `<input type="checkbox" name="${esc(f.name)}" id="${id}" value="on" ${checked} ${req}>`;
-    } else {
-      html += `<input type="${esc(f.field_type)}" name="${esc(f.name)}" id="${id}" placeholder="${esc(f.placeholder)}" value="${esc(val)}" ${req}>`;
+      return resp.json();
     }
+  };
 
-    html += `</label>`;
-  }
+  const config = {
+    pipeline: {{ initial_pipeline_json | safe }},
+    agentList: {{ plugin_list_json | safe }},
+    schemas: {},
+    placeholderHints: {{ placeholder_hints_json | safe }},
+    apiClient: apiClient
+  };
 
-  container.innerHTML = html;
-}
-
-// --- Card structure (inner content only — wrapper div created in addStep) ---
-
-function buildCardHTML(idx, selectedType) {
-  const opts = ['<option value="">— select agent —</option>']
-    .concat(AGENT_PLUGINS.map(p =>
-      `<option value="${p.name}"${p.name === selectedType ? ' selected' : ''}>${p.label}</option>`
-    )).join('');
-  return `
-    <div class="step-header">
-      <strong>Step ${idx + 1}</strong>
-      <div class="step-move-buttons">
-        <button type="button" class="sm" onclick="moveStepUp(${idx})" title="Move up">↑</button>
-        <button type="button" class="sm" onclick="moveStepDown(${idx})" title="Move down">↓</button>
-      </div>
-      <select class="agent-select">${opts}</select>
-      <button type="button" class="sm danger remove-step">Remove</button>
-    </div>
-    <div class="step-fields" id="step-fields-${idx}"></div>
-  `;
-}
-
-function addStep(initialData) {
-  const idx = steps.length;
-  const step = initialData
-    ? { agent_type: initialData.agent_type, config: { ...initialData.config } }
-    : { agent_type: '', config: {} };
-  steps.push(step);
-
-  const card = document.createElement('div');
-  card.className = 'step-card';
-  card.dataset.idx = idx;
-  card.innerHTML = buildCardHTML(idx, step.agent_type);
-  document.getElementById('steps-container').appendChild(card);
-
-  if (step.agent_type) {
-    renderFields(idx, step.agent_type, step.config);
-  }
-}
-
-function collectConfigs() {
-  document.querySelectorAll('#steps-container > .step-card').forEach((card, i) => {
-    if (i >= steps.length) return;
-    const config = {};
-    card.querySelectorAll('.step-fields input, .step-fields textarea, .step-fields select').forEach(el => {
-      config[el.getAttribute('name')] = el.type === 'checkbox' ? (el.checked ? 'on' : '') : el.value;
-    });
-    steps[i].config = config;
-  });
-}
-
-async function rebuildSteps() {
-  collectConfigs();
-  document.getElementById('steps-container').innerHTML = '';
-  const toAdd = [...steps];
-  steps = [];
-  for (const s of toAdd) addStep(s);
-}
-
-// --- Event delegation ---
-
-document.getElementById('steps-container').addEventListener('change', (e) => {
-  if (e.target.classList.contains('agent-select')) {
-    const card = e.target.closest('.step-card');
-    const idx = parseInt(card.dataset.idx);
-    steps[idx].agent_type = e.target.value;
-    steps[idx].config = {};
-    renderFields(idx, e.target.value, {});
-  }
-});
-
-document.getElementById('steps-container').addEventListener('click', async (e) => {
-  if (e.target.classList.contains('remove-step')) {
-    const card = e.target.closest('.step-card');
-    const idx = parseInt(card.dataset.idx);
-    steps.splice(idx, 1);
-    await rebuildSteps();
-  }
-});
-
-// --- Validation ---
-
-// TODO Phase 8: remove — replaced by validator.js validatePipeline()
-function validateMemorySteps() {
-  for (const card of document.querySelectorAll('#steps-container > .step-card')) {
-    const agentSelect = card.querySelector('.agent-select');
-    if (agentSelect && agentSelect.value === 'memory_agent') {
-      const readCheckbox = card.querySelector('input[name="read_memory"]');
-      const writeCheckbox = card.querySelector('input[name="write_memory"]');
-      if (readCheckbox && writeCheckbox && !readCheckbox.checked && !writeCheckbox.checked) {
-        const stepNum = card.querySelector('strong').textContent;
-        alert(`${stepNum}: Please select at least one of Read Memory or Write Memory.`);
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-// --- Save ---
-
-function showBanner(msg, isError) {
-  const banner = document.getElementById('save-banner');
-  banner.textContent = msg;
-  banner.className = 'save-banner ' + (isError ? 'error' : 'success');
-  banner.style.display = 'block';
-  if (!isError) setTimeout(() => { banner.style.display = 'none'; }, 3000);
-}
-
-async function savePipeline() {
-  if (isSaving) return;
-  if (!validateMemorySteps()) return;
-
-  collectConfigs();
-
-  isSaving = true;
-  const saveBtn = document.getElementById('save-btn');
-  saveBtn.disabled = true;
-  saveBtn.textContent = 'Saving...';
-
-  try {
-    const isEdit = {{ 'true' if pipeline else 'false' }};
-    const url = isEdit ? `/pipelines/{{ pipeline.id if pipeline else '' }}` : '/pipelines';
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: document.getElementById('pipeline-name').value,
-        steps: steps,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(detail || response.statusText);
-    }
-
-    showBanner('Pipeline saved successfully.', false);
-  } catch (error) {
-    showBanner(`Error saving pipeline: ${error.message}`, true);
-  } finally {
-    isSaving = false;
-    saveBtn.disabled = false;
-    saveBtn.textContent = 'Save pipeline';
-  }
-}
-
-// --- Init ---
-
-async function initializeSteps() {
-  await loadAllSchemas();
-  if (initialPipeline && initialPipeline.steps && initialPipeline.steps.length) {
-    for (const s of initialPipeline.steps) addStep(s);
-  } else {
-    addStep();
-  }
-}
-
-initializeSteps();
-
-function moveStepUp(idx) {
-  if (idx > 0) {
-    collectConfigs();
-    [steps[idx], steps[idx - 1]] = [steps[idx - 1], steps[idx]];
-    rebuildSteps();
-  }
-}
-
-function moveStepDown(idx) {
-  if (idx < steps.length - 1) {
-    collectConfigs();
-    [steps[idx], steps[idx + 1]] = [steps[idx + 1], steps[idx]];
-    rebuildSteps();
-  }
-}
+  initializePipelineEditor(config);
 </script>
 {% endblock %}
