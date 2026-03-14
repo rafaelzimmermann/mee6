@@ -22,8 +22,6 @@ from mee6.web.api.models import (
 from mee6.web.api.validation import (
     MemoryConfigRequestEnhanced,
     PipelineCreateRequestEnhanced,
-    PipelineNameValidator,
-    StepConfigValidator,
     TriggerCreateRequestEnhanced,
 )
 
@@ -47,7 +45,5 @@ __all__ = [
     # Validation models
     "MemoryConfigRequestEnhanced",
     "PipelineCreateRequestEnhanced",
-    "PipelineNameValidator",
-    "StepConfigValidator",
     "TriggerCreateRequestEnhanced",
 ]

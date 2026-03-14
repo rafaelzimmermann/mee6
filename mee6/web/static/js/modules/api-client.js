@@ -15,7 +15,7 @@ export async function fetchSchemas() {
 }
 
 export async function fetchPipeline(id) {
-  const response = await fetch(`/pipelines/${id}`, {});
+  const response = await fetch(`/api/v1/pipelines/${id}`, {});
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -26,7 +26,7 @@ export async function fetchPipeline(id) {
 }
 
 export async function createPipeline(pipeline) {
-  const response = await fetch('/pipelines', {
+  const response = await fetch('/api/v1/pipelines', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -43,8 +43,8 @@ export async function createPipeline(pipeline) {
 }
 
 export async function updatePipeline(pipeline) {
-  const response = await fetch(`/pipelines/${pipeline.id}`, {
-    method: 'POST',
+  const response = await fetch(`/api/v1/pipelines/${pipeline.id}`, {
+    method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
     },

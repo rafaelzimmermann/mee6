@@ -51,9 +51,7 @@ async def api_client():
         app.router.lifespan_context = _noop_lifespan
         app.include_router(pipelines.router, prefix="/api/v1/pipelines")
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client, mock_store, mock_step_repo
 
 
@@ -266,9 +264,7 @@ async def agents_client():
         app.router.lifespan_context = _noop_lifespan
         app.include_router(agents.router, prefix="/api/v1/agents")
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client, mock_llm
 
 
@@ -302,24 +298,6 @@ async def test_get_agent_fields_unknown_agent(agents_client):
 # ---------------------------------------------------------------------------
 # Validation Models
 # ---------------------------------------------------------------------------
-
-
-def test_pipeline_name_validator_valid():
-    """PipelineNameValidator accepts valid names."""
-    validator = validation.PipelineNameValidator(name="Valid Pipeline")
-    assert validator.name == "Valid Pipeline"
-
-
-def test_pipeline_name_validator_empty():
-    """PipelineNameValidator rejects empty names."""
-    with pytest.raises(ValueError, match="cannot be empty"):
-        validation.PipelineNameValidator(name="")
-
-
-def test_pipeline_name_validator_too_long():
-    """PipelineNameValidator rejects names over 100 characters."""
-    with pytest.raises(ValueError, match="less than 100 characters"):
-        validation.PipelineNameValidator(name="x" * 101)
 
 
 def test_pipeline_create_request_enhanced_valid():

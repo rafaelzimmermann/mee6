@@ -27,9 +27,14 @@
         <td>
           <div class="row-actions">
             <a href="/pipelines/{{ p.id }}" class="btn sm">Edit</a>
-            <form method="post" action="/pipelines/{{ p.id }}/delete">
-              <button type="submit" class="sm danger" onclick="return confirm('Delete pipeline {{ p.name }}?')">Delete</button>
-            </form>
+            <button
+              class="sm danger"
+              onclick="if(confirm('Delete pipeline {{ p.name }}?')) {
+                fetch('/api/v1/pipelines/{{ p.id }}', { method: 'DELETE' })
+                  .then(r => r.ok
+                    ? location.reload()
+                    : r.json().then(d => alert(d.detail || 'Delete failed')));
+              }">Delete</button>
           </div>
         </td>
       </tr>

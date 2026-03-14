@@ -58,7 +58,7 @@ describe('API Client', () => {
       });
       await fetchPipeline('test-id');
 
-      expect(mockFetch).toHaveBeenCalledWith('/pipelines/test-id', expect.anything());
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/pipelines/test-id', expect.anything());
       expect(mockFetch.mock.calls[0][1]).toEqual({});
     });
 
@@ -94,7 +94,7 @@ describe('API Client', () => {
       });
       await createPipeline(pipeline);
 
-      expect(mockFetch).toHaveBeenCalledWith('/pipelines', expect.objectContaining({
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/pipelines', expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pipeline),
@@ -134,8 +134,8 @@ describe('API Client', () => {
       });
       await updatePipeline(pipeline);
 
-      expect(mockFetch).toHaveBeenCalledWith('/pipelines/test-id', expect.objectContaining({
-        method: 'POST',
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/pipelines/test-id', expect.objectContaining({
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: pipeline.name, steps: pipeline.steps }),
       }));

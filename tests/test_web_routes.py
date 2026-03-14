@@ -61,9 +61,6 @@ async def client(mock_scheduler):
         patch("mee6.web.routes.triggers.scheduler", mock_scheduler),
         patch("mee6.web.routes.triggers.pipeline_store", mock_store),
         patch("mee6.web.routes.pipelines.pipeline_store", mock_store),
-        patch("mee6.web.routes.pipelines.scheduler", mock_scheduler),
-        patch("mee6.web.routes.pipelines.AsyncSessionLocal", side_effect=_mock_session_ctx),
-        patch("mee6.web.routes.pipelines.PipelineStepRepository", return_value=mock_step_repo),
     ):
         from mee6.web.app import create_app
 
@@ -150,8 +147,12 @@ async def test_create_trigger_calls_add_and_redirects(client):
     from mee6.scheduler.engine import TriggerType
 
     sched.add_trigger.assert_awaited_once_with(
-        "pipe-1", "My Pipeline", "0 8 * * *",
-        trigger_type=TriggerType.CRON, config={}, enabled=False,
+        "pipe-1",
+        "My Pipeline",
+        "0 8 * * *",
+        trigger_type=TriggerType.CRON,
+        config={},
+        enabled=False,
     )
 
 
@@ -171,8 +172,12 @@ async def test_create_trigger_enabled_flag(client):
     from mee6.scheduler.engine import TriggerType
 
     sched.add_trigger.assert_awaited_once_with(
-        "pipe-1", "My Pipeline", "0 8 * * *",
-        trigger_type=TriggerType.CRON, config={}, enabled=True,
+        "pipe-1",
+        "My Pipeline",
+        "0 8 * * *",
+        trigger_type=TriggerType.CRON,
+        config={},
+        enabled=True,
     )
 
 
@@ -236,61 +241,9 @@ async def test_pipelines_new_returns_200(client):
     assert b"New Pipeline" in resp.content
 
 
-@pytest.mark.asyncio
-async def test_agent_fields_endpoint_returns_html(client):
-    c, _, _, _ = client
-    resp = await c.get("/api/agents/browser_agent/fields?step_index=0")
-    assert resp.status_code == 200
-    assert b"task" in resp.content.lower()
-
-
-@pytest.mark.asyncio
-async def test_agent_fields_unknown_agent_returns_empty(client):
-    c, _, _, _ = client
-    resp = await c.get("/api/agents/nonexistent/fields")
-    assert resp.status_code == 200
-    assert resp.content == b""
-
-
 # ---------------------------------------------------------------------------
 # Create / update pipeline
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_create_pipeline_saves_steps(client):
-    """POST /pipelines creates pipeline and saves steps via PipelineStepRepository."""
-    c, _, mock_store, mock_step_repo = client
-    payload = {"name": "My Pipeline", "steps": [{"agent_type": "llm_agent", "config": {"prompt": "hi"}}]}
-
-    resp = await c.post("/pipelines", json=payload)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["name"] == "My Pipeline"
-    mock_store.upsert.assert_awaited_once()
-    mock_step_repo.upsert_steps.assert_awaited_once()
-    _, step_rows = mock_step_repo.upsert_steps.call_args.args
-    assert step_rows[0].agent_type == "llm_agent"
-    assert step_rows[0].config == {"prompt": "hi"}
-
-
-@pytest.mark.asyncio
-async def test_update_pipeline_replaces_steps(client):
-    """POST /pipelines/{id} updates pipeline name and replaces steps."""
-    from mee6.pipelines.models import Pipeline
-    c, _, mock_store, mock_step_repo = client
-    mock_store.get.return_value = Pipeline(id="pipe-1", name="Old")
-    payload = {"name": "New Name", "steps": [{"agent_type": "browser_agent", "config": {"task": "search"}}]}
-
-    resp = await c.post("/pipelines/pipe-1", json=payload)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["name"] == "New Name"
-    mock_store.upsert.assert_awaited_once()
-    mock_step_repo.upsert_steps.assert_awaited_once()
-    _, step_rows = mock_step_repo.upsert_steps.call_args.args
-    assert step_rows[0].agent_type == "browser_agent"
-    assert step_rows[0].config == {"task": "search"}
 
 
 # ---------------------------------------------------------------------------
@@ -314,43 +267,22 @@ async def test_pipeline_editor_new_has_batch_schema_url(client):
     c, _, _, _ = client
     resp = await c.get("/pipelines/new")
     assert resp.status_code == 200
-    assert b"/api/v1/agents/fields/batch" in resp.content
+    # The new module-based editor uses fetch() to /api/v1/agents/fields/batch
+    assert b"fetch('/api/v1/agents/fields/batch')" in resp.content
 
 
 @pytest.mark.asyncio
 async def test_pipeline_editor_edit_renders_pipeline_json(client):
     """GET /pipelines/{id} embeds pipeline JSON for initialisation."""
     from mee6.pipelines.models import Pipeline, PipelineStep
+
     c, _, mock_store, _ = client
     mock_store.get.return_value = Pipeline(
-        id="pipe-1", name="My Pipeline",
+        id="pipe-1",
+        name="My Pipeline",
         steps=[PipelineStep(agent_type="llm_agent", config={"prompt": "hello"})],
     )
     resp = await c.get("/pipelines/pipe-1")
     assert resp.status_code == 200
     assert b"My Pipeline" in resp.content
     assert b"llm_agent" in resp.content
-
-
-@pytest.mark.asyncio
-async def test_create_pipeline_multi_step_indices(client):
-    """Step index is assigned correctly for multi-step pipelines."""
-    c, _, _, mock_step_repo = client
-    payload = {
-        "name": "Multi-step",
-        "steps": [
-            {"agent_type": "whatsapp_read", "config": {"count": "5", "phone": "123"}},
-            {"agent_type": "llm_agent", "config": {"prompt": "summarise"}},
-            {"agent_type": "whatsapp_agent", "config": {"phone": "456", "message": "done"}},
-        ],
-    }
-    resp = await c.post("/pipelines", json=payload)
-    assert resp.status_code == 200
-    _, step_rows = mock_step_repo.upsert_steps.call_args.args
-    assert len(step_rows) == 3
-    assert step_rows[0].step_index == 0
-    assert step_rows[1].step_index == 1
-    assert step_rows[2].step_index == 2
-    assert step_rows[0].agent_type == "whatsapp_read"
-    assert step_rows[1].agent_type == "llm_agent"
-    assert step_rows[2].agent_type == "whatsapp_agent"

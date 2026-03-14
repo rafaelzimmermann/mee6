@@ -8,36 +8,6 @@ from typing import Optional
 import re
 
 
-class PipelineNameValidator(BaseModel):
-    """Validator for pipeline names."""
-
-    name: str
-
-    @field_validator("name")
-    @classmethod
-    def name_not_empty(cls, v):
-        if not v or not v.strip():
-            raise ValueError("Pipeline name cannot be empty")
-        if len(v) > 100:
-            raise ValueError("Pipeline name must be less than 100 characters")
-        return v.strip()
-
-
-class StepConfigValidator(BaseModel):
-    """Validator for pipeline step configurations.
-
-    This is a base validator that can be extended with specific
-    validations based on agent type.
-    """
-
-    @field_validator("*")
-    @classmethod
-    def validate_required_fields(cls, v, info):
-        # This validator can be extended to check required fields
-        # based on the agent type
-        return v
-
-
 class PipelineCreateRequestEnhanced(BaseModel):
     """Enhanced request model for pipeline creation/update with validation."""
 
