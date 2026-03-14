@@ -33,6 +33,7 @@ export function render(field, value, index, options = {}) {
 
   html += `</select>`;
   html += `<span class="field-hint" id="${hintId}">${esc(hintVal)}</span>`;
+  html += `<span class="field-error-message" id="error-${index}-${esc(field.name)}"></span>`;
   html += `</label>`;
 
   return html;

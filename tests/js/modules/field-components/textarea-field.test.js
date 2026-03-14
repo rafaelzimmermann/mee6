@@ -187,6 +187,13 @@ describe('TextareaField Component', () => {
 
       expect(html).not.toContain('placeholder=');
     });
+
+    it('renders error span with correct id', () => {
+      const field = { name: 'prompt', label: 'Prompt', field_type: 'textarea', required: true };
+      const html = render(field, 'value', 0, { placeholderHints: [] });
+      expect(html).toContain('id="error-0-prompt"');
+      expect(html).toContain('class="field-error-message"');
+    });
   });
 
   describe('getValue()', () => {

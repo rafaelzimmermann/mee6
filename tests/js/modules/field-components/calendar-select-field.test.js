@@ -19,6 +19,13 @@ describe('CalendarSelectField Component', () => {
       expect(html).toContain('<label class="field-label">');
     });
 
+    it('renders error span with correct id', () => {
+      const field = { name: 'calendar_id', label: 'Calendar', field_type: 'calendar_select', required: true, options: ['Calendar A'] };
+      const html = render(field, 'Calendar A', 0);
+      expect(html).toContain('id="error-0-calendar_id"');
+      expect(html).toContain('class="field-error-message"');
+    });
+
     it('renders empty option first', () => {
       const field = {
         name: 'calendar_id',

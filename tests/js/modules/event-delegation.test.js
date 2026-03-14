@@ -72,7 +72,8 @@ describe('event-delegation', () => {
 
     callbacks = {
       onSaveSuccess: vi.fn(),
-      onSaveError: vi.fn()
+      onSaveError: vi.fn(),
+      onValidationError: vi.fn()
     };
   });
 
@@ -240,7 +241,6 @@ describe('event-delegation', () => {
       expect(state.getSteps()[0].agent_type).toBe('memory_agent');
       expect(state.getSteps()[1].agent_type).toBe('llm_agent');
     });
-  });
 
     it('click move-up on step 1', async () => {
       state.addStep();
@@ -256,7 +256,7 @@ describe('event-delegation', () => {
 
       setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, mockApiClient, callbacks);
 
-      const moveUpButton = stepsContainer.querySelector('[data-idx="1"] .move-up');
+      const moveUpButton = stepsContainer.querySelector('[data-idx="1"] [title="Move up"]');
       moveUpButton.click();
 
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -279,7 +279,7 @@ describe('event-delegation', () => {
 
       setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, mockApiClient, callbacks);
 
-      const moveUpButton = stepsContainer.querySelector('[data-idx="1"] .move-up');
+      const moveUpButton = stepsContainer.querySelector('[data-idx="1"] [title="Move up"]');
       moveUpButton.click();
 
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -328,30 +328,6 @@ describe('event-delegation', () => {
       setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, mockApiClient, callbacks);
 
       const moveDownButton = stepsContainer.querySelector('[data-idx="0"] [title="Move down"]');
-      moveDownButton.click();
-
-      await new Promise(resolve => setTimeout(resolve, 10));
-
-      expect(state.getSteps()[0].agent_type).toBe('memory_agent');
-      expect(state.getSteps()[1].agent_type).toBe('llm_agent');
-    });
-  });
-
-    it('same result as above', async () => {
-      state.addStep();
-      state.setStepAgentType(0, 'llm_agent');
-      state.addStep();
-      state.setStepAgentType(1, 'memory_agent');
-
-      setupDOM(state);
-      const stepsContainer = document.getElementById('steps-container');
-      const addStepBtn = document.getElementById('add-step-btn');
-      const pipelineNameEl = document.getElementById('pipeline-name');
-      const saveBtn = document.getElementById('save-btn');
-
-      setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, mockApiClient, callbacks);
-
-      const moveDownButton = stepsContainer.querySelector('[data-idx="0"] .move-down');
       moveDownButton.click();
 
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -593,27 +569,10 @@ describe('event-delegation', () => {
   });
 
   describe('Save button — success', () => {
-    it('mock apiClient.createPipeline to resolve', async () => {
-      state.addStep();
-      state.setStepAgentType(0, 'llm_agent');
-
-      setupDOM(state);
-      const stepsContainer = document.getElementById('steps-container');
-      const addStepBtn = document.getElementById('add-step-btn');
-      const pipelineNameEl = document.getElementById('pipeline-name');
-      const saveBtn = document.getElementById('save-btn');
-
-      setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, mockApiClient, callbacks);
-
-      saveBtn.click();
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      expect(mockApiClient.createPipeline).toHaveBeenCalled();
-    });
-
     it('click save button', async () => {
       state.addStep();
       state.setStepAgentType(0, 'llm_agent');
+      state.updateStepField(0, 'prompt', 'Hello world');
 
       setupDOM(state);
       const stepsContainer = document.getElementById('steps-container');
@@ -632,6 +591,7 @@ describe('event-delegation', () => {
     it('onSaveSuccess callback is called', async () => {
       state.addStep();
       state.setStepAgentType(0, 'llm_agent');
+      state.updateStepField(0, 'prompt', 'Test prompt');
 
       setupDOM(state);
       const stepsContainer = document.getElementById('steps-container');
@@ -652,6 +612,7 @@ describe('event-delegation', () => {
     it('mock apiClient.createPipeline to reject', async () => {
       state.addStep();
       state.setStepAgentType(0, 'llm_agent');
+      state.updateStepField(0, 'prompt', 'Test');
 
       const errorClient = {
         createPipeline: vi.fn().mockRejectedValue(new Error('Save failed')),
@@ -675,6 +636,7 @@ describe('event-delegation', () => {
     it('click save button', async () => {
       state.addStep();
       state.setStepAgentType(0, 'llm_agent');
+      state.updateStepField(0, 'prompt', 'Test');
 
       const errorClient = {
         createPipeline: vi.fn().mockRejectedValue(new Error('Save failed')),
@@ -698,6 +660,7 @@ describe('event-delegation', () => {
     it('onSaveError callback is called', async () => {
       state.addStep();
       state.setStepAgentType(0, 'llm_agent');
+      state.updateStepField(0, 'prompt', 'Test');
 
       const errorClient = {
         createPipeline: vi.fn().mockRejectedValue(new Error('Save failed')),

@@ -7,6 +7,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Phase 6 refactoring** — schema-driven validation system for pipeline editor:
+  - **validator.js** (125 lines): Full validation implementation with ValidationError class, field/step/pipeline validators, and DOM feedback functions
+    - validateField() handles all field types (text, textarea, select, combobox, group_select, calendar_select, checkbox)
+    - validateStep() checks agent_type required, memory_agent read/write options, and schema field requirements
+    - validatePipeline() checks for empty pipeline and validates all steps
+    - validateSingleField() for real-time validation returning array of errors
+    - DOM feedback: displayFieldError(), clearFieldError(), displayValidationSummary(), highlightInvalidFields(), clearAllValidationUI()
+  - **Real-time validation on blur**: handleFieldBlur() in event-handlers.js validates single fields and shows/hides inline errors
+  - **Save-time validation blocks invalid saves**: handleSave() validates full pipeline before API call, early returns with errors
+  - **Event delegation callback routing**: onValidationError callback added to route validation errors separate from API errors
+  - **Validation CSS added to style.css**:
+    - .has-error class for invalid fields (red border)
+    - .field-error-message class with .visible modifier for inline error messages
+    - .validation-summary class for error banner with step number labels
+  - **Template changes (only additive)**:
+    - Added <div id="validation-banner" class="validation-summary" style="display:none"></div>
+    - Added TODO comment marking validateMemorySteps() for removal in Phase 8
+  - **All 7 field components now render error spans**:
+    - <span class="field-error-message" id="error-{index}-{fieldName}"></span> immediately after each input element
+    - Updated: text-field, textarea-field, select-field, checkbox-field, combobox-field, group-select-field, calendar-select-field
+  - **pipeline-editor.js completed** (83 lines):
+    - State subscriptions: steps-updated, step-updated, pipeline-updated, initialized
+    - rerenderAll() for full pipeline re-rendering
+    - rerenderStep(index) for targeted step re-rendering
+    - showBanner(el, message) for displaying save/success messages
+    - setupEventDelegation() with onSaveSuccess, onSaveError, onValidationError callbacks
+  - **handleAgentTypeChange schema caching**: Checks state.schemas before fetching, passes apiClient parameter
+  - **Comprehensive test coverage**:
+    - validator.test.js (63 tests): All validation logic, DOM feedback functions, ValidationError class
+    - validation-flow.test.js (10 integration tests): 9 end-to-end validation scenarios
+    - Updated event-handlers.test.js (27 tests): handleFieldBlur and save validation
+    - Updated all field component tests: Verify error span rendering
+  - **Test results**: 378/378 JavaScript tests passing (22 test files)
+    - Scenario 1: Cannot save empty pipeline
+    - Scenario 2: Cannot save step without agent type
+    - Scenario 3: Cannot save required field empty
+    - Scenario 4: Cannot save memory_agent with no options
+    - Scenario 5: Real-time validation on blur shows inline error
+    - Scenario 6: Error clears when field is fixed
+    - Scenario 7: Valid pipeline saves successfully
+    - Scenario 8: Multiple validation errors all reported with correct step indices
+    - Scenario 9: Validation summary shows (Step N) and (Pipeline) labels
+  - **Critical bug fix**: Invalid pipelines can no longer be saved silently
+    - Empty pipelines are blocked with error message
+    - Steps without agent type are blocked
+    - Required empty fields are blocked with inline error messages
+    - memory_agent steps require at least one of read/write checkboxes
+    - Save-time validation blocks API call for all invalid states
+  - **Line counts**:
+    - validator.js: 125 lines (under 150 limit ✓)
+    - pipeline-editor.js: 83 lines
+    - event-handlers.js: 92 lines
+    - event-delegation.js: 103 lines
+  - **Template diff**: 2 insertions only (validation-banner div + TODO comment)
+
 - **Phase 1 refactoring** — testing infrastructure and module structure for pipeline editor:
   - Added vitest with jsdom environment and configuration
   - Created directory skeleton: `static/js/modules/` with stubs for api-client, field-components, field-renderer, state-manager, step-manager, validator
@@ -46,10 +101,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - All API calls return Promises, throw Errors with status codes and details on non-2xx responses
   - No DOM access or state reads in state-manager.js - pure state logic fully testable
   - Created `state-helpers.js` utility module to keep state-manager.js under 120 lines (91 lines)
-  - Comprehensive test coverage: 218 tests passing across state-manager and api-client
-  - State + rendering integration tests verify complete data flow from mutations to re-rendered output
-  - State sandbox demonstrates event-driven re-renders with realistic mutations
-  - `pipeline_editor.html` template remains unchanged (Phase 4 builds state system in parallel)
+   - Comprehensive test coverage: 218 tests passing across state-manager and api-client
+   - State + rendering integration tests verify complete data flow from mutations to re-rendered output
+   - State sandbox demonstrates event-driven re-renders with realistic mutations
+   - `pipeline_editor.html` template remains unchanged (Phase 4 builds state system in parallel)
+- **Phase 5 refactoring** — event handling infrastructure for pipeline editor:
+  - Created `event-handlers.js` implementing all state mutation handlers: agent type changes, field updates, add/remove/move steps, pipeline name updates, save API calls, field blur hooks
+  - Implemented `event-delegation.js` with container-level event listeners routing events by CSS classes and data attributes; uses `title` attribute for move button identification
+  - Handlers follow subscription-render pattern: mutate state → emit event → subscribers trigger re-render
+  - `setupEventDelegation()` attaches listeners to pipeline editor container; `teardown()` function provides cleanup support for testing
+  - Added comprehensive test coverage for handlers: 25 tests covering all mutation paths and edge cases
+  - Updated `api-client.js` to implement `fetchSchemas()`, `fetchPipeline()`, `createPipeline()`, `updatePipeline()` matching backend API contracts
+  - Updated `state-manager.js` per Phase 4 specification with event-driven mutation methods
+  - Fixed Python test parameter changes (`previous_output` → `input`) in pipeline executor tests
+  - Updated scheduler engine tests for method signature changes (`add_trigger` requires 3 params, `record_run_end` requires 4 params)
+  - Created skeleton `pipeline-editor.js` entry point with subscription-render wiring structure
+  - Interaction audit documented as JSDoc comment block at top of event-handlers.js
+  - `pipeline_editor.html` template remains unchanged (Phase 5 builds event system in parallel)
 
 ## [0.1.1] — 2026-03-13
 

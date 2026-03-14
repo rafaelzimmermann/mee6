@@ -19,6 +19,13 @@ describe('GroupSelectField Component', () => {
       expect(html).toContain('<label class="field-label">');
     });
 
+    it('renders error span with correct id', () => {
+      const field = { name: 'group_id', label: 'Group', field_type: 'group_select', required: true, options: ['Group A'] };
+      const html = render(field, 'Group A', 0);
+      expect(html).toContain('id="error-0-group_id"');
+      expect(html).toContain('class="field-error-message"');
+    });
+
     it('renders empty option first', () => {
       const field = {
         name: 'group_id',

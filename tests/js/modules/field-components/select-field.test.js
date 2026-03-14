@@ -21,6 +21,13 @@ describe('SelectField Component', () => {
       expect(html).toContain('<label class="field-label">');
     });
 
+    it('renders error span with correct id', () => {
+      const field = { name: 'model', label: 'Model', field_type: 'select', required: true, options: ['gpt-4'] };
+      const html = render(field, 'gpt-4', 0);
+      expect(html).toContain('id="error-0-model"');
+      expect(html).toContain('class="field-error-message"');
+    });
+
     it('renders all options', () => {
       const field = {
         name: 'language',

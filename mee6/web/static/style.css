@@ -227,6 +227,49 @@ button.sm, .btn.sm { padding: 0.2rem 0.55rem; font-size: 0.8rem; }
 }
 .field-label textarea { min-height: 4rem; resize: vertical; }
 
+/* Field error state */
+.has-error {
+  border-color: #dc3545 !important;
+  outline-color: #dc3545 !important;
+}
+
+/* Inline error message below a field */
+.field-error-message {
+  display: none;
+  color: #dc3545;
+  font-size: 0.85em;
+  margin-top: 2px;
+}
+
+.field-error-message.visible {
+  display: block;
+}
+
+/* Validation summary banner */
+.validation-summary {
+  background: #fff3f3;
+  border: 1px solid #dc3545;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.validation-summary h3 {
+  margin: 0 0 8px;
+  color: #dc3545;
+  font-size: 0.95em;
+}
+
+.validation-summary ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.validation-summary li {
+  font-size: 0.9em;
+  color: #333;
+}
+
 /* ── Status badges ───────────────────────────────────────────── */
 .badge {
   display: inline-block;

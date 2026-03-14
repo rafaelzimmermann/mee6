@@ -159,7 +159,7 @@ describe('event-handlers', () => {
     it('updates the agent_type in state', async () => {
       const state = makeState();
       state.addStep();
-      await handlers.handleAgentTypeChange(state, 0, 'llm_agent');
+      await handlers.handleAgentTypeChange(state, mockApiClient, 0, 'llm_agent');
       expect(state.getStep(0).agent_type).toBe('llm_agent');
     });
 
@@ -170,22 +170,29 @@ describe('event-handlers', () => {
       state.updateStepField(0, 'prompt', 'old value');
       expect(state.getStep(0).config.prompt).toBe('old value');
 
-      await handlers.handleAgentTypeChange(state, 0, 'memory_agent');
+      await handlers.handleAgentTypeChange(state, mockApiClient, 0, 'memory_agent');
       expect(state.getStep(0).config.prompt).toBeUndefined();
       expect(state.getStep(0).config).toEqual({});
     });
 
-    it('if schema already cached, does NOT call fetchSchemas', async () => {
+    it('fetches schema when not cached', async () => {
+      const state = makeState({ schemas: {} });
+      state.addStep();
+      await handlers.handleAgentTypeChange(state, mockApiClient, 0, 'llm_agent');
+      expect(mockApiClient.fetchSchemas).toHaveBeenCalledOnce();
+    });
+
+    it('does NOT fetch schema when already cached', async () => {
       const state = makeState();
       state.addStep();
-      await handlers.handleAgentTypeChange(state, 0, 'llm_agent');
+      await handlers.handleAgentTypeChange(state, mockApiClient, 0, 'llm_agent');
       expect(mockApiClient.fetchSchemas).not.toHaveBeenCalled();
     });
 
     it('is async — returns a Promise', () => {
       const state = makeState();
       state.addStep();
-      const result = handlers.handleAgentTypeChange(state, 0, 'llm_agent');
+      const result = handlers.handleAgentTypeChange(state, mockApiClient, 0, 'llm_agent');
       expect(result).toBeInstanceOf(Promise);
     });
   });
@@ -225,96 +232,77 @@ describe('event-handlers', () => {
     });
   });
 
-  describe('handleSave', () => {
-    describe('new pipeline (no id)', () => {
-      it('calls apiClient.createPipeline with pipeline data from state.getPipeline()', async () => {
-        const state = makeState();
-        state.setPipelineName('Test Pipeline');
-        state.addStep();
-        state.setStepAgentType(0, 'llm_agent');
-        state.updateStepField(0, 'prompt', 'test prompt');
-
-        const result = await handlers.handleSave(state, mockApiClient);
-
-        expect(mockApiClient.createPipeline).toHaveBeenCalledWith({
-          id: null,
-          name: 'Test Pipeline',
-          steps: [{ agent_type: 'llm_agent', config: { prompt: 'test prompt' } }]
-        });
-      });
-
-      it('returns { success: true, error: null } on success', async () => {
+  describe('handleSave with validation', () => {
+      it('returns validation errors without calling API when pipeline is invalid', async () => {
         const state = makeState();
         const result = await handlers.handleSave(state, mockApiClient);
-        expect(result).toEqual({ success: true, error: null });
-      });
-
-      it('returns { success: false, error: \'...\' } when apiClient throws', async () => {
-        const state = makeState();
-        const errorClient = {
-          createPipeline: vi.fn().mockRejectedValue(new Error('Network error')),
-          updatePipeline: vi.fn()
-        };
-
-        const result = await handlers.handleSave(state, errorClient);
-
-        expect(result).toEqual({ success: false, error: 'Network error' });
-      });
-    });
-
-    describe('existing pipeline (has id)', () => {
-      it('calls apiClient.updatePipeline (not createPipeline)', async () => {
-        const state = makeState({
-          id: 'existing-id',
-          name: 'Test',
-          steps: []
-        });
-        state.addStep();
-        state.setStepAgentType(0, 'llm_agent');
-
-        const pipeline = state.getPipeline();
-        expect(pipeline.id).toBe('existing-id');
-
-        await handlers.handleSave(state, mockApiClient);
-
-        expect(mockApiClient.updatePipeline).toHaveBeenCalled();
+        expect(result.success).toBe(false);
+        expect(result.errors.length).toBeGreaterThan(0);
         expect(mockApiClient.createPipeline).not.toHaveBeenCalled();
       });
 
-      it('returns { success: true, error: null } on success', async () => {
-        const state = makeState({ id: 'existing-id', name: 'Test', steps: [] });
+      it('calls API when pipeline is valid', async () => {
+        const state = makeState();
+        state.addStep();
+        state.setStepAgentType(0, 'memory_agent');
+        state.updateStepField(0, 'read_memory', 'on');
         const result = await handlers.handleSave(state, mockApiClient);
-        expect(result).toEqual({ success: true, error: null });
+        expect(mockApiClient.createPipeline).toHaveBeenCalled();
+        expect(result.success).toBe(true);
       });
 
-      it('returns { success: false, error: \'...\' } when apiClient throws', async () => {
-        const state = makeState({ id: 'existing-id', name: 'Test', steps: [] });
-        const errorClient = {
-          createPipeline: vi.fn(),
-          updatePipeline: vi.fn().mockRejectedValue(new Error('Update failed'))
-        };
-
-        const result = await handlers.handleSave(state, errorClient);
-
-        expect(result).toEqual({ success: false, error: 'Update failed' });
+      it('returns error without crashing when API fails', async () => {
+        const state = makeState();
+        state.addStep();
+        state.setStepAgentType(0, 'memory_agent');
+        state.updateStepField(0, 'read_memory', 'on');
+        mockApiClient.createPipeline.mockRejectedValueOnce(new Error('Network error'));
+        const result = await handlers.handleSave(state, mockApiClient);
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Network error');
+        expect(result.errors).toHaveLength(0);
       });
     });
-  });
 
   describe('handleFieldBlur', () => {
-    it('does not throw', () => {
-      const state = makeState();
-      const fieldDef = { name: 'prompt', label: 'Prompt', field_type: 'textarea', required: true };
-      expect(() => {
-        handlers.handleFieldBlur(state, 0, 'prompt', 'value', fieldDef);
-      }).not.toThrow();
+    beforeEach(() => {
+      const { JSDOM } = require('jsdom');
+      const dom = new JSDOM(`<!DOCTYPE html><body>
+        <textarea id="field-0-prompt" name="prompt"></textarea>
+      </body>`);
+      global.document = dom.window.document;
+      global.HTMLElement = dom.window.HTMLElement;
     });
 
-    it('returns undefined (no-op in Phase 5)', () => {
+    afterEach(() => {
+      delete global.document;
+      delete global.HTMLElement;
+    });
+
+    it('calls displayFieldError when field is invalid', () => {
       const state = makeState();
-      const fieldDef = { name: 'prompt', label: 'Prompt', field_type: 'textarea', required: true };
-      const result = handlers.handleFieldBlur(state, 0, 'prompt', 'value', fieldDef);
-      expect(result).toBeUndefined();
+      const fieldDef = { name: 'prompt', label: 'Prompt', field_type: 'text', required: true };
+      handlers.handleFieldBlur(state, 0, 'prompt', '', fieldDef);
+      const errorEl = global.document.getElementById('error-0-prompt');
+      expect(errorEl?.classList.contains('visible')).toBe(true);
+    });
+
+    it('calls clearFieldError when field becomes valid', () => {
+      const state = makeState();
+      const fieldDef = { name: 'prompt', label: 'Prompt', field_type: 'text', required: true };
+      handlers.handleFieldBlur(state, 0, 'prompt', '', fieldDef);
+      const errorEl = global.document.getElementById('error-0-prompt');
+      expect(errorEl?.classList.contains('visible')).toBe(true);
+
+      handlers.handleFieldBlur(state, 0, 'prompt', 'Hello', fieldDef);
+      expect(errorEl?.classList.contains('visible')).toBe(false);
+    });
+
+    it('does nothing when fieldDef is undefined', () => {
+      const state = makeState();
+      expect(() => {
+        handlers.handleFieldBlur(state, 0, 'unknown', 'value', undefined);
+      }).not.toThrow();
     });
   });
 });

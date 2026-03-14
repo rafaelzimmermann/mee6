@@ -12,6 +12,7 @@ export function render(field, value, index, options = {}) {
 
   let html = `<label class="field-label">${esc(field.label)}`;
   html += `<input type="checkbox" name="${esc(field.name)}" id="${id}" value="on" ${checked}${required}>`;
+  html += `<span class="field-error-message" id="error-${index}-${esc(field.name)}"></span>`;
   html += `</label>`;
 
   return html;

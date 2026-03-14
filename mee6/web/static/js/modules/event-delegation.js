@@ -14,9 +14,9 @@ function getFieldValue(el) {
   return el.type === 'checkbox' ? (el.checked ? 'on' : '') : el.value;
 }
 
-async function handleFieldOrAgentChange(state, target, index) {
+async function handleFieldOrAgentChange(state, target, index, apiClient) {
   const { handleAgentTypeChange, handleFieldChange } = await import('./event-handlers.js');
-  if (target.classList.contains('agent-select')) handleAgentTypeChange(state, index, target.value);
+  if (target.classList.contains('agent-select')) handleAgentTypeChange(state, apiClient, index, target.value);
   else if (target.hasAttribute('name')) handleFieldChange(state, index, target.name, getFieldValue(target));
 }
 
@@ -24,11 +24,11 @@ export function setupEventDelegation(container, pipelineNameEl, addStepBtn, save
   if (isSetup) return;
   isSetup = true;
 
-  const { onSaveSuccess, onSaveError } = callbacks;
+  const { onSaveSuccess, onSaveError, onValidationError } = callbacks;
 
   boundHandlers.changeOrInput = async (e) => {
     const idx = getStepIndex(e.target);
-    if (idx !== null) handleFieldOrAgentChange(state, e.target, idx);
+    if (idx !== null) handleFieldOrAgentChange(state, e.target, idx, apiClient);
   };
 
   boundHandlers.click = async (e) => {
@@ -61,8 +61,13 @@ export function setupEventDelegation(container, pipelineNameEl, addStepBtn, save
   boundHandlers.addStep = () => require('./event-handlers.js').handleAddStep(state);
   boundHandlers.save = async () => {
     const result = await (await import('./event-handlers.js')).handleSave(state, apiClient);
-    if (result.success) onSaveSuccess();
-    else onSaveError(new Error(result.error));
+    if (result.success) {
+      onSaveSuccess();
+    } else if (result.errors && result.errors.length > 0) {
+      onValidationError(result.errors);
+    } else {
+      onSaveError(new Error(result.error));
+    }
   };
 
   container.addEventListener('change', boundHandlers.changeOrInput);

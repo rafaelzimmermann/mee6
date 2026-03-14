@@ -24,6 +24,13 @@ describe('ComboboxField Component', () => {
       expect(html).toContain('<label class="field-label">');
     });
 
+    it('renders error span with correct id', () => {
+      const field = { name: 'language', label: 'Language', field_type: 'combobox', required: true, options: ['en'] };
+      const html = render(field, 'en', 0);
+      expect(html).toContain('id="error-0-language"');
+      expect(html).toContain('class="field-error-message"');
+    });
+
     it('renders all options in datalist', () => {
       const field = {
         name: 'language',

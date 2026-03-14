@@ -17,9 +17,17 @@
  */
 
 import { copyStep } from '../utils/state-helpers.js';
+import { validateSingleField, displayFieldError, clearFieldError, highlightInvalidFields, validatePipeline, clearAllValidationUI } from './validator.js';
 
-export async function handleAgentTypeChange(state, index, agentType) {
+export async function handleAgentTypeChange(state, apiClient, index, agentType) {
   state.setStepAgentType(index, agentType);
+
+  if (!agentType) return;
+
+  if (!state.getSchema(agentType).length) {
+    const schemas = await apiClient.fetchSchemas();
+    state.setSchemas(schemas);
+  }
 }
 
 export function handleFieldChange(state, index, fieldName, value) {
@@ -47,19 +55,38 @@ export function handlePipelineNameChange(state, name) {
 }
 
 export async function handleSave(state, apiClient) {
+  clearAllValidationUI();
+
   const pipeline = state.getPipeline();
+  const errors = validatePipeline(pipeline, state.schemas);
+
+  if (errors.length > 0) {
+    return { success: false, errors, error: null };
+  }
+
   try {
     if (pipeline.id) {
       await apiClient.updatePipeline(pipeline);
     } else {
       await apiClient.createPipeline(pipeline);
     }
-    return { success: true, error: null };
+    return { success: true, errors: [], error: null };
   } catch (err) {
-    return { success: false, error: err.message };
+    return { success: false, errors: [], error: err.message || 'Save failed' };
   }
 }
 
 export function handleFieldBlur(state, index, fieldName, value, fieldDef) {
-  // Phase 6: validation hook
+  if (!fieldDef) return;
+
+  const errors = validateSingleField(fieldName, value, fieldDef, index);
+
+  if (errors.length > 0) {
+    displayFieldError(fieldName, index, errors[0].message);
+    highlightInvalidFields(errors);
+  } else {
+    clearFieldError(fieldName, index);
+    const fieldEl = document.getElementById(`field-${index}-${fieldName}`);
+    if (fieldEl) fieldEl.classList.remove('has-error');
+  }
 }

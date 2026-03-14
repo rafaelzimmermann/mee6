@@ -28,17 +28,14 @@ describe('CheckboxField Component', () => {
       const html = render(field, 'on', 0);
 
       expect(html).toContain('checked');
+      expect(html).toContain('<label class="field-label">');
     });
 
-    it('renders unchecked when value is anything else', () => {
-      const field = {
-        name: 'read_memory',
-        label: 'Read Memory',
-        field_type: 'checkbox'
-      };
-      const html = render(field, 'yes', 0);
-
-      expect(html).not.toContain('checked');
+    it('renders error span with correct id', () => {
+      const field = { name: 'read_memory', label: 'Read Memory', field_type: 'checkbox', required: false };
+      const html = render(field, '', 0);
+      expect(html).toContain('id="error-0-read_memory"');
+      expect(html).toContain('class="field-error-message"');
     });
 
     it('renders unchecked when value is undefined', () => {

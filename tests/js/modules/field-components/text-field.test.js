@@ -151,6 +151,13 @@ describe('TextField Component', () => {
       expect(html1).toContain('id="field-1-task"');
       expect(html5).toContain('id="field-5-task"');
     });
+
+    it('renders error span with correct id', () => {
+      const field = { name: 'prompt', label: 'Prompt', field_type: 'text', required: true };
+      const html = render(field, 'value', 0);
+      expect(html).toContain('id="error-0-prompt"');
+      expect(html).toContain('class="field-error-message"');
+    });
   });
 
   describe('getValue()', () => {

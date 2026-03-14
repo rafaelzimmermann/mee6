@@ -17,6 +17,7 @@ export function render(field, value, index, options = {}) {
   }
 
   html += `>`;
+  html += `<span class="field-error-message" id="error-${index}-${esc(field.name)}"></span>`;
   html += `</label>`;
 
   return html;

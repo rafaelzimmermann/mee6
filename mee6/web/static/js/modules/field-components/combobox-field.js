@@ -24,6 +24,7 @@ export function render(field, value, index, options = {}) {
   }
 
   html += `</datalist>`;
+  html += `<span class="field-error-message" id="error-${index}-${esc(field.name)}"></span>`;
   html += `</label>`;
 
   return html;
