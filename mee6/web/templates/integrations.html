@@ -4,6 +4,8 @@
 <div class="page-header">
   <h1>Integrations</h1>
 </div>
+<div id="action-banner" style="display:none" class="save-banner"></div>
+<div id="form-errors" class="validation-summary" style="display:none"></div>
 
 <section class="card">
   <div class="card-header">WhatsApp</div>
@@ -11,7 +13,7 @@
     {% include "_whatsapp_status.html" %}
     <hr>
     <h2>Phone Number</h2>
-    <form method="post" action="/integrations/whatsapp/phone">
+    <form id="phone-form">
       <label>Default number <input type="tel" name="phone" value="{{ notify_phone }}" placeholder="+34612345678" class="input-phone"></label>
       <button type="submit">Save</button>
     </form>
@@ -36,21 +38,17 @@
       <thead>
         <tr><th>Name</th><th>Label</th><th>JID</th><th></th></tr>
       </thead>
-      <tbody>
+      <tbody id="groups-list">
         {% for g in wa_groups %}
-        <tr>
+        <tr data-jid="{{ g.jid }}">
           <td>{{ g.name }}</td>
           <td>
-            <form method="post" action="/integrations/whatsapp/groups/{{ g.jid | urlencode }}/label">
-              <input type="text" name="label" value="{{ g.label }}" class="input-label">
-              <button type="submit" class="sm">Save</button>
-            </form>
+            <input type="text" name="label" value="{{ g.label }}" class="input-label" data-jid="{{ g.jid }}">
+            <button type="button" class="sm" data-action="save-label" data-jid="{{ g.jid }}">Save</button>
           </td>
           <td><code>{{ g.jid }}</code></td>
           <td>
-            <form method="post" action="/integrations/whatsapp/groups/{{ g.jid | urlencode }}/delete">
-              <button type="submit" class="sm danger">Remove</button>
-            </form>
+            <button type="button" class="sm danger" data-action="delete-group" data-jid="{{ g.jid }}">Remove</button>
           </td>
         </tr>
         {% endfor %}
@@ -59,9 +57,7 @@
     {% else %}
     <p class="empty-hint">No groups synced yet.</p>
     {% endif %}
-    <form method="post" action="/integrations/whatsapp/groups/sync">
-      <button type="submit">↻ Sync groups from WhatsApp</button>
-    </form>
+    <button type="button" id="sync-btn" data-action="sync">↻ Sync groups from WhatsApp</button>
   </div>
 </section>
 
@@ -73,15 +69,13 @@
       <thead>
         <tr><th>Label</th><th>Calendar ID</th><th></th></tr>
       </thead>
-      <tbody>
+      <tbody id="calendars-list">
         {% for cal in calendars %}
-        <tr>
+        <tr data-cal-id="{{ cal.id }}">
           <td>{{ cal.label }}</td>
           <td><code>{{ cal.calendar_id }}</code></td>
           <td>
-            <form method="post" action="/integrations/calendars/{{ cal.id }}/delete">
-              <button type="submit" class="sm danger">Remove</button>
-            </form>
+            <button type="button" class="sm danger" data-action="delete-calendar" data-cal-id="{{ cal.id }}">Delete</button>
           </td>
         </tr>
         {% endfor %}
@@ -89,12 +83,18 @@
     </table>
     {% endif %}
     <h2>Add Calendar</h2>
-    <form method="post" action="/integrations/calendars">
+    <form id="add-calendar-form">
       <label>Label <input type="text" name="label" placeholder="School" required></label>
       <label>Calendar ID <input type="text" name="calendar_id" placeholder="xxx@group.calendar.google.com" required class="input-wide"></label>
       <button type="submit">Add</button>
     </form>
   </div>
 </section>
+
+<script type="module">
+  import { initializeIntegrationsPage }
+    from '/static/js/integrations-editor.js';
+  initializeIntegrationsPage();
+</script>
 
 {% endblock %}

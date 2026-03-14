@@ -9,9 +9,32 @@
 <div class="card">
   <div class="card-header">
     <h2>Memory Configurations</h2>
-    <button type="button" class="btn" onclick="window.location='/integrations/memories/new'">+ New Memory</button>
   </div>
   <div class="card-body">
+    <form id="add-memory-form">
+      <h3>New Memory Config</h3>
+      <label>
+        Label
+        <input type="text" name="label" required id="label"
+               placeholder="e.g. customer_notes"
+               pattern="[a-zA-Z0-9_\-]+"
+               title="Letters, numbers, underscores and hyphens only">
+      </label>
+      <label>
+        Max memories
+        <input type="number" name="max_memories" required min="1" value="100" id="max_memories">
+      </label>
+      <label>
+        TTL (hours)
+        <input type="number" name="ttl_hours" required min="1" value="720" id="ttl_hours">
+      </label>
+      <label>
+        Max value size
+        <input type="number" name="max_value_size" required min="1" value="1000" id="max_value_size">
+      </label>
+      <button type="submit">Create</button>
+      <div id="memory-form-errors" class="validation-summary" style="display:none"></div>
+    </form>
     {% if memory_configs %}
       <table>
         <thead>
@@ -24,18 +47,16 @@
             <th>Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="memories-list">
           {% for memory in memory_configs %}
-          <tr>
+          <tr data-label="{{ memory.label }}">
             <td>{{ memory.label }}</td>
             <td>{{ memory.count }}</td>
             <td>{{ memory.max_memories }}</td>
             <td>{{ memory.ttl_hours }}</td>
             <td>{{ memory.max_value_size }}</td>
             <td>
-              <form method="post" action="/integrations/memories/{{ memory.label }}/delete" style="display: inline;">
-                <button type="submit" class="sm danger" onclick="return confirm('Delete all memories for {{ memory.label }}?');">Delete</button>
-              </form>
+              <button type="button" class="sm danger" data-action="delete" data-label="{{ memory.label }}">Delete</button>
             </td>
           </tr>
           {% endfor %}
@@ -47,15 +68,11 @@
   </div>
 </div>
 
-<script>
-function deleteMemory(label) {
-  if (confirm(`Delete all memories for ${label}?`)) {
-    fetch(`/integrations/memories/${label}/delete`, {
-      method: 'POST',
-    })
-    .then(() => window.location.reload())
-    .catch(error => console.error('Error:', error));
-  }
-}
+<div id="action-banner" style="display:none" class="save-banner"></div>
+
+<script type="module">
+  import { initializeMemoriesPage }
+    from '/static/js/integrations-editor.js';
+  initializeMemoriesPage();
 </script>
 {% endblock %}
