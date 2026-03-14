@@ -35,6 +35,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Integration tests verify full rendering chain from component registry to pipeline output with XSS protection
   - Test coverage: 183 tests passing, including 10 integration tests for end-to-end rendering
   - `pipeline_editor.html` template remains unchanged (Phase 3 builds renderers in parallel)
+- **Phase 4 refactoring** — state management system for pipeline editor:
+  - Created `PipelineEditorState` class in `state-manager.js` with explicit mutation methods
+  - Implemented subscription system with events: `pipeline-updated`, `steps-updated`, `step-updated`, `schemas-loaded`, `initialized`
+  - All state mutations emit appropriate events for reactive updates
+  - Defensive copying: `getStep()`, `getSteps()`, `getPipeline()` return copies preventing external corruption
+  - `setStepAgentType()` **MUST reset config to {}** when agent type changes (critical behavior preserved)
+  - Created `api-client.js` with functions matching existing backend API contracts exactly
+  - API functions: `fetchSchemas()`, `fetchPipeline(id)`, `createPipeline()`, `updatePipeline(pipeline)`
+  - All API calls return Promises, throw Errors with status codes and details on non-2xx responses
+  - No DOM access or state reads in state-manager.js - pure state logic fully testable
+  - Created `state-helpers.js` utility module to keep state-manager.js under 120 lines (91 lines)
+  - Comprehensive test coverage: 218 tests passing across state-manager and api-client
+  - State + rendering integration tests verify complete data flow from mutations to re-rendered output
+  - State sandbox demonstrates event-driven re-renders with realistic mutations
+  - `pipeline_editor.html` template remains unchanged (Phase 4 builds state system in parallel)
 
 ## [0.1.1] — 2026-03-13
 
