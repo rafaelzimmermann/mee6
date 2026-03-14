@@ -1,62 +1,15 @@
-"""REST API routes for integrations (WhatsApp, Calendar, Memory).
+"""Integrations JSON API — /api/v1/integrations/
 
-CONTRACT DOCUMENT
-=================
-
-WhatsApp Endpoints:
-- GET  /whatsapp/status → WhatsAppStatusResponse
-  * status: str - one of "pending_qr", "connecting", "connected", "disconnected", "error"
-  * qr_svg: str | null - QR code SVG (present when status="pending_qr")
-  * error: str | null - error message (present when status="error")
-  * notify_phone: str | null - saved phone number
-
-- POST /whatsapp/connect → 204 (no body)
-
-- POST /whatsapp/phone → 204
-  * Request: {phone: str}
-
-- POST /whatsapp/sync → {updated: int, message: str}
-  * Uses wa.list_groups() + upsert() to sync groups from WhatsApp
-  * Returns count of groups updated and message
-  * On error: returns {updated: 0, message: "Sync failed."}
-
-- GET  /whatsapp/groups → WhatsAppGroupResponse[]
-  * Response: [{name: str, jid: str}]
-
-- PATCH /whatsapp/groups/{jid}/label → 204
-  * Request: {label: str}
-
-- DELETE /whatsapp/groups/{jid} → 204
-
-- POST /whatsapp/test → {ok: bool}
-  * Request: {phone: str}
-  * Returns 503 if not connected
-
-Calendar Endpoints:
-- GET  /calendars → CalendarResponse[]
-  * Response: [{id: str, label: str, calendar_id: str}]
-
-- POST /calendars → CalendarResponse (201)
-  * Request: {label: str, calendar_id: str}
-
-- DELETE /calendars/{id} → 204
-
-Memory Endpoints:
-- GET  /memories → MemoryConfigResponse[]
-  * Response: [{label, max_memories, ttl_hours, max_value_size, count}]
-
-- GET  /memories/labels → string[]
-
-- POST /memories → MemoryConfigResponse (201)
-  * Request: {label, max_memories, ttl_hours, max_value_size}
-
-- DELETE /memories/{label} → 204
+Sections: whatsapp, calendars, memories
+WhatsApp status values: disconnected | connecting | pending_qr | connected | error
+Sync: uses wa.list_groups() + WhatsAppGroupRepository.upsert() (no dedicated sync method)
+Test message: wa.send_notification(phone, message)
+Memory counts: fetched separately via MemoryRepository.count_entries(label)
+Credentials: google_credentials_file read from settings, not supplied by client
 """
 
 import uuid
-
 from fastapi import APIRouter, HTTPException, status
-
 from mee6.config import settings
 from mee6.db.engine import AsyncSessionLocal
 from mee6.db.models import CalendarRow, WhatsAppGroupRow
@@ -81,9 +34,6 @@ from mee6.web.api.models import (
 from mee6.web.api.validation import MemoryConfigRequestEnhanced
 
 router = APIRouter()
-
-
-# --- WhatsApp ---
 
 
 @router.get("/whatsapp/status", response_model=WhatsAppStatusResponse)
@@ -133,7 +83,7 @@ async def sync_whatsapp_groups():
 async def list_whatsapp_groups():
     async with AsyncSessionLocal() as session:
         groups = await WhatsAppGroupRepository(session).list_all()
-    return [WhatsAppGroupResponse(name=g.name, jid=g.jid) for g in groups]
+        return [WhatsAppGroupResponse(name=g.name or "", jid=g.jid) for g in groups]
 
 
 @router.patch("/whatsapp/groups/{jid}/label", status_code=status.HTTP_204_NO_CONTENT)
@@ -158,14 +108,13 @@ async def test_whatsapp(body: WhatsAppTestRequest):
     return {"ok": True}
 
 
-# --- Calendar ---
-
-
 @router.get("/calendars", response_model=list[CalendarResponse])
 async def list_calendars():
     async with AsyncSessionLocal() as session:
         rows = await CalendarRepository(session).list_all()
-    return [CalendarResponse(id=r.id, label=r.label, calendar_id=r.calendar_id) for r in rows]
+        return [
+            CalendarResponse(id=str(r.id), label=r.label, calendar_id=r.calendar_id) for r in rows
+        ]
 
 
 @router.post("/calendars", response_model=CalendarResponse, status_code=status.HTTP_201_CREATED)
@@ -178,16 +127,13 @@ async def create_calendar(body: CalendarCreateRequest):
     )
     async with AsyncSessionLocal() as session:
         await CalendarRepository(session).upsert(row)
-    return CalendarResponse(id=row.id, label=row.label, calendar_id=row.calendar_id)
+    return CalendarResponse(id=str(row.id), label=row.label, calendar_id=row.calendar_id)
 
 
 @router.delete("/calendars/{cal_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_calendar(cal_id: str):
     async with AsyncSessionLocal() as session:
         await CalendarRepository(session).delete(cal_id)
-
-
-# --- Memory ---
 
 
 @router.get("/memories", response_model=list[MemoryConfigResponse])
