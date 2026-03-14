@@ -30,22 +30,6 @@ class TriggerResponse(BaseModel):
     next_run: Optional[datetime] = Field(None, description="Next scheduled run time")
 
 
-# History/Run record responses
-class RunRecordResponse(BaseModel):
-    """Response model for pipeline run record."""
-    id: str = Field(..., description="Unique run record ID")
-    pipeline_id: str = Field(..., description="ID of the pipeline that ran")
-    pipeline_name: str = Field(..., description="Name of the pipeline")
-    status: str = Field(..., description="Run status: pending, running, completed, failed")
-    started_at: datetime = Field(..., description="When the run started")
-    completed_at: Optional[datetime] = Field(None, description="When the run completed")
-    error_message: Optional[str] = Field(None, description="Error message if failed")
-
-
-class RunningCountResponse(BaseModel):
-    """Response model for running pipeline count."""
-    count: int = Field(..., description="Number of currently running pipelines")
-
 
 # Integration responses
 class WhatsAppStatusResponse(BaseModel):

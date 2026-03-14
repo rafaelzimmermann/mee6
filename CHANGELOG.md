@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+- **Dead code cleanup — Round 1** (post pipeline editor refactoring):
+  - Deleted phase planning markdown files (`PHASE_7_SUMMARY.md`, `PHASE_7_STEP_4_EDGE_CASE_REPORT.md`,
+    `PHASE_8_PLAN.md`, `PipelineStepReordering.md`)
+  - Removed `POST /pipelines` and `POST /pipelines/{id}` mutation routes from
+    `routes/pipelines.py` — superseded by `POST /api/v1/pipelines` and `PUT /api/v1/pipelines/{id}`
+  - Removed `POST /pipelines/{id}/delete` — replaced by `fetch()` + `DELETE /api/v1/pipelines/{id}`
+    in `pipelines.html`
+  - Removed `POST /api/agents/{type}/fields` HTML-rendering endpoint from both
+    `routes/pipelines.py` and `api/agents.py` — the JS pipeline editor uses the JSON API
+  - Deleted `templates/_agent_fields.html` — only rendered by the removed HTML endpoint
+  - Removed `PipelineNameValidator` and `StepConfigValidator` from `api/validation.py` —
+    never wired to any API endpoint
+  - Removed duplicate `class PipelineCreateRequest` and `class AgentFieldsRequest` from
+    `routes/pipelines.py`; removed now-unused imports (`uuid`, `urllib.parse`, `Form`,
+    `BaseModel`, `AsyncSessionLocal`, `TriggerRepository`, `PipelineStepRepository`,
+    `scheduler`) from that file
+  - Removed `HTMLResponse`, `templates`, and `PLACEHOLDER_HINTS` imports from
+    `api/agents.py` — only needed by the deleted HTML endpoint
+  - Removed 8 dead tests from `test_web_routes.py` (5 testing old mutation routes,
+    3 testing old HTML agent-fields endpoint)
+  - Migrated `api-client.js` to call `/api/v1/pipelines` with correct HTTP verbs:
+    `fetchPipeline` → `GET`, `createPipeline` → `POST`, `updatePipeline` → `PUT`
+- **Dead code cleanup — Round 2**:
+  - Removed `Request` and `BaseModel` dead imports from `api/agents.py`
+  - Removed `RunRecordResponse` and `RunningCountResponse` from `api/models.py` and
+    `api/__init__.py` — no JSON history/dashboard API endpoint exists or is planned
+    imminently
+  - Updated stale module docstring in `routes/pipelines.py`
+
 ### Changed
 - **Phase 7 refactoring** — test infrastructure consolidation and Phase 8 preparation:
   - **Installed coverage tooling**: `@vitest/coverage-istanbul@1.6.1` with istanbul provider

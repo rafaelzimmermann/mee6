@@ -1,4 +1,4 @@
-"""CRUD routes for pipelines and the agent-fields API endpoint."""
+"""Pipeline page routes (HTML)."""
 
 import json
 

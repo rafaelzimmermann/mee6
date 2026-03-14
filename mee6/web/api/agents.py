@@ -3,8 +3,7 @@
 All endpoints return JSON responses for frontend consumption.
 """
 
-from fastapi import APIRouter, HTTPException, Request, status
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, status
 
 from mee6.pipelines.plugin_registry import AGENT_PLUGINS
 from mee6.web.api.models import AgentResponse, FieldSchemaResponse
