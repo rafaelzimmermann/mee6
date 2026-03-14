@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Phase 1 refactoring** — testing infrastructure and module structure for pipeline editor:
+  - Added vitest with jsdom environment and configuration
+  - Created directory skeleton: `static/js/modules/` with stubs for api-client, field-components, field-renderer, state-manager, step-manager, validator
+  - Extracted `esc()` HTML escaping utility to `utils/esc.js` with comprehensive test coverage
+  - Added smoke test suite to verify test infrastructure is functional
+  - Updated `.gitignore` to exclude `node_modules/`
 - **Phase 2 refactoring** — component-based field rendering system for pipeline editor:
   - Created reusable field components: `text-field`, `textarea-field`, `select-field`,
     `checkbox-field`, `combobox-field`, `group-select-field`, `calendar-select-field`
