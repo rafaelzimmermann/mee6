@@ -149,7 +149,7 @@ describe('event-delegation', () => {
       const removeButton = stepsContainer.querySelector('[data-idx="0"] .remove-step');
       removeButton.click();
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getSteps().length).toBe(1);
     });
@@ -171,7 +171,7 @@ describe('event-delegation', () => {
       const removeButton = stepsContainer.querySelector('[data-idx="0"] .remove-step');
       removeButton.click();
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getSteps().length).toBe(1);
     });
@@ -213,7 +213,7 @@ describe('event-delegation', () => {
       const moveUpButton = stepsContainer.querySelector('[data-idx="1"] [title="Move up"]');
       moveUpButton.click();
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getSteps()[0].agent_type).toBe('memory_agent');
       expect(state.getSteps()[1].agent_type).toBe('llm_agent');
@@ -236,7 +236,7 @@ describe('event-delegation', () => {
       const moveUpButton = stepsContainer.querySelector('[data-idx="1"] [title="Move up"]');
       moveUpButton.click();
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getSteps()[0].agent_type).toBe('memory_agent');
       expect(state.getSteps()[1].agent_type).toBe('llm_agent');
@@ -259,7 +259,7 @@ describe('event-delegation', () => {
       const moveUpButton = stepsContainer.querySelector('[data-idx="1"] [title="Move up"]');
       moveUpButton.click();
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getSteps()[0].agent_type).toBe('memory_agent');
       expect(state.getSteps()[1].agent_type).toBe('llm_agent');
@@ -282,7 +282,7 @@ describe('event-delegation', () => {
       const moveUpButton = stepsContainer.querySelector('[data-idx="1"] [title="Move up"]');
       moveUpButton.click();
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getSteps()[0].agent_type).toBe('memory_agent');
       expect(state.getSteps()[1].agent_type).toBe('llm_agent');
@@ -307,7 +307,7 @@ describe('event-delegation', () => {
       const moveDownButton = stepsContainer.querySelector('[data-idx="0"] [title="Move down"]');
       moveDownButton.click();
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getSteps()[0].agent_type).toBe('memory_agent');
       expect(state.getSteps()[1].agent_type).toBe('llm_agent');
@@ -330,7 +330,7 @@ describe('event-delegation', () => {
       const moveDownButton = stepsContainer.querySelector('[data-idx="0"] [title="Move down"]');
       moveDownButton.click();
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getSteps()[0].agent_type).toBe('memory_agent');
       expect(state.getSteps()[1].agent_type).toBe('llm_agent');
@@ -368,7 +368,7 @@ describe('event-delegation', () => {
       agentSelect.value = 'llm_agent';
       agentSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getStep(0).agent_type).toBe('llm_agent');
     });
@@ -388,7 +388,7 @@ describe('event-delegation', () => {
       agentSelect.value = 'llm_agent';
       agentSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getStep(0).agent_type).toBe('llm_agent');
     });
@@ -410,7 +410,7 @@ describe('event-delegation', () => {
       agentSelect.value = 'llm_agent';
       agentSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getStep(0).config).toEqual({});
     });
@@ -449,7 +449,7 @@ describe('event-delegation', () => {
       promptTextarea.value = 'Hello world';
       promptTextarea.dispatchEvent(new Event('input', { bubbles: true }));
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getStep(0).config.prompt).toBe('Hello world');
     });
@@ -470,7 +470,7 @@ describe('event-delegation', () => {
       promptTextarea.value = 'Hello world';
       promptTextarea.dispatchEvent(new Event('change', { bubbles: true }));
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getStep(0).config.prompt).toBe('Hello world');
     });
@@ -509,7 +509,7 @@ describe('event-delegation', () => {
       readCheckbox.checked = true;
       readCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getStep(0).config.read_memory).toBe('on');
     });
@@ -530,7 +530,7 @@ describe('event-delegation', () => {
       readCheckbox.checked = true;
       readCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
 
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getStep(0).config.read_memory).toBe('on');
     });
@@ -565,6 +565,82 @@ describe('event-delegation', () => {
       pipelineNameEl.dispatchEvent(new Event('input', { bubbles: true }));
 
       expect(state.getPipeline().name).toBe('New Pipeline Name');
+    });
+  });
+
+  describe('Field blur validation', () => {
+    it('blur on field with no data-idx ancestor is ignored', () => {
+      state.addStep();
+      state.setStepAgentType(0, 'llm_agent');
+
+      const html = state.getSteps().map((step, index) => {
+        const fields = step.agent_type ? state.schemas[step.agent_type] || [] : [];
+        const cardContent = renderStepCard(step, index, state.agentList, fields, state.placeholderHints, state.schemas);
+        return `<div class="step-card" data-idx="${index}">${cardContent}</div>`;
+      }).join('');
+
+      const dom = new JSDOM(`
+        <!DOCTYPE html>
+        <html><body>
+          <input id="pipeline-name" value="">
+          <div id="steps-container">${html}</div>
+          <input id="orphan-field" name="orphan-field" value="test" />
+          <button id="add-step-btn"></button>
+          <button id="save-btn"></button>
+        </body></html>
+      `);
+      global.document = dom.window.document;
+      global.window = dom.window;
+
+      const stepsContainer = document.getElementById('steps-container');
+      const addStepBtn = document.getElementById('add-step-btn');
+      const pipelineNameEl = document.getElementById('pipeline-name');
+      const saveBtn = document.getElementById('save-btn');
+
+      setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, mockApiClient, callbacks);
+
+      const orphanField = document.getElementById('orphan-field');
+      expect(() => {
+        orphanField.dispatchEvent(new Event('blur', { bubbles: true }));
+      }).not.toThrow();
+    });
+
+    it('blur on agent-select is ignored', async () => {
+      state.addStep();
+
+      setupDOM(state);
+      const stepsContainer = document.getElementById('steps-container');
+      const addStepBtn = document.getElementById('add-step-btn');
+      const pipelineNameEl = document.getElementById('pipeline-name');
+      const saveBtn = document.getElementById('save-btn');
+
+      setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, mockApiClient, callbacks);
+
+      const agentSelect = stepsContainer.querySelector('[data-idx="0"] .agent-select');
+      expect(() => {
+        agentSelect.dispatchEvent(new Event('blur', { bubbles: true }));
+      }).not.toThrow();
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+    });
+
+    it('blur on field with no name attribute is ignored', async () => {
+      state.addStep();
+
+      setupDOM(state);
+      const stepsContainer = document.getElementById('steps-container');
+      const addStepBtn = document.getElementById('add-step-btn');
+      const pipelineNameEl = document.getElementById('pipeline-name');
+      const saveBtn = document.getElementById('save-btn');
+
+      setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, mockApiClient, callbacks);
+
+      const stepHeader = stepsContainer.querySelector('[data-idx="0"] .step-header');
+      expect(() => {
+        stepHeader.dispatchEvent(new Event('blur', { bubbles: true }));
+      }).not.toThrow();
+
+      await new Promise(resolve => setTimeout(resolve, 50));
     });
   });
 
@@ -679,6 +755,31 @@ describe('event-delegation', () => {
       await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(callbacks.onSaveError).toHaveBeenCalled();
+    });
+
+    it('save with API error when validation passes triggers onSaveError', async () => {
+      state.addStep();
+      state.setStepAgentType(0, 'llm_agent');
+      state.updateStepField(0, 'prompt', 'Valid prompt');
+
+      const apiErrorClient = {
+        createPipeline: vi.fn().mockRejectedValue(new Error('API Error')),
+        updatePipeline: vi.fn()
+      };
+
+      setupDOM(state);
+      const stepsContainer = document.getElementById('steps-container');
+      const addStepBtn = document.getElementById('add-step-btn');
+      const pipelineNameEl = document.getElementById('pipeline-name');
+      const saveBtn = document.getElementById('save-btn');
+
+      setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, apiErrorClient, callbacks);
+
+      saveBtn.click();
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      expect(callbacks.onSaveError).toHaveBeenCalledWith(expect.any(Error));
+      expect(callbacks.onSaveError).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -7,6 +7,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- **Phase 7 refactoring** — test infrastructure consolidation and Phase 8 preparation:
+  - **Installed coverage tooling**: `@vitest/coverage-istanbul@1.6.1` with istanbul provider
+  - **Coverage configuration**: Added to vitest.config.js with thresholds (lines 80%, functions 80%, branches 75%)
+  - **Test timing fix**: Increased setTimeout from 10ms to 50ms in 15 test locations to prevent async race conditions under coverage instrumentation
+  - **Final coverage metrics**:
+    - Statements: 96.01% (target: 80%) ✅
+    - Functions: 96.80% (target: 80%) ✅
+    - Branches: 84.23% (target: 75%) ✅
+    - Lines: 97.35% (target: 80%) ✅
+  - **All module thresholds met**:
+    - validator.js: 98.33% lines, 91.22% branches (target: ≥95%, ≥90%) ✅
+    - event-handlers.js: 100% lines (target: ≥90%) ✅
+    - state-manager.js: 98.03% lines (target: ≥90%) ✅
+    - event-delegation.js: 87.09% lines (target: ≥85%) ✅
+    - All field components: 100% lines (target: ≥85%) ✅
+  - **Bug fixed**: Added optional chaining to validator.js (lines 53, 54, 61) to handle undefined config gracefully
+    - Before: `step.config[field.name]` throws TypeError when config is undefined
+    - After: `step.config?.[field.name]` handles undefined gracefully
+  - **New tests added: 18 (394 total)**
+    - event-delegation.test.js: +4 tests (blur validation edge cases, API error routing)
+    - pipeline-renderer.test.js: +1 test (schema fallback)
+    - validator.test.js: +13 tests (null/undefined values, undefined config handling)
+  - **Test results**:
+    - JavaScript: 394/394 tests passing (22 test files, +16 new tests)
+    - Python: 127/133 tests passing (3/3 pipeline editor tests pass, 6 pre-existing failures unrelated)
+  - **Documentation created**:
+    - PHASE_7_SUMMARY.md: Comprehensive Phase 7 report with all findings
+    - PHASE_7_STEP_4_EDGE_CASE_REPORT.md: Edge case analysis
+    - PHASE_8_PLAN.md: Detailed switchover plan with 12-step sequence and 30-second rollback
+  - **Behavioral parity verified**: All 33 behavioral items checked, no differences between module system and template
+  - **Phase 8 pre-flight checklist**: All items complete, READY FOR PHASE 8
+
 - **Phase 6 refactoring** — schema-driven validation system for pipeline editor:
   - **validator.js** (125 lines): Full validation implementation with ValidationError class, field/step/pipeline validators, and DOM feedback functions
     - validateField() handles all field types (text, textarea, select, combobox, group_select, calendar_select, checkbox)

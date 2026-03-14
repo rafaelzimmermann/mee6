@@ -50,15 +50,15 @@ export function validateStep(step, stepIndex, schemas) {
     return errors;
   }
   if (step.agent_type === 'memory_agent') {
-    const read = step.config.read_memory;
-    const write = step.config.write_memory;
+    const read = step.config?.read_memory;
+    const write = step.config?.write_memory;
     if (read !== 'on' && write !== 'on') {
       errors.push(new ValidationError('memory_options', stepIndex, 'checkbox', 'Please select at least one of Read Memory or Write Memory'));
     }
   }
   const schema = schemas[step.agent_type] || [];
   for (const field of schema) {
-    const value = step.config[field.name];
+    const value = step.config?.[field.name];
     const error = validateField(field, value);
     if (error) errors.push(new ValidationError(field.name, stepIndex, field.field_type, error));
   }

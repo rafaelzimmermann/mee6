@@ -73,6 +73,17 @@ describe('Pipeline Renderer', () => {
       expect(html).toContain('id="step-fields-0"');
       expect(html).toContain('step-fields-0"></div>');
     });
+
+    it('renders step with agent_type not in schema (uses fallback empty array)', () => {
+      const steps = [
+        { agent_type: 'unknown_agent', config: {} },
+      ];
+
+      const html = renderPipeline(steps, mockAgentList, mockSchema, []);
+
+      expect(html).toContain('id="step-fields-0"');
+      expect(html).toContain('step-fields-0"></div>');
+    });
   });
 
   describe('renderStep()', () => {

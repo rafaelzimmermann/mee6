@@ -177,68 +177,6 @@ describe('validateField', () => {
   });
 });
 
-  describe('text field edge cases', () => {
-    it('rejects null when required', () => {
-      const field = { name: 'prompt', label: 'Prompt', field_type: 'text', required: true };
-      expect(validator.validateField(field, null)).toBe('Prompt is required');
-    });
-
-    it('rejects undefined when required', () => {
-      const field = { name: 'prompt', label: 'Prompt', field_type: 'text', required: true };
-      expect(validator.validateField(field, undefined)).toBe('Prompt is required');
-    });
-  });
-
-  describe('textarea field edge cases', () => {
-    it('rejects null when required', () => {
-      const field = { name: 'prompt', label: 'Prompt', field_type: 'textarea', required: true };
-      expect(validator.validateField(field, null)).toBe('Prompt is required');
-    });
-
-    it('rejects undefined when required', () => {
-      const field = { name: 'prompt', label: 'Prompt', field_type: 'textarea', required: true };
-      expect(validator.validateField(field, undefined)).toBe('Prompt is required');
-    });
-  });
-
-  describe('combobox field edge cases', () => {
-    it('rejects null when required', () => {
-      const field = { name: 'target', label: 'Target', field_type: 'combobox', required: true };
-      expect(validator.validateField(field, null)).toBe('Target is required');
-    });
-
-    it('rejects undefined when required', () => {
-      const field = { name: 'target', label: 'Target', field_type: 'combobox', required: true };
-      expect(validator.validateField(field, undefined)).toBe('Target is required');
-    });
-  });
-
-  describe('group_select field edge cases', () => {
-    it('rejects undefined when required', () => {
-      const field = { name: 'group', label: 'Group', field_type: 'group_select', required: true };
-      expect(validator.validateField(field, undefined)).toBe('Group is required');
-    });
-  });
-
-  describe('calendar_select field edge cases', () => {
-    it('rejects undefined when required', () => {
-      const field = { name: 'calendar', label: 'Calendar', field_type: 'calendar_select', required: true };
-      expect(validator.validateField(field, undefined)).toBe('Calendar is required');
-    });
-  });
-
-  describe('checkbox field edge cases', () => {
-    it('rejects null when required', () => {
-      const field = { name: 'read_memory', label: 'Read Memory', field_type: 'checkbox', required: true };
-      expect(validator.validateField(field, null)).toBe('Read Memory is required');
-    });
-
-    it('rejects undefined when required', () => {
-      const field = { name: 'read_memory', label: 'Read Memory', field_type: 'checkbox', required: true };
-      expect(validator.validateField(field, undefined)).toBe('Read Memory is required');
-    });
-  });
-
 describe('validateStep', () => {
   const schemas = {
     llm_agent: [
@@ -390,28 +328,6 @@ describe('validatePipeline', () => {
   });
 });
 
-
-  describe('validatePipeline edge cases', () => {
-    it('handles undefined config gracefully (FIXED with optional chaining)', () => {
-      const schemas = {
-        llm_agent: [
-          { name: 'prompt', label: 'Prompt', field_type: 'textarea', required: true }
-        ]
-      };
-      const pipeline = {
-        id: null,
-        name: 'Test',
-        steps: [
-          { agent_type: 'llm_agent', config: undefined },
-          { agent_type: 'memory_agent', config: { read_memory: 'on' } }
-        ]
-      };
-      const errors = validator.validatePipeline(pipeline, schemas);
-      expect(errors).toBeDefined();
-      expect(errors.length).toBeGreaterThan(0);
-      expect(errors.some(e => e.fieldName === 'prompt')).toBe(true);
-    });
-  });
 describe('validateSingleField', () => {
   it('returns array (not a string)', () => {
     const fieldDef = { name: 'prompt', label: 'Prompt', field_type: 'text', required: true };
