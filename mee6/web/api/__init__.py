@@ -4,9 +4,10 @@ This module contains JSON-only API endpoints for frontend consumption.
 The API follows REST conventions and returns JSON responses.
 """
 
-from mee6.web.api import agents, pipelines, triggers
+from mee6.web.api import agents, integrations, pipelines, triggers
 from mee6.web.api.models import (
     AgentResponse,
+    CalendarCreateRequest,
     CalendarResponse,
     FieldSchemaResponse,
     MemoryConfigResponse,
@@ -14,8 +15,10 @@ from mee6.web.api.models import (
     PipelineCreateResponse,
     PipelineResponse,
     TriggerResponse,
+    WhatsAppGroupLabelRequest,
     WhatsAppGroupResponse,
     WhatsAppStatusResponse,
+    WhatsAppTestRequest,
 )
 from mee6.web.api.validation import (
     MemoryConfigRequestEnhanced,
@@ -26,10 +29,12 @@ from mee6.web.api.validation import (
 __all__ = [
     # Routers
     "agents",
+    "integrations",
     "pipelines",
     "triggers",
     # Response models
     "AgentResponse",
+    "CalendarCreateRequest",
     "CalendarResponse",
     "FieldSchemaResponse",
     "MemoryConfigResponse",
@@ -37,8 +42,10 @@ __all__ = [
     "PipelineCreateResponse",
     "PipelineResponse",
     "TriggerResponse",
+    "WhatsAppGroupLabelRequest",
     "WhatsAppGroupResponse",
     "WhatsAppStatusResponse",
+    "WhatsAppTestRequest",
     # Validation models
     "MemoryConfigRequestEnhanced",
     "PipelineCreateRequestEnhanced",

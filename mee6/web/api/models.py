@@ -36,8 +36,10 @@ class TriggerResponse(BaseModel):
 class WhatsAppStatusResponse(BaseModel):
     """Response model for WhatsApp connection status."""
 
-    connected: bool = Field(..., description="Whether WhatsApp is connected")
-    phone: str = Field(default="", description="Phone number")
+    status: str = Field(..., description="disconnected | connecting | pending_qr | connected | error")
+    qr_svg: Optional[str] = Field(None, description="SVG string for QR code display")
+    error: Optional[str] = Field(None, description="Error message if status is error")
+    notify_phone: str = Field(default="", description="Default notification phone number")
 
 
 class WhatsAppGroupResponse(BaseModel):
@@ -62,6 +64,7 @@ class MemoryConfigResponse(BaseModel):
     max_memories: int = Field(default=20, description="Maximum number of memories to store")
     ttl_hours: int = Field(default=720, description="Time to live in hours")
     max_value_size: int = Field(default=2000, description="Maximum size of a memory value")
+    count: int = Field(default=0, description="Current number of stored entries")
 
 
 # Agent field responses
@@ -104,7 +107,18 @@ class CalendarCreateRequest(BaseModel):
 
     label: str = Field(..., description="User-friendly label")
     calendar_id: str = Field(..., description="Google Calendar ID")
-    credentials_file: str = Field(..., description="Path to credentials file")
+
+
+class WhatsAppGroupLabelRequest(BaseModel):
+    """Request model for updating a WhatsApp group label."""
+
+    label: str = Field(..., description="New label for the group")
+
+
+class WhatsAppTestRequest(BaseModel):
+    """Request model for sending a WhatsApp test message."""
+
+    phone: str = Field(..., description="Phone number in E.164 format")
 
 
 class MemoryConfigRequest(BaseModel):

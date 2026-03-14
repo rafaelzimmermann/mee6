@@ -11,7 +11,7 @@ from mee6.db.engine import get_engine
 from mee6.db.models import Base
 from mee6.scheduler.engine import scheduler
 from mee6.web.routes import history, integrations, pipelines, triggers
-from mee6.web.api import agents, pipelines as api_pipelines, triggers as api_triggers
+from mee6.web.api import agents, integrations as api_integrations, pipelines as api_pipelines, triggers as api_triggers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -143,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(api_pipelines.router, prefix="/api/v1/pipelines")
     app.include_router(agents.router, prefix="/api/v1/agents")
     app.include_router(api_triggers.router, prefix="/api/v1/triggers")
+    app.include_router(api_integrations.router, prefix="/api/v1/integrations")
 
     return app
 
