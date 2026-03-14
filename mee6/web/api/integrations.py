@@ -1,4 +1,57 @@
-"""REST API routes for integrations (WhatsApp, Calendar, Memory)."""
+"""REST API routes for integrations (WhatsApp, Calendar, Memory).
+
+CONTRACT DOCUMENT
+=================
+
+WhatsApp Endpoints:
+- GET  /whatsapp/status → WhatsAppStatusResponse
+  * status: str - one of "pending_qr", "connecting", "connected", "disconnected", "error"
+  * qr_svg: str | null - QR code SVG (present when status="pending_qr")
+  * error: str | null - error message (present when status="error")
+  * notify_phone: str | null - saved phone number
+
+- POST /whatsapp/connect → 204 (no body)
+
+- POST /whatsapp/phone → 204
+  * Request: {phone: str}
+
+- POST /whatsapp/sync → {updated: int, message: str}
+  * Uses wa.list_groups() + upsert() to sync groups from WhatsApp
+  * Returns count of groups updated and message
+  * On error: returns {updated: 0, message: "Sync failed."}
+
+- GET  /whatsapp/groups → WhatsAppGroupResponse[]
+  * Response: [{name: str, jid: str}]
+
+- PATCH /whatsapp/groups/{jid}/label → 204
+  * Request: {label: str}
+
+- DELETE /whatsapp/groups/{jid} → 204
+
+- POST /whatsapp/test → {ok: bool}
+  * Request: {phone: str}
+  * Returns 503 if not connected
+
+Calendar Endpoints:
+- GET  /calendars → CalendarResponse[]
+  * Response: [{id: str, label: str, calendar_id: str}]
+
+- POST /calendars → CalendarResponse (201)
+  * Request: {label: str, calendar_id: str}
+
+- DELETE /calendars/{id} → 204
+
+Memory Endpoints:
+- GET  /memories → MemoryConfigResponse[]
+  * Response: [{label, max_memories, ttl_hours, max_value_size, count}]
+
+- GET  /memories/labels → string[]
+
+- POST /memories → MemoryConfigResponse (201)
+  * Request: {label, max_memories, ttl_hours, max_value_size}
+
+- DELETE /memories/{label} → 204
+"""
 
 import uuid
 
@@ -32,6 +85,7 @@ router = APIRouter()
 
 # --- WhatsApp ---
 
+
 @router.get("/whatsapp/status", response_model=WhatsAppStatusResponse)
 async def whatsapp_status():
     async with AsyncSessionLocal() as session:
@@ -47,6 +101,7 @@ async def whatsapp_status():
 @router.post("/whatsapp/connect", status_code=status.HTTP_204_NO_CONTENT)
 async def connect_whatsapp():
     from mee6.scheduler.engine import scheduler
+
     await wa_session.connect(
         on_dm=scheduler.check_wa_triggers,
         on_group=scheduler.check_wa_group_triggers,
@@ -96,12 +151,15 @@ async def delete_whatsapp_group(jid: str):
 @router.post("/whatsapp/test")
 async def test_whatsapp(body: WhatsAppTestRequest):
     if wa_session.status.value != "connected":
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="WhatsApp is not connected")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="WhatsApp is not connected"
+        )
     await wa.send_notification(phone=body.phone, message="Test message from mee6")
     return {"ok": True}
 
 
 # --- Calendar ---
+
 
 @router.get("/calendars", response_model=list[CalendarResponse])
 async def list_calendars():
@@ -130,6 +188,7 @@ async def delete_calendar(cal_id: str):
 
 
 # --- Memory ---
+
 
 @router.get("/memories", response_model=list[MemoryConfigResponse])
 async def list_memories():
