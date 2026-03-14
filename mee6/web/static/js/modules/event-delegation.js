@@ -57,8 +57,16 @@ export function setupEventDelegation(container, pipelineNameEl, addStepBtn, save
     }
   };
 
-  boundHandlers.nameInput = (e) => require('./event-handlers.js').handlePipelineNameChange(state, e.target.value);
-  boundHandlers.addStep = () => require('./event-handlers.js').handleAddStep(state);
+  boundHandlers.nameInput = (e) => {
+    import('./event-handlers.js').then(({ handlePipelineNameChange }) => {
+      handlePipelineNameChange(state, e.target.value);
+    });
+  };
+  boundHandlers.addStep = () => {
+    import('./event-handlers.js').then(({ handleAddStep }) => {
+      handleAddStep(state);
+    });
+  };
   boundHandlers.save = async () => {
     const result = await (await import('./event-handlers.js')).handleSave(state, apiClient);
     if (result.success) {

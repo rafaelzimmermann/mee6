@@ -83,7 +83,7 @@ describe('event-delegation', () => {
   });
 
   describe('Add step button click', () => {
-    it('clicking add-step-btn results in state having one more step', () => {
+    it('clicking add-step-btn results in state having one more step', async () => {
       setupDOM(state);
       const stepsContainer = document.getElementById('steps-container');
       const addStepBtn = document.getElementById('add-step-btn');
@@ -95,10 +95,12 @@ describe('event-delegation', () => {
       const initialCount = state.getSteps().length;
       addStepBtn.click();
 
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       expect(state.getSteps().length).toBe(initialCount + 1);
     });
 
-    it('re-renders after the state change (verify via subscription callback or spy)', () => {
+    it('re-renders after the state change (verify via subscription callback or spy)', async () => {
       setupDOM(state);
       const stepsContainer = document.getElementById('steps-container');
       const addStepBtn = document.getElementById('add-step-btn');
@@ -108,6 +110,8 @@ describe('event-delegation', () => {
       setupEventDelegation(stepsContainer, pipelineNameEl, addStepBtn, saveBtn, state, mockApiClient, callbacks);
 
       addStepBtn.click();
+
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(renderSpy).toHaveBeenCalled();
     });
@@ -537,7 +541,7 @@ describe('event-delegation', () => {
   });
 
   describe('Pipeline name change', () => {
-    it('type in the pipeline name input', () => {
+    it('type in the pipeline name input', async () => {
       setupDOM(state);
       const stepsContainer = document.getElementById('steps-container');
       const addStepBtn = document.getElementById('add-step-btn');
@@ -548,11 +552,13 @@ describe('event-delegation', () => {
 
       pipelineNameEl.value = 'New Pipeline Name';
       pipelineNameEl.dispatchEvent(new Event('input', { bubbles: true }));
+
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getPipeline().name).toBe('New Pipeline Name');
     });
 
-    it('state.pipeline.name reflects the new value', () => {
+    it('state.pipeline.name reflects the new value', async () => {
       setupDOM(state);
       const stepsContainer = document.getElementById('steps-container');
       const addStepBtn = document.getElementById('add-step-btn');
@@ -563,6 +569,8 @@ describe('event-delegation', () => {
 
       pipelineNameEl.value = 'New Pipeline Name';
       pipelineNameEl.dispatchEvent(new Event('input', { bubbles: true }));
+
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       expect(state.getPipeline().name).toBe('New Pipeline Name');
     });
