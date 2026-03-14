@@ -3,7 +3,7 @@
 Uses Pydantic validators to ensure data integrity.
 """
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 import re
 
@@ -48,37 +48,39 @@ class PipelineCreateRequestEnhanced(BaseModel):
 
 
 class TriggerCreateRequestEnhanced(BaseModel):
-    """Enhanced request model for trigger creation with validation."""
+    """TriggerCreateRequest with cross-field validation."""
 
-    name: str
     pipeline_id: str
     trigger_type: str
+    cron_expr: Optional[str] = None
+    phone: Optional[str] = None
+    group_jid: Optional[str] = None
     enabled: bool = True
-    cron_expression: Optional[str] = None
-
-    @field_validator("name")
-    @classmethod
-    def name_validation(cls, v):
-        if not v or not v.strip():
-            raise ValueError("Trigger name is required")
-        if len(v) > 100:
-            raise ValueError("Trigger name must be less than 100 characters")
-        return v.strip()
 
     @field_validator("trigger_type")
     @classmethod
-    def trigger_type_validation(cls, v):
-        valid_types = ["cron", "whatsapp", "manual"]
-        if v not in valid_types:
-            raise ValueError(f"Trigger type must be one of: {', '.join(valid_types)}")
+    def trigger_type_must_be_valid(cls, v: str) -> str:
+        valid = {"cron", "whatsapp", "wa_group"}
+        if v not in valid:
+            raise ValueError(f"trigger_type must be one of {sorted(valid)}")
         return v
 
     @field_validator("pipeline_id")
     @classmethod
-    def pipeline_id_validation(cls, v):
+    def pipeline_id_must_not_be_empty(cls, v: str) -> str:
         if not v or not v.strip():
-            raise ValueError("Pipeline ID is required")
-        return v.strip()
+            raise ValueError("pipeline_id must not be empty")
+        return v
+
+    @model_validator(mode="after")
+    def type_specific_fields_required(self) -> "TriggerCreateRequestEnhanced":
+        if self.trigger_type == "cron" and not self.cron_expr:
+            raise ValueError("cron_expr is required for cron triggers")
+        if self.trigger_type == "whatsapp" and not self.phone:
+            raise ValueError("phone is required for whatsapp triggers")
+        if self.trigger_type == "wa_group" and not self.group_jid:
+            raise ValueError("group_jid is required for wa_group triggers")
+        return self
 
 
 class MemoryConfigRequestEnhanced(BaseModel):

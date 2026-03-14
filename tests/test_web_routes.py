@@ -52,15 +52,18 @@ async def client(mock_scheduler):
     mock_step_repo = MagicMock()
     mock_step_repo.upsert_steps = AsyncMock()
 
-    @asynccontextmanager
-    async def _mock_session_ctx():
-        yield MagicMock()
+    mock_session = MagicMock()
+    mock_wa_repo = MagicMock()
+    mock_wa_repo.list_all = AsyncMock(return_value=[])
+    mock_session.return_value.__aenter__.return_value = mock_session
 
     with (
         patch("mee6.web.routes.history.scheduler", mock_scheduler),
         patch("mee6.web.routes.triggers.scheduler", mock_scheduler),
         patch("mee6.web.routes.triggers.pipeline_store", mock_store),
         patch("mee6.web.routes.pipelines.pipeline_store", mock_store),
+        patch("mee6.web.routes.triggers.AsyncSessionLocal", mock_session),
+        patch("mee6.web.routes.triggers.WhatsAppGroupRepository", return_value=mock_wa_repo),
     ):
         from mee6.web.app import create_app
 
@@ -148,7 +151,6 @@ async def test_create_trigger_calls_add_and_redirects(client):
 
     sched.add_trigger.assert_awaited_once_with(
         "pipe-1",
-        "My Pipeline",
         "0 8 * * *",
         trigger_type=TriggerType.CRON,
         config={},
@@ -173,7 +175,6 @@ async def test_create_trigger_enabled_flag(client):
 
     sched.add_trigger.assert_awaited_once_with(
         "pipe-1",
-        "My Pipeline",
         "0 8 * * *",
         trigger_type=TriggerType.CRON,
         config={},
@@ -263,12 +264,12 @@ async def test_pipeline_editor_new_has_return_button(client):
 
 @pytest.mark.asyncio
 async def test_pipeline_editor_new_has_batch_schema_url(client):
-    """GET /pipelines/new references the batch schema endpoint for client-side rendering."""
+    """GET /pipelines/new references the apiClient for client-side rendering."""
     c, _, _, _ = client
     resp = await c.get("/pipelines/new")
     assert resp.status_code == 200
-    # The new module-based editor uses fetch() to /api/v1/agents/fields/batch
-    assert b"fetch('/api/v1/agents/fields/batch')" in resp.content
+    # The new module-based editor imports apiClient for schema fetching
+    assert b"apiClient" in resp.content
 
 
 @pytest.mark.asyncio

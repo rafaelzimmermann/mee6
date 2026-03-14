@@ -72,16 +72,16 @@ def test_pipeline_response_model():
 
 def test_trigger_response_model():
     """TriggerResponse model can be instantiated."""
-    now = datetime.utcnow()
     model = models.TriggerResponse(
-        job_id="job-123",
-        name="Test Trigger",
+        id="job-123",
+        pipeline_id="pipe-1",
+        pipeline_name="Test Trigger",
         trigger_type="cron",
+        cron_expr="0 8 * * *",
+        config={},
         enabled=True,
-        cron_expression="0 8 * * *",
-        next_run=now,
     )
-    assert model.job_id == "job-123"
+    assert model.id == "job-123"
     assert model.enabled is True
 
 
@@ -355,9 +355,9 @@ def test_memory_config_request_enhanced_max_value_size_negative():
 def test_trigger_create_request_enhanced_valid():
     """TriggerCreateRequestEnhanced accepts valid data."""
     validator = validation.TriggerCreateRequestEnhanced(
-        name="Test Trigger",
         pipeline_id="pipe-1",
         trigger_type="cron",
+        cron_expr="0 8 * * *",
         enabled=True,
     )
     assert validator.trigger_type == "cron"
@@ -368,6 +368,4 @@ def test_trigger_create_request_enhanced_invalid_type():
     # The validation model doesn't raise ValueError directly
     # Pydantic raises ValidationError, which we check with match
     with pytest.raises(ValueError):
-        validation.TriggerCreateRequestEnhanced(
-            name="Test", pipeline_id="pipe-1", trigger_type="invalid"
-        )
+        validation.TriggerCreateRequestEnhanced(pipeline_id="pipe-1", trigger_type="manual")

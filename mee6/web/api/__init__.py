@@ -4,7 +4,7 @@ This module contains JSON-only API endpoints for frontend consumption.
 The API follows REST conventions and returns JSON responses.
 """
 
-from mee6.web.api import agents, pipelines
+from mee6.web.api import agents, pipelines, triggers
 from mee6.web.api.models import (
     AgentResponse,
     CalendarResponse,
@@ -27,6 +27,7 @@ __all__ = [
     # Routers
     "agents",
     "pipelines",
+    "triggers",
     # Response models
     "AgentResponse",
     "CalendarResponse",

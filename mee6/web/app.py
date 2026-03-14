@@ -11,7 +11,7 @@ from mee6.db.engine import get_engine
 from mee6.db.models import Base
 from mee6.scheduler.engine import scheduler
 from mee6.web.routes import history, integrations, pipelines, triggers
-from mee6.web.api import agents, pipelines as api_pipelines
+from mee6.web.api import agents, pipelines as api_pipelines, triggers as api_triggers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -59,7 +59,8 @@ def _split_sql_statements(sql: str) -> list[str]:
         if ch == ";" and dq_tag is None:
             stmt = "".join(buf).strip()
             meaningful = [
-                line for line in stmt.splitlines()
+                line
+                for line in stmt.splitlines()
                 if line.strip() and not line.strip().startswith("--")
             ]
             if meaningful:
@@ -141,6 +142,7 @@ def create_app() -> FastAPI:
     # New JSON API routes
     app.include_router(api_pipelines.router, prefix="/api/v1/pipelines")
     app.include_router(agents.router, prefix="/api/v1/agents")
+    app.include_router(api_triggers.router, prefix="/api/v1/triggers")
 
     return app
 
