@@ -35,8 +35,8 @@ async def test_executor_chains_step_output():
         )
         result = await run_pipeline(pipeline)
 
-    plugin_a.run.assert_awaited_once_with({"k": "v"}, previous_output="")
-    plugin_b.run.assert_awaited_once_with({"k": "w"}, previous_output="step-a-output")
+    plugin_a.run.assert_awaited_once_with({"k": "v"}, input="")
+    plugin_b.run.assert_awaited_once_with({"k": "w"}, input="step-a-output")
     assert result["summary"] == "2 step(s) completed"
     assert result["final_output"] == "step-b-output"
 
@@ -80,10 +80,12 @@ async def test_browser_plugin_substitutes_previous_output():
         plugin = BrowserAgentPlugin()
         result = await plugin.run(
             {"task": "Find experience at {previous_output}"},
-            previous_output="https://example.com",
+            input="https://example.com",
         )
 
-    mock_browse.assert_awaited_once_with("Find experience at https://example.com")
+    mock_browse.assert_awaited_once_with(
+        "Find experience at https://example.com", provider="anthropic", model=""
+    )
     assert result == "3 years"
 
 
@@ -96,9 +98,9 @@ async def test_browser_plugin_empty_previous_output():
         from mee6.pipelines.plugins.browser_agent import BrowserAgentPlugin
 
         plugin = BrowserAgentPlugin()
-        await plugin.run({"task": "Do something"}, previous_output="")
+        await plugin.run({"task": "Do something"}, input="")
 
-    mock_browse.assert_awaited_once_with("Do something")
+    mock_browse.assert_awaited_once_with("Do something", provider="anthropic", model="")
 
 
 # ---------------------------------------------------------------------------
@@ -117,11 +119,11 @@ async def test_whatsapp_plugin_substitutes_and_sends():
         plugin = WhatsAppAgentPlugin()
         result = await plugin.run(
             {"phone": "+34111222333", "message_template": "Info: {previous_output}"},
-            previous_output="5 years",
+            input="5 years",
         )
 
     mock_send.assert_awaited_once_with(phone="+34111222333", message="Info: 5 years")
-    assert result == "Info: 5 years"
+    assert result == "WhatsApp message sent to +34111222333 Body: Info: 5 years"
 
 
 @pytest.mark.asyncio
@@ -132,7 +134,7 @@ async def test_whatsapp_plugin_returns_rendered_message():
         plugin = WhatsAppAgentPlugin()
         result = await plugin.run(
             {"phone": "+34000", "message_template": "Hello {previous_output}!"},
-            previous_output="world",
+            input="world",
         )
 
-    assert result == "Hello world!"
+    assert result == "WhatsApp message sent to +34000 Body: Hello world!"

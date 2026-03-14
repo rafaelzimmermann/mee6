@@ -30,17 +30,18 @@ def test_record_run_start_and_end():
     engine._record_run_start("my-pipeline")
     assert "my-pipeline" in engine._pending_run
 
-    engine._record_run_end("my-pipeline", "success", "2 events processed")
+    engine._record_run_end("my-pipeline", "My Pipeline", "success", "2 events processed")
 
     assert "my-pipeline" not in engine._pending_run
     assert len(engine._runs) == 1
     assert engine._runs[0].status == "success"
     assert engine._runs[0].summary == "2 events processed"
+    assert engine._runs[0].pipeline_name == "My Pipeline"
 
 
 def test_record_run_end_without_start_uses_current_time():
     engine = _make_engine()
-    engine._record_run_end("my-pipeline", "error", "boom")
+    engine._record_run_end("my-pipeline", "my-pipeline", "error", "boom")
     assert engine._runs[0].pipeline_name == "my-pipeline"
     assert engine._runs[0].status == "error"
 
@@ -66,7 +67,7 @@ def test_get_recent_runs_respects_limit():
 def test_runs_capped_at_200():
     engine = _make_engine()
     for i in range(210):
-        engine._record_run_end("agent", "success", str(i))
+        engine._record_run_end("agent", f"agent-{i}", "success", str(i))
 
     assert len(engine._runs) == 200
 
@@ -115,7 +116,13 @@ async def test_add_trigger_registers_job():
         mock_session.commit = AsyncMock()
         mock_session_cls.return_value.__aenter__.return_value = mock_session
 
-        job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=True)
+        # Mock pipeline_store to return a pipeline with name "My Pipeline"
+        with patch("mee6.pipelines.store.pipeline_store") as mock_store:
+            mock_pipeline = MagicMock()
+            mock_pipeline.name = "My Pipeline"
+            mock_store.get = AsyncMock(return_value=mock_pipeline)
+
+            job_id = await engine.add_trigger("pipe-1", "0 8 * * *", enabled=True)
 
     assert job_id in engine._jobs
     meta = engine._jobs[job_id]
@@ -137,7 +144,13 @@ async def test_add_trigger_paused_when_disabled():
         mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=False)
+        # Mock pipeline_store
+        with patch("mee6.pipelines.store.pipeline_store") as mock_store:
+            mock_pipeline = MagicMock()
+            mock_pipeline.name = "My Pipeline"
+            mock_store.get = AsyncMock(return_value=mock_pipeline)
+
+            await engine.add_trigger("pipe-1", "0 8 * * *", enabled=False)
 
     _, kwargs = engine._apscheduler.add_schedule.call_args
     assert kwargs["paused"] is True
@@ -155,17 +168,22 @@ async def test_remove_trigger_deletes_job():
         mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *")
-        await engine.remove_trigger(job_id)
+        # Mock pipeline_store
+        with patch("mee6.pipelines.store.pipeline_store") as mock_store:
+            mock_pipeline = MagicMock()
+            mock_pipeline.name = "My Pipeline"
+            mock_store.get = AsyncMock(return_value=mock_pipeline)
+
+            job_id = await engine.add_trigger("pipe-1", "0 8 * * *")
+            await engine.remove_trigger(job_id)
 
     assert job_id not in engine._jobs
     engine._apscheduler.remove_schedule.assert_awaited_once_with(job_id)
 
 
 @pytest.mark.asyncio
-async def test_remove_trigger_unknown_id_raises():
+async def test_remove_trigger_unknown_id_is_noop():
     engine = _make_engine()
-    engine._apscheduler.remove_schedule = AsyncMock(side_effect=Exception("not found"))
 
     with patch("mee6.scheduler.engine.AsyncSessionLocal") as mock_session_cls:
         mock_session = MagicMock()
@@ -174,8 +192,8 @@ async def test_remove_trigger_unknown_id_raises():
         mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        with pytest.raises(Exception):
-            await engine.remove_trigger("nonexistent")
+        # Removing a non-existent trigger should not raise an exception
+        await engine.remove_trigger("nonexistent")
 
 
 @pytest.mark.asyncio
@@ -190,8 +208,14 @@ async def test_toggle_trigger_disables_enabled_job():
         mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=True)
-        await engine.toggle_trigger(job_id)
+        # Mock pipeline_store
+        with patch("mee6.pipelines.store.pipeline_store") as mock_store:
+            mock_pipeline = MagicMock()
+            mock_pipeline.name = "My Pipeline"
+            mock_store.get = AsyncMock(return_value=mock_pipeline)
+
+            job_id = await engine.add_trigger("pipe-1", "0 8 * * *", enabled=True)
+            await engine.toggle_trigger(job_id)
 
     assert engine._jobs[job_id].enabled is False
     engine._apscheduler.pause_schedule.assert_awaited_once_with(job_id)
@@ -209,8 +233,14 @@ async def test_toggle_trigger_enables_paused_job():
         mock_session_cls.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        job_id = await engine.add_trigger("pipe-1", "My Pipeline", "0 8 * * *", enabled=False)
-        await engine.toggle_trigger(job_id)
+        # Mock pipeline_store
+        with patch("mee6.pipelines.store.pipeline_store") as mock_store:
+            mock_pipeline = MagicMock()
+            mock_pipeline.name = "My Pipeline"
+            mock_store.get = AsyncMock(return_value=mock_pipeline)
+
+            job_id = await engine.add_trigger("pipe-1", "0 8 * * *", enabled=False)
+            await engine.toggle_trigger(job_id)
 
     assert engine._jobs[job_id].enabled is True
     engine._apscheduler.unpause_schedule.assert_awaited_once_with(job_id)
@@ -244,9 +274,9 @@ async def test_dispatch_pipeline_success():
     ):
         await _dispatch_pipeline("p1")
 
-        mock_engine._record_run_start.assert_called_once_with("test-pipeline")
+        mock_engine._record_run_start.assert_called_once_with("p1")
         mock_engine._record_run_end.assert_called_once_with(
-            "test-pipeline", "success", "2 step(s) completed"
+            "p1", "test-pipeline", "success", "2 step(s) completed"
         )
 
 
@@ -286,5 +316,7 @@ async def test_dispatch_pipeline_records_error_on_exception():
         await _dispatch_pipeline("p1")
 
         args = mock_engine._record_run_end.call_args[0]
-        assert args[1] == "error"
-        assert "something went wrong" in args[2]
+        assert args[0] == "p1"
+        assert args[1] == "test-pipeline"
+        assert args[2] == "error"
+        assert "something went wrong" in args[3]

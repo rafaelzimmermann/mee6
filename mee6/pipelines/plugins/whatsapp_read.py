@@ -8,7 +8,7 @@ def _format_messages(rows: list) -> str:
     parts = []
     for i, row in enumerate(rows, start=1):
         ts = row.timestamp.strftime("%Y-%m-%d %H:%M")
-        parts.append(f"[{i}] [{ts}]\n{row.text}\n[/{i}]")
+        parts.append(f"[{i}] [{ts}] - {row.sender} \n{row.text}\n[/{i}]")
     return "\n\n".join(parts)
 
 
