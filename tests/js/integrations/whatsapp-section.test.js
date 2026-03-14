@@ -26,7 +26,7 @@ describe('integrations/whatsapp-section', () => {
 
   describe('initWhatsApp', () => {
     beforeEach(() => {
-      document.body.innerHTML = `<div id="whatsapp-card"><p>Status: <span class="badge"></span></p><div class="qr-wrap" style="display:none"></div><form action="/integrations/whatsapp/connect"><button type="submit">Connect</button></form><form action="/integrations/whatsapp/phone"><input type="tel" name="phone" value="+34612345678"><button>Save</button></form><form action="/integrations/whatsapp/groups/sync"><button>Sync</button></form><table><tbody><tr data-jid="jid1"><td>Group 1</td><td><form action="/integrations/whatsapp/groups/jid1/label"><input type="text" name="label" value="Label1"><button>Save</button></form></td><td><code>jid1</code></td><td><button data-action="delete" data-jid="jid1" class="sm danger">Remove</button></td></tr></tbody></table><form class="wa-test-form" action="/integrations/whatsapp/test"><input type="tel" name="phone" value="+34612345678"><button>Send test</button></form></div>`;
+      document.body.innerHTML = `<div id="whatsapp-card"><p>Status: <span id="wa-status-badge" class="badge"></span></p><div id="qr-wrap" class="qr-wrap" style="display:none"></div><form id="connect-btn-form"><button id="connect-btn" type="submit">Connect</button></form><form id="phone-form"><input type="tel" name="phone" value="+34612345678"><button>Save</button></form><button id="sync-btn">Sync</button><table><tbody id="groups-list"><tr data-jid="jid1"><td>Group 1</td><td><input type="text" name="label" value="Label1" data-jid="jid1" class="input-label"><button type="button" data-action="save-label" data-jid="jid1" class="sm">Save</button></td><td><code>jid1</code></td><td><button type="button" data-action="delete-group" data-jid="jid1" class="sm danger">Remove</button></td></tr></tbody></table><form id="test-form"><input type="tel" id="test-phone" name="phone" value="+34612345678"><button type="submit">Send test</button></form><div id="test-result"></div></div>`;
     });
 
     it('calls getWhatsAppStatus on init', async () => {
@@ -120,7 +120,7 @@ describe('integrations/whatsapp-section', () => {
       apiClient.connectWhatsApp.mockResolvedValue();
       apiClient.getWhatsAppStatus.mockResolvedValue({ status: 'connecting', qr_svg: null, error: null, notify_phone: null });
       whatsappSection.initWhatsApp(apiClient, callbacks);
-      document.querySelector('form[action*="/connect"] button').click();
+      document.querySelector('#connect-btn').click();
       await vi.advanceTimersByTimeAsync(10);
       expect(apiClient.connectWhatsApp).toHaveBeenCalled();
       vi.useRealTimers();
@@ -129,7 +129,7 @@ describe('integrations/whatsapp-section', () => {
     it('connect button calls onError on API failure', async () => {
       apiClient.connectWhatsApp.mockRejectedValue(new Error('Connection failed'));
       whatsappSection.initWhatsApp(apiClient, callbacks);
-      document.querySelector('form[action*="/connect"] button').click();
+      document.querySelector('#connect-btn').click();
       await new Promise(r => setTimeout(r, 10));
       expect(callbacks.onError).toHaveBeenCalledWith('Connection failed');
     });
@@ -139,7 +139,7 @@ describe('integrations/whatsapp-section', () => {
       whatsappSection.initWhatsApp(apiClient, callbacks);
       const phoneInput = document.querySelector('input[name="phone"]');
       phoneInput.value = '+1234567890';
-      document.querySelector('form[action*="/phone"] button').click();
+      document.querySelector('#phone-form button').click();
       await new Promise(r => setTimeout(r, 10));
       expect(apiClient.setPhone).toHaveBeenCalledWith('+1234567890');
       expect(callbacks.onSuccess).toHaveBeenCalledWith('Phone number saved');
@@ -149,7 +149,7 @@ describe('integrations/whatsapp-section', () => {
       whatsappSection.initWhatsApp(apiClient, callbacks);
       const phoneInput = document.querySelector('input[name="phone"]');
       phoneInput.value = '';
-      document.querySelector('form[action*="/phone"] button').click();
+      document.querySelector('#phone-form button').click();
       await new Promise(r => setTimeout(r, 10));
       expect(apiClient.setPhone).not.toHaveBeenCalled();
       expect(callbacks.onError).toHaveBeenCalledWith('Phone number is required');
@@ -158,7 +158,7 @@ describe('integrations/whatsapp-section', () => {
     it('sync groups calls syncGroups', async () => {
       apiClient.syncGroups.mockResolvedValue({ updated: 5, message: 'Synced 5 groups.' });
       whatsappSection.initWhatsApp(apiClient, callbacks);
-      document.querySelector('form[action*="/sync"] button').click();
+      document.querySelector('#sync-btn').click();
       await new Promise(r => setTimeout(r, 10));
       expect(apiClient.syncGroups).toHaveBeenCalled();
       expect(callbacks.onSuccess).toHaveBeenCalledWith('Synced 5 groups');
@@ -167,7 +167,7 @@ describe('integrations/whatsapp-section', () => {
     it('sync groups calls onError on failure', async () => {
       apiClient.syncGroups.mockRejectedValue(new Error('Sync failed'));
       whatsappSection.initWhatsApp(apiClient, callbacks);
-      document.querySelector('form[action*="/sync"] button').click();
+      document.querySelector('#sync-btn').click();
       await new Promise(r => setTimeout(r, 10));
       expect(callbacks.onError).toHaveBeenCalledWith('Sync failed');
     });
@@ -175,7 +175,7 @@ describe('integrations/whatsapp-section', () => {
     it('delete group calls deleteGroup and removes row', async () => {
       apiClient.deleteGroup.mockResolvedValue();
       whatsappSection.initWhatsApp(apiClient, callbacks);
-      document.querySelector('[data-action="delete"]').click();
+      document.querySelector('[data-action="delete-group"]').click();
       await new Promise(r => setTimeout(r, 10));
       expect(apiClient.deleteGroup).toHaveBeenCalledWith('jid1');
       expect(document.querySelector('tr[data-jid="jid1"]')).toBeNull();
@@ -185,9 +185,9 @@ describe('integrations/whatsapp-section', () => {
     it('test whatsapp calls testWhatsApp', async () => {
       apiClient.testWhatsApp.mockResolvedValue({ ok: true });
       whatsappSection.initWhatsApp(apiClient, callbacks);
-      const phoneInput = document.querySelector('.wa-test-form input[name="phone"]');
+      const phoneInput = document.querySelector('#test-phone');
       phoneInput.value = '+1234567890';
-      document.querySelector('.wa-test-form button').click();
+      document.querySelector('#test-form button').click();
       await new Promise(r => setTimeout(r, 10));
       expect(apiClient.testWhatsApp).toHaveBeenCalledWith('+1234567890');
       expect(callbacks.onSuccess).toHaveBeenCalledWith('Test message sent');
@@ -196,18 +196,18 @@ describe('integrations/whatsapp-section', () => {
     it('test whatsapp calls onError on 503', async () => {
       apiClient.testWhatsApp.mockRejectedValue(new Error('503 Service Unavailable'));
       whatsappSection.initWhatsApp(apiClient, callbacks);
-      const phoneInput = document.querySelector('.wa-test-form input[name="phone"]');
+      const phoneInput = document.querySelector('#test-phone');
       phoneInput.value = '+1234567890';
-      document.querySelector('.wa-test-form button').click();
+      document.querySelector('#test-form button').click();
       await new Promise(r => setTimeout(r, 10));
       expect(callbacks.onError).toHaveBeenCalledWith('WhatsApp is not connected');
     });
 
     it('test whatsapp calls onError for empty phone', async () => {
       whatsappSection.initWhatsApp(apiClient, callbacks);
-      const phoneInput = document.querySelector('.wa-test-form input[name="phone"]');
+      const phoneInput = document.querySelector('#test-phone');
       phoneInput.value = '';
-      document.querySelector('.wa-test-form button').click();
+      document.querySelector('#test-form button').click();
       await new Promise(r => setTimeout(r, 10));
       expect(apiClient.testWhatsApp).not.toHaveBeenCalled();
       expect(callbacks.onError).toHaveBeenCalledWith('Phone number is required');

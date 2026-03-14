@@ -11,7 +11,7 @@
     {% endif %}
 
   {% elif wa_status in ("disconnected", "error") %}
-    <form action="/integrations/whatsapp/connect" id="connect-btn-form">
+    <form id="connect-btn-form">
       <button id="connect-btn" type="submit">Connect WhatsApp</button>
     </form>
     {% if wa_error %}<p class="hint-error">{{ wa_error }}</p>{% endif %}

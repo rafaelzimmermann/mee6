@@ -61,22 +61,28 @@ export function initWhatsApp(apiClient, callbacks) {
     const f = e.target.closest('form');
     if (!f) return;
     e.preventDefault();
-    const a = f.getAttribute('action');
-    if (a?.includes('/connect')) handleConnect(apiClient, callbacks);
-    else if (a?.includes('/phone')) { const i = f.querySelector('input[name="phone"]'); if (i) handleSavePhone(i.value, apiClient, callbacks); }
-    else if (a?.includes('/sync')) handleSync(apiClient, callbacks);
-    else if (a?.includes('/test')) { const i = f.querySelector('input[name="phone"]'); if (i) handleTestWhatsApp(i.value, apiClient, callbacks); }
+    if (f.id === 'connect-btn-form') handleConnect(apiClient, callbacks);
+    else if (f.id === 'phone-form') { const i = f.querySelector('input[name="phone"]'); if (i) handleSavePhone(i.value, apiClient, callbacks); }
+    else if (f.id === 'test-form') { const i = f.querySelector('input[name="phone"]'); if (i) handleTestWhatsApp(i.value, apiClient, callbacks); }
   });
 
   card.addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-action="delete"]');
+    if (e.target.id === 'sync-btn') {
+      e.preventDefault();
+      handleSync(apiClient, callbacks);
+    }
+  });
+
+  card.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-action="delete-group"]');
     if (b) { e.preventDefault(); const jid = b.dataset.jid; if (jid) handleDeleteGroup(jid, apiClient, callbacks); }
   });
 
   card.addEventListener('change', async (e) => {
     if (e.target.matches('input[type="text"].input-label')) {
-      const f = e.target.closest('form');
-      if (f) { e.preventDefault(); const jid = f.querySelector('td:nth-child(3) code')?.textContent; if (jid) handleUpdateGroupLabel(jid, e.target.value, apiClient, callbacks); }
+      e.preventDefault();
+      const jid = e.target.dataset.jid;
+      if (jid) handleUpdateGroupLabel(jid, e.target.value, apiClient, callbacks);
     }
   });
 }
