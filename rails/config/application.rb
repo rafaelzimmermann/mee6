@@ -36,6 +36,15 @@ module Mee6App
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
 
+    # Add session middleware (required for authentication)
+    config.middleware.use ActionDispatch::Cookies
+    config.middleware.use ActionDispatch::Session::CookieStore,
+      key:          "_mee6_session",
+      expire_after: 30.days,
+      httponly:     true,
+      same_site:    :strict,
+      secure:       Rails.env.production?
+
     # Only loads a smaller set of middleware suitable for API only apps.
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
