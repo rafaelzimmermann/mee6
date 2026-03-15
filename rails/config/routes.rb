@@ -39,6 +39,8 @@ Rails.application.routes.draw do
       get    "auth/me",             to: "auth#me"
       put    "auth/password",       to: "auth#change_password"
 
+      get "agents/schema", to: "agents#schema"
+
       resources :pipelines
       resources :triggers do
         member do

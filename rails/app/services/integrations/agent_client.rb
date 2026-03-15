@@ -7,6 +7,14 @@ module Integrations
       def initialize(status, body) = super("Agent service returned #{status}: #{body}")
     end
 
+    def schema
+      response = connection.get("/schema")
+      raise ServiceError.new(response.status, response.body) unless response.success?
+      JSON.parse(response.body)
+    rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+      raise TimeoutError, e.message
+    end
+
     def run(agent_type:, config:, input:)
       response = connection.post("/run") do |req|
         req.body = { agent_type:, config:, input: }.to_json
