@@ -1,6 +1,8 @@
 module Api
   module V1
     class TriggersController < BaseController
+      after_action :sync_whatsapp_registration, only: [:create, :update, :destroy, :toggle]
+
       def index
         triggers = params[:pipeline_id] ? Trigger.where(pipeline_id: params[:pipeline_id])
                                    : Trigger.all
@@ -47,6 +49,15 @@ module Api
       def trigger_params
         params.require(:trigger).permit(:pipeline_id, :trigger_type, :cron_expr,
                                   :enabled, config: {})
+      end
+
+      def sync_whatsapp_registration
+        WhatsAppRegistration.register_all if whatsapp_trigger_affected?
+      end
+
+      def whatsapp_trigger_affected?
+        @trigger&.whatsapp? || @trigger&.wa_group? ||
+          %w[whatsapp wa_group].include?(params.dig(:trigger, :trigger_type))
       end
     end
   end

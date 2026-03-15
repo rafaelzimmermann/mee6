@@ -13,6 +13,8 @@ class Trigger < ApplicationRecord
 
   scope :enabled,    -> { where(enabled: true) }
   scope :cron_type,  -> { cron }
+  scope :whatsapp,   -> { where(trigger_type: :whatsapp) }
+  scope :wa_group,   -> { where(trigger_type: :wa_group) }
   scope :wa_types,   -> { where(trigger_type: [:whatsapp, :wa_group]) }
 
   private

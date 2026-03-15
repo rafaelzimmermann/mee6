@@ -24,6 +24,8 @@ Rails.application.routes.draw do
 
   mount Sidekiq::Web => "/sidekiq"
 
+  post "/webhooks/whatsapp", to: "webhooks/whats_app#receive"
+
   namespace :api do
     namespace :v1 do
       get    "auth/setup_required", to: "auth#setup_required"
@@ -42,6 +44,17 @@ Rails.application.routes.draw do
       end
 
       resources :run_records, only: [:index]
+
+      namespace :integrations do
+        scope :whatsapp do
+          get    "status",     to: "whatsapp#status"
+          post   "connect",    to: "whatsapp#connect"
+          post   "disconnect", to: "whatsapp#disconnect"
+          get    "groups",     to: "whatsapp#groups"
+          get    "settings",   to: "whatsapp#settings"
+          put    "settings",   to: "whatsapp#update_settings"
+        end
+      end
     end
   end
 end
