@@ -36,13 +36,29 @@ export function FieldRenderer({ field, value, onChange, error }: FieldRendererPr
     error,
   };
 
+  const placeholderHint = (
+    <p className="mt-1 text-xs text-gray-400">
+      Use <code className="bg-gray-100 px-1 rounded">{"{input}"}</code> to insert the previous step&apos;s output.
+    </p>
+  );
+
   switch (field.field_type) {
     case "textarea":
-      return <Textarea {...commonProps} />;
+      return (
+        <div>
+          <Textarea {...commonProps} />
+          {placeholderHint}
+        </div>
+      );
 
     case "text":
     case "tel":
-      return <Input {...commonProps} type={field.field_type} />;
+      return (
+        <div>
+          <Input {...commonProps} type={field.field_type} />
+          {field.field_type === "text" && placeholderHint}
+        </div>
+      );
 
     case "select":
       return (

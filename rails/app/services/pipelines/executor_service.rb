@@ -29,8 +29,11 @@ module Pipelines
         Rails.logger.debug("[DebugAgent] step=#{step.step_index} input=#{input.inspect}")
         input
       when "whatsapp_agent", "whatsapp_group_send"
-        to = step.config["to"] || step.config["group_jid"]
-        Integrations::WhatsAppClient.new.send(to:, text: input)
+        to   = step.config["to"] || step.config["group_jid"]
+        text = step.config["message"].present? \
+                 ? step.config["message"].gsub("{input}", input) \
+                 : input
+        Integrations::WhatsAppClient.new.send(to:, text:)
         input
       else
         result = Integrations::AgentClient.new.run(
