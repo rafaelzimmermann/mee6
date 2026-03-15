@@ -264,8 +264,7 @@ describe('validateStep', () => {
       { name: 'model', label: 'Model', field_type: 'select', required: true }
     ],
     memory_agent: [
-      { name: 'read_memory', label: 'Read Memory', field_type: 'checkbox', required: false },
-      { name: 'write_memory', label: 'Write Memory', field_type: 'checkbox', required: false }
+      { name: 'memory_label', label: 'Memory Label', field_type: 'select', required: true }
     ]
   };
 
@@ -278,28 +277,16 @@ describe('validateStep', () => {
     expect(errors[0].message).toBe('Agent type is required');
   });
 
-  it('returns error when memory_agent with both unchecked', () => {
-    const step = { agent_type: 'memory_agent', config: { read_memory: '', write_memory: '' } };
+  it('returns error when memory_agent with empty memory_label', () => {
+    const step = { agent_type: 'memory_agent', config: { memory_label: '' } };
     const errors = validator.validateStep(step, 0, schemas);
     expect(errors).toHaveLength(1);
-    expect(errors[0].fieldName).toBe('memory_options');
-    expect(errors[0].message).toBe('Please select at least one of Read Memory or Write Memory');
+    expect(errors[0].fieldName).toBe('memory_label');
+    expect(errors[0].message).toBe('Memory Label is required');
   });
 
-  it('no error when memory_agent with read checked', () => {
-    const step = { agent_type: 'memory_agent', config: { read_memory: 'on', write_memory: '' } };
-    const errors = validator.validateStep(step, 0, schemas);
-    expect(errors).toHaveLength(0);
-  });
-
-  it('no error when memory_agent with write checked', () => {
-    const step = { agent_type: 'memory_agent', config: { read_memory: '', write_memory: 'on' } };
-    const errors = validator.validateStep(step, 0, schemas);
-    expect(errors).toHaveLength(0);
-  });
-
-  it('no error when memory_agent with both checked', () => {
-    const step = { agent_type: 'memory_agent', config: { read_memory: 'on', write_memory: 'on' } };
+  it('no error when memory_agent with valid memory_label', () => {
+    const step = { agent_type: 'memory_agent', config: { memory_label: 'customer_notes' } };
     const errors = validator.validateStep(step, 0, schemas);
     expect(errors).toHaveLength(0);
   });
@@ -336,7 +323,9 @@ describe('validatePipeline', () => {
     llm_agent: [
       { name: 'prompt', label: 'Prompt', field_type: 'textarea', required: true }
     ],
-    memory_agent: []
+    memory_agent: [
+      { name: 'memory_label', label: 'Memory Label', field_type: 'select', required: true }
+    ]
   };
 
   it('returns one error when steps array is empty', () => {
@@ -349,7 +338,7 @@ describe('validatePipeline', () => {
   });
 
   it('no errors when one valid step', () => {
-    const pipeline = { id: null, name: 'Test', steps: [{ agent_type: 'memory_agent', config: { read_memory: 'on' } }] };
+    const pipeline = { id: null, name: 'Test', steps: [{ agent_type: 'memory_agent', config: { memory_label: 'customer_notes' } }] };
     const errors = validator.validatePipeline(pipeline, schemas);
     expect(errors).toHaveLength(0);
   });
@@ -366,8 +355,8 @@ describe('validatePipeline', () => {
       id: null,
       name: 'Test',
       steps: [
-        { agent_type: 'memory_agent', config: { read_memory: 'on' } },
-        { agent_type: 'memory_agent', config: { write_memory: 'on' } }
+        { agent_type: 'memory_agent', config: { memory_label: 'customer_notes' } },
+        { agent_type: 'memory_agent', config: { memory_label: 'user_data' } }
       ]
     };
     const errors = validator.validatePipeline(pipeline, schemas);
@@ -380,7 +369,7 @@ describe('validatePipeline', () => {
       name: 'Test',
       steps: [
         { agent_type: '', config: {} },
-        { agent_type: 'memory_agent', config: { read_memory: 'on' } },
+        { agent_type: 'memory_agent', config: { memory_label: 'customer_notes' } },
         { agent_type: '', config: {} }
       ]
     };
@@ -434,7 +423,7 @@ describe('validatePipeline — null safety', () => {
         name: 'Test',
         steps: [
           { agent_type: 'llm_agent', config: undefined },
-          { agent_type: 'memory_agent', config: { read_memory: 'on' } }
+          { agent_type: 'memory_agent', config: { memory_label: 'customer_notes' } }
         ]
       };
       const errors = validator.validatePipeline(pipeline, schemas);

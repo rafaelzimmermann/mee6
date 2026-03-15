@@ -10,6 +10,7 @@ import yaml
 # calendar
 # ---------------------------------------------------------------------------
 
+
 def test_create_event_timed():
     mock_service = MagicMock()
     mock_events = mock_service.events.return_value
@@ -64,6 +65,7 @@ def test_create_event_all_day():
 # whatsapp — config loading
 # ---------------------------------------------------------------------------
 
+
 def _write_whatsapp_yaml(tmp_path: Path, content: dict) -> Path:
     config_dir = tmp_path / ".config" / "agntrick"
     config_dir.mkdir(parents=True)
@@ -94,6 +96,7 @@ async def test_whatsapp_send_notification(tmp_path):
         mock_settings.config_dir = config_dir
 
         import mee6.integrations.whatsapp as wa_mod
+
         wa_mod._channel = None  # reset singleton
 
         from mee6.integrations.whatsapp import send_notification

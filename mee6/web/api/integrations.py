@@ -51,12 +51,25 @@ async def whatsapp_status():
 @router.post("/whatsapp/connect", status_code=status.HTTP_204_NO_CONTENT)
 async def connect_whatsapp():
     from mee6.scheduler.engine import scheduler
+    from mee6.integrations.whatsapp import _get_channel
+
+    # Get the connected account's phone number to store its messages
+    try:
+        channel = await _get_channel()
+        # The allowed_contact is the connected account's own number
+        from mee6.integrations.whatsapp import _load_whatsapp_config
+
+        wa_config = _load_whatsapp_config()
+        own_number = wa_config.privacy.allowed_contact or ""
+    except Exception:
+        own_number = ""
 
     await wa_session.connect(
         on_dm=scheduler.check_wa_triggers,
         on_group=scheduler.check_wa_group_triggers,
         on_dm_allowed=scheduler.has_wa_trigger,
         on_group_allowed=scheduler.has_wa_group_trigger,
+        own_number=own_number,
     )
 
 

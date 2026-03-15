@@ -11,7 +11,12 @@ from mee6.db.engine import get_engine
 from mee6.db.models import Base
 from mee6.scheduler.engine import scheduler
 from mee6.web.routes import history, integrations, pipelines, triggers
-from mee6.web.api import agents, integrations as api_integrations, pipelines as api_pipelines, triggers as api_triggers
+from mee6.web.api import (
+    agents,
+    integrations as api_integrations,
+    pipelines as api_pipelines,
+    triggers as api_triggers,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -105,6 +110,14 @@ async def lifespan(app: FastAPI):
     # Reconnect WhatsApp in the background if a session file already exists.
     # connect() is a no-op if the config file is missing, so this is always safe.
     from mee6.integrations.whatsapp_session import wa_session
+    from mee6.integrations.whatsapp import _load_whatsapp_config
+
+    # Get the connected account's phone number to store its messages
+    try:
+        wa_config = _load_whatsapp_config()
+        own_number = wa_config.privacy.allowed_contact or ""
+    except Exception:
+        own_number = ""
 
     asyncio.create_task(
         wa_session.connect(
@@ -112,6 +125,7 @@ async def lifespan(app: FastAPI):
             on_group=scheduler.check_wa_group_triggers,
             on_dm_allowed=scheduler.has_wa_trigger,
             on_group_allowed=scheduler.has_wa_group_trigger,
+            own_number=own_number,
         )
     )
     yield

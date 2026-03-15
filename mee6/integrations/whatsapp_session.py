@@ -38,6 +38,7 @@ def _parse_wa_timestamp(ts_raw: Any) -> "datetime":
         return datetime.fromtimestamp(ts_raw.timestamp(), tz=timezone.utc)
     return datetime.now(timezone.utc)
 
+
 # _monitor timing constants (seconds)
 _MONITOR_POLL_INTERVAL_S = 2
 _QR_EXPIRY_TIMEOUT_S = 65
@@ -62,6 +63,7 @@ class WhatsAppSession:
         self._on_group: Callable[[str], None] | None = None
         self._on_dm_allowed: Callable[[str], bool] | None = None
         self._on_group_allowed: Callable[[str], bool] | None = None
+        self._own_number: str = ""  # The connected account's phone number
 
     def get_qr_svg(self) -> str | None:
         if self._qr_data is None:
@@ -70,9 +72,7 @@ class WhatsAppSession:
             import segno
 
             buf = io.BytesIO()
-            segno.make_qr(self._qr_data).save(
-                buf, kind="svg", scale=6, border=2, dark="#1a1a2e"
-            )
+            segno.make_qr(self._qr_data).save(buf, kind="svg", scale=6, border=2, dark="#1a1a2e")
             return buf.getvalue().decode("utf-8")
         except ImportError:
             logger.debug("segno not installed; QR SVG rendering unavailable")
@@ -87,6 +87,7 @@ class WhatsAppSession:
         on_group: "Callable[[str], None] | None" = None,
         on_dm_allowed: "Callable[[str], bool] | None" = None,
         on_group_allowed: "Callable[[str], bool] | None" = None,
+        own_number: str = "",
     ) -> None:
         if self.status in (WAStatus.CONNECTING, WAStatus.PENDING_QR, WAStatus.CONNECTED):
             return
@@ -97,6 +98,7 @@ class WhatsAppSession:
         self._on_group = on_group
         self._on_dm_allowed = on_dm_allowed
         self._on_group_allowed = on_group_allowed
+        self._own_number = own_number.lstrip("+")
         self.status = WAStatus.CONNECTING
         self.error = None
         self._qr_data = None
@@ -163,12 +165,12 @@ class WhatsAppSession:
                 text: str = getattr(msg, "text", "") or ""
                 if not text:
                     return  # skip non-text messages (audio, etc.)
-                if self._on_dm_allowed and not self._on_dm_allowed(sender):
-                    return  # no enabled trigger for this sender — ignore silently
                 logger.info("Incoming WA message from %s: text=%r", sender, text[:60])
                 async with AsyncSessionLocal() as session:
                     repo = WhatsAppMessageRepository(session)
-                    await repo.insert(WhatsAppMessageRow(sender=sender, text=text, timestamp=ts_naive))
+                    await repo.insert(
+                        WhatsAppMessageRow(sender=sender, text=text, timestamp=ts_naive)
+                    )
 
                 logger.info("Checking WA triggers for sender=%s", sender)
                 if self._on_dm:
@@ -183,6 +185,7 @@ class WhatsAppSession:
                 from mee6.db.models import WhatsAppMessageRow
                 from mee6.db.repository import WhatsAppMessageRepository
 
+                # Only save if this group has an enabled trigger
                 if self._on_group_allowed and not self._on_group_allowed(chat_jid):
                     return  # no enabled trigger for this group — ignore silently
                 ts = _parse_wa_timestamp(ts_raw)
@@ -223,7 +226,12 @@ class WhatsAppSession:
                 _chat_jid: str = ""
                 try:
                     from neonize.utils.jid import Jid2String  # type: ignore[import-untyped]
-                    _chat_jid = Jid2String(_ev.Info.MessageSource.Chat) if _ev.Info.MessageSource.Chat else ""
+
+                    _chat_jid = (
+                        Jid2String(_ev.Info.MessageSource.Chat)
+                        if _ev.Info.MessageSource.Chat
+                        else ""
+                    )
                 except Exception:
                     pass
 

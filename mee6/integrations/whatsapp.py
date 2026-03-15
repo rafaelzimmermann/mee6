@@ -35,7 +35,7 @@ def _load_whatsapp_config() -> WhatsAppAgentConfig:
             f"WhatsApp config not found at {config_path}. "
             "Create it with at minimum:\n"
             "  privacy:\n"
-            "    allowed_contact: \"+E164phone\"\n"
+            '    allowed_contact: "+E164phone"\n'
             "  channel:\n"
             "    storage_path: ~/.config/agntrick/whatsapp"
         )
@@ -64,6 +64,24 @@ async def send_notification(*, phone: str, message: str) -> None:
     channel = await _get_channel()
     await channel.send(OutgoingMessage(text=message, recipient_id=phone))
 
+    # Store outgoing message to database (recipient in sender field with prefix to indicate direction)
+    from mee6.db.engine import AsyncSessionLocal
+    from mee6.db.models import WhatsAppMessageRow
+    from mee6.db.repository import WhatsAppMessageRepository
+    from datetime import datetime, timezone
+
+    recipient_norm = phone.lstrip("+")
+    async with AsyncSessionLocal() as session:
+        repo = WhatsAppMessageRepository(session)
+        await repo.insert(
+            WhatsAppMessageRow(
+                sender=f"→ {recipient_norm}",  # Prefix to indicate this is an outgoing message
+                text=message,
+                timestamp=datetime.now(timezone.utc).replace(tzinfo=None),
+                chat_id=None,
+            )
+        )
+
 
 async def list_groups() -> list[dict]:
     """Return all WhatsApp groups the connected account is a member of.
@@ -77,10 +95,7 @@ async def list_groups() -> list[dict]:
         Jid2String = str  # type: ignore[assignment]
 
     groups = await asyncio.to_thread(channel._client.get_joined_groups)
-    return [
-        {"jid": Jid2String(g.JID), "name": g.GroupName.Name}
-        for g in groups
-    ]
+    return [{"jid": Jid2String(g.JID), "name": g.GroupName.Name} for g in groups]
 
 
 async def read_messages(*, phone: str, limit: int) -> list:

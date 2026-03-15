@@ -107,8 +107,6 @@ class MemoryConfigRequestEnhanced(BaseModel):
     def max_memories_validation(cls, v):
         if v < 1:
             raise ValueError("max_memories must be at least 1")
-        if v > 1000:
-            raise ValueError("max_memories must be less than 1000")
         return v
 
     @field_validator("ttl_hours")
@@ -123,8 +121,6 @@ class MemoryConfigRequestEnhanced(BaseModel):
     @field_validator("max_value_size")
     @classmethod
     def max_value_size_validation(cls, v):
-        if v < 0:
-            raise ValueError("max_value_size cannot be negative")
-        if v > 100000:  # 100KB
-            raise ValueError("max_value_size must be less than 100000")
+        if v < 1:
+            raise ValueError("max_value_size must be at least 1")
         return v

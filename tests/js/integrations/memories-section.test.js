@@ -48,10 +48,10 @@ describe('integrations/memories-section', () => {
   });
 
   describe('initMemories', () => {
-    beforeEach(() => {
-      document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><form id="memory-form"><input type="text" id="label" name="label"><input type="number" id="max_memories" name="max_memories" value="100"><input type="number" id="ttl_hours" name="ttl_hours" value="24"><input type="number" id="max_value_size" name="max_value_size" value="2000"><button type="submit">Add</button></form><table id="memories-table"><tbody><tr data-label="old"><td>Old</td><td>0</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="old" class="sm danger">Delete</button></td></tr></tbody></table></div></div><div id="form-errors" style="display:none;"></div>`;
-      memoriesSection.initMemories(apiClient, callbacks);
-    });
+  beforeEach(() => {
+    document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><form id="memory-form"><input type="text" id="label" name="label"><input type="number" id="max_memories" name="max_memories" value="100"><input type="number" id="ttl_hours" name="ttl_hours" value="24"><input type="number" id="max_value_size" name="max_value_size" value="2000"><button type="submit">Add</button></form><table><tbody id="memories-list"><tr data-label="old"><td>Old</td><td>0</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="old" class="sm danger">Delete</button></td></tr></tbody></table></div></div><div id="form-errors" style="display:none;"></div>`;
+    memoriesSection.initMemories(apiClient, callbacks);
+  });
 
     it('does nothing when label is empty', async () => {
       // The module guards with `if (data.label)` — no API call and no validation when label is empty
@@ -92,7 +92,7 @@ describe('integrations/memories-section', () => {
       document.getElementById('label').value = 'new';
       form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 10));
-      const tbody = document.querySelector('#memories-table tbody');
+      const tbody = document.querySelector('#memories-list');
       expect(tbody.children.length).toBe(2);
       expect(tbody.children[0].dataset.label).toBe('new');
       expect(tbody.children[1].dataset.label).toBe('old');
@@ -135,7 +135,7 @@ describe('integrations/memories-section', () => {
     it('calls deleteMemory after confirm', async () => {
       vi.spyOn(window, 'confirm').mockReturnValue(true);
       apiClient.deleteMemory.mockResolvedValue();
-      document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><table id="memories-table"><tbody><tr data-label="mem1"><td>mem1</td><td>5</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="mem1" class="sm danger">Delete</button></td></tr></tbody></table></div></div>`;
+      document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><table><tbody id="memories-list"><tr data-label="mem1"><td>mem1</td><td>5</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="mem1" class="sm danger">Delete</button></td></tr></tbody></table></div></div>`;
       memoriesSection.initMemories(apiClient, callbacks);
       document.querySelector('[data-action="delete"]').click();
       await new Promise(r => setTimeout(r, 10));
@@ -146,7 +146,7 @@ describe('integrations/memories-section', () => {
     it('removes row on success', async () => {
       vi.spyOn(window, 'confirm').mockReturnValue(true);
       apiClient.deleteMemory.mockResolvedValue();
-      document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><table id="memories-table"><tbody><tr data-label="mem1"><td>mem1</td><td>5</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="mem1" class="sm danger">Delete</button></td></tr></tbody></table></div></div>`;
+      document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><table><tbody id="memories-list"><tr data-label="mem1"><td>mem1</td><td>5</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="mem1" class="sm danger">Delete</button></td></tr></tbody></table></div></div>`;
       memoriesSection.initMemories(apiClient, callbacks);
       document.querySelector('[data-action="delete"]').click();
       await new Promise(r => setTimeout(r, 10));
@@ -157,7 +157,7 @@ describe('integrations/memories-section', () => {
     it('does nothing when confirm is cancelled', async () => {
       vi.spyOn(window, 'confirm').mockReturnValue(false);
       apiClient.deleteMemory.mockResolvedValue();
-      document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><table id="memories-table"><tbody><tr data-label="mem1"><td>mem1</td><td>5</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="mem1" class="sm danger">Delete</button></td></tr></tbody></table></div></div>`;
+      document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><table><tbody id="memories-list"><tr data-label="mem1"><td>mem1</td><td>5</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="mem1" class="sm danger">Delete</button></td></tr></tbody></table></div></div>`;
       memoriesSection.initMemories(apiClient, callbacks);
       document.querySelector('[data-action="delete"]').click();
       await new Promise(r => setTimeout(r, 10));
@@ -167,7 +167,7 @@ describe('integrations/memories-section', () => {
     it('calls onError on API failure', async () => {
       vi.spyOn(window, 'confirm').mockReturnValue(true);
       apiClient.deleteMemory.mockRejectedValue(new Error('Delete failed'));
-      document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><table id="memories-table"><tbody><tr data-label="mem1"><td>mem1</td><td>5</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="mem1" class="sm danger">Delete</button></td></tr></tbody></table></div></div>`;
+      document.body.innerHTML = `<div class="card"><div class="card-header">Memory Configurations</div><div class="card-body"><table><tbody id="memories-list"><tr data-label="mem1"><td>mem1</td><td>5</td><td>100</td><td>24</td><td>2000</td><td><button data-action="delete" data-label="mem1" class="sm danger">Delete</button></td></tr></tbody></table></div></div>`;
       memoriesSection.initMemories(apiClient, callbacks);
       document.querySelector('[data-action="delete"]').click();
       await new Promise(r => setTimeout(r, 10));

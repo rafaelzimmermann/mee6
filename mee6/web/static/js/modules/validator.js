@@ -50,13 +50,6 @@ export function validateStep(step, stepIndex, schemas) {
     errors.push(new ValidationError('agent_type', stepIndex, 'select', 'Agent type is required'));
     return errors;
   }
-  if (step.agent_type === 'memory_agent') {
-    const read = step.config?.read_memory;
-    const write = step.config?.write_memory;
-    if (read !== 'on' && write !== 'on') {
-      errors.push(new ValidationError('memory_options', stepIndex, 'checkbox', 'Please select at least one of Read Memory or Write Memory'));
-    }
-  }
   const schema = schemas[step.agent_type] || [];
   for (const field of schema) {
     const value = step.config?.[field.name];

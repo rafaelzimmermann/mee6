@@ -334,12 +334,6 @@ def test_memory_config_request_enhanced_invalid_label():
         validation.MemoryConfigRequestEnhanced(label="test$memory")
 
 
-def test_memory_config_request_enhanced_max_memories_too_large():
-    """MemoryConfigRequestEnhanced rejects max_memories > 1000."""
-    with pytest.raises(ValueError, match="less than 1000"):
-        validation.MemoryConfigRequestEnhanced(label="test", max_memories=2000)
-
-
 def test_memory_config_request_enhanced_ttl_too_large():
     """MemoryConfigRequestEnhanced rejects ttl_hours > 87600."""
     with pytest.raises(ValueError, match="less than 87600"):
@@ -348,7 +342,7 @@ def test_memory_config_request_enhanced_ttl_too_large():
 
 def test_memory_config_request_enhanced_max_value_size_negative():
     """MemoryConfigRequestEnhanced rejects negative max_value_size."""
-    with pytest.raises(ValueError, match="cannot be negative"):
+    with pytest.raises(ValueError, match="must be at least 1"):
         validation.MemoryConfigRequestEnhanced(label="test", max_value_size=-100)
 
 

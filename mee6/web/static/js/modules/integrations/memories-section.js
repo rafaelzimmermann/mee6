@@ -11,7 +11,7 @@ async function handleCreateMemory(data, apiClient, callbacks) {
   v.clearErrors('form-errors');
   try {
     const mem = await apiClient.createMemory(data);
-    const tbody = document.querySelector('#memories-table tbody');
+    const tbody = document.querySelector('#memories-list');
     if (tbody) tbody.insertAdjacentHTML('afterbegin', renderMemoryRow(mem));
     document.getElementById('memory-form')?.reset();
     callbacks.onSuccess('Memory config created');
@@ -32,7 +32,9 @@ async function handleDeleteMemory(label, apiClient, callbacks) {
 }
 
 export function initMemories(apiClient, callbacks) {
-  const card = document.querySelector('.card-header:has-text("Memory")')?.closest('.card');
+  const card = Array.from(document.querySelectorAll('.card')).find(
+    c => c.querySelector('.card-header')?.textContent?.includes('Memory')
+  );
   if (!card) return;
 
   const form = document.getElementById('memory-form');

@@ -20,8 +20,7 @@ function makeState() {
         { name: 'prompt', label: 'Prompt', field_type: 'textarea', required: true }
       ],
       memory_agent: [
-        { name: 'read_memory', label: 'Read Memory', field_type: 'checkbox' },
-        { name: 'write_memory', label: 'Write Memory', field_type: 'checkbox' }
+        { name: 'memory_label', label: 'Memory Label', field_type: 'select', required: true }
       ]
     },
     placeholderHints: ['{previous_output}', '{pipeline_name}']
@@ -102,19 +101,18 @@ describe('validation-flow integration', () => {
     });
   });
 
-  describe('Scenario 4 — Cannot save memory_agent with no options', () => {
-    it('prevents save with memory options validation error', async () => {
+  describe('Scenario 4 — Cannot save memory_agent with no label', () => {
+    it('prevents save with memory_label validation error', async () => {
       state = makeState();
       state.addStep();
       state.setStepAgentType(0, 'memory_agent');
-      state.updateStepField(0, 'read_memory', '');
-      state.updateStepField(0, 'write_memory', '');
+      state.updateStepField(0, 'memory_label', '');
 
       const result = await handlers.handleSave(state, mockApiClient);
 
       expect(result.success).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors.some(e => e.fieldName === 'memory_options')).toBe(true);
+      expect(result.errors.some(e => e.fieldName === 'memory_label')).toBe(true);
       expect(mockApiClient.createPipeline).not.toHaveBeenCalled();
     });
   });
@@ -197,8 +195,7 @@ describe('validation-flow integration', () => {
       state.updateStepField(1, 'prompt', '');
       state.addStep();
       state.setStepAgentType(2, 'memory_agent');
-      state.updateStepField(2, 'read_memory', '');
-      state.updateStepField(2, 'write_memory', '');
+      state.updateStepField(2, 'memory_label', '');
 
       const result = await handlers.handleSave(state, mockApiClient);
 
@@ -212,7 +209,7 @@ describe('validation-flow integration', () => {
 
       expect(result.errors.some(e => e.fieldName === 'agent_type' && e.stepIndex === 0)).toBe(true);
       expect(result.errors.some(e => e.fieldName === 'prompt' && e.stepIndex === 1)).toBe(true);
-      expect(result.errors.some(e => e.fieldName === 'memory_options' && e.stepIndex === 2)).toBe(true);
+      expect(result.errors.some(e => e.fieldName === 'memory_label' && e.stepIndex === 2)).toBe(true);
     });
   });
 
