@@ -4,8 +4,8 @@ export function LoadingSpinner({ size = "md", className = "" }: { size?: "sm" | 
     md: "w-6 h-6 border-2",
     lg: "w-8 h-8 border-3",
   };
-  
+
   return (
-    <div className={`animate-spin rounded-full border-gray-200 border-t-indigo-600 ${sizeStyles[size]} ${className}`} />
+    <div data-testid="loading-spinner" className={`animate-spin rounded-full border-gray-200 border-t-indigo-600 ${sizeStyles[size]} ${className}`} />
   );
 }
