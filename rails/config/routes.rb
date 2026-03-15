@@ -70,7 +70,7 @@ Rails.application.routes.draw do
           post   "disconnect", to: "whatsapp#disconnect"
           get    "groups",     to: "whatsapp#groups"
           get    "settings",   to: "whatsapp#settings"
-          put    "settings",   to: "whatsapp#update_settings"
+          patch  "settings",   to: "whatsapp#update_settings"
         end
       end
     end
