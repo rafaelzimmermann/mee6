@@ -28,6 +28,8 @@
 !/tmp/storage/
 !/tmp/storage/.keep
 
-# Ignore key files for decrypting credentials and more.
+# Ignore key files and encrypted credentials — use environment variables instead.
 /config/*.key
+/config/credentials.yml.enc
+/config/credentials/
 
