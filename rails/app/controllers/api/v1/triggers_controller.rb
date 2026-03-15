@@ -10,16 +10,20 @@ module Api
       def create
         trigger = Trigger.new(trigger_params)
         trigger.save!
+        Triggers::SchedulerService.add(trigger)
         render json: TriggerBlueprint.render(trigger),
                status: :created
       end
 
       def update
-        trigger.update!(trigger_params)
+        trigger.assign_attributes(trigger_params)
+        trigger.save!
+        Triggers::SchedulerService.sync_trigger(trigger)
         render json: TriggerBlueprint.render(trigger)
       end
 
       def destroy
+        Triggers::SchedulerService.remove(trigger.id)
         trigger.destroy!
         head :no_content
       end

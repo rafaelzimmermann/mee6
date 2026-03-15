@@ -8,6 +8,22 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   # root "posts#index"
 
+  require "sidekiq/web"
+  require "sidekiq-cron"
+
+  Sidekiq::Web.use(Rack::Auth::Basic) do |user, password|
+    ActiveSupport::SecurityUtils.secure_compare(
+      ::Digest::SHA256.hexdigest(user),
+      ::Digest::SHA256.hexdigest(ENV.fetch("SIDEKIQ_WEB_USER", "admin"))
+    ) &
+    ActiveSupport::SecurityUtils.secure_compare(
+      ::Digest::SHA256.hexdigest(password),
+      ::Digest::SHA256.hexdigest(ENV.fetch("SIDEKIQ_WEB_PASSWORD", "changeme"))
+    )
+  end if Rails.env.production?
+
+  mount Sidekiq::Web => "/sidekiq"
+
   namespace :api do
     namespace :v1 do
       get    "auth/setup_required", to: "auth#setup_required"
@@ -24,6 +40,7 @@ Rails.application.routes.draw do
           patch :toggle
         end
       end
+
       resources :run_records, only: [:index]
     end
   end
