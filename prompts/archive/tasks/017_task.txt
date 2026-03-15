@@ -1,0 +1,20 @@
+Create topology preview UI
+
+Requirements:
+- Create read-only topology preview for graph editor
+- Preview should show pipeline structure visually or textually
+- Options (choose pragmatic approach for v0.2.0):
+  * Text-based adjacency list showing node connections
+  * Minimal SVG rendered server-side
+  * Simple diagram using existing UI components
+- Display:
+  * Entry node
+  * Nodes with their agent types and labels
+  * Edges with conditions (if any)
+- Full drag-and-drop canvas deferred to v0.3.0
+
+Desired result:
+- Topology preview component exists
+- Shows graph structure clearly
+- Read-only display of current pipeline graph
+- Updates when nodes/edges change

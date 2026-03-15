@@ -1,0 +1,148 @@
+archlinux ➜  mee6 git:(main) ✗ docker compose up
+WARN[0000] Docker Compose requires buildx plugin to be installed
+Sending build context to Docker daemon    206MB
+Step 1/17 : FROM python:3.12-slim AS builder
+ ---> f3fa41d74a76
+Step 2/17 : WORKDIR /app
+ ---> Using cache
+ ---> b115ebb1845c
+Step 3/17 : RUN pip install uv
+ ---> Running in 57afdbca2e21
+Collecting uv
+  Downloading uv-0.10.9-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (11 kB)
+Downloading uv-0.10.9-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (23.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 23.4/23.4 MB 38.4 MB/s eta 0:00:00
+Installing collected packages: uv
+Successfully installed uv-0.10.9
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+
+[notice] A new release of pip is available: 25.0.1 -> 26.0.1
+[notice] To update, run: pip install --upgrade pip
+ ---> Removed intermediate container 57afdbca2e21
+ ---> 8b992d130788
+Step 4/17 : COPY pyproject.toml uv.lock ./
+ ---> 185d1699e0c9
+Step 5/17 : RUN uv sync --frozen --no-dev
+ ---> Running in a417f3651025
+Using CPython 3.12.12 interpreter at: /usr/local/bin/python3
+Creating virtual environment at: .venv
+   Building mee6 @ file:///app
+Downloading pygments (1.2MiB)
+Downloading pydantic-core (2.0MiB)
+Downloading phonenumbers (2.5MiB)
+Downloading botocore (14.0MiB)
+Downloading cryptography (4.3MiB)
+Downloading fastavro (3.3MiB)
+Downloading jsonschema-rs (3.7MiB)
+Downloading neonize (6.4MiB)
+Downloading grpcio-tools (2.5MiB)
+Downloading pyarrow (45.5MiB)
+Downloading tree-sitter-languages (8.0MiB)
+Downloading openai (1.1MiB)
+Downloading uvloop (4.2MiB)
+Downloading aiohttp (1.7MiB)
+Downloading tiktoken (1.1MiB)
+Downloading sqlalchemy (3.2MiB)
+Downloading grpcio (6.4MiB)
+Downloading hf-xet (4.0MiB)
+Downloading zstandard (5.3MiB)
+Downloading langchain-community (2.4MiB)
+Downloading pillow (6.7MiB)
+Downloading google-api-python-client (14.1MiB)
+Downloading numpy (15.9MiB)
+Downloading tokenizers (3.1MiB)
+Downloading google-cloud-aiplatform (8.0MiB)
+ Downloaded openai
+ Downloaded tiktoken
+ Downloaded pygments
+ Downloaded aiohttp
+   Building forbiddenfruit==0.1.4
+ Downloaded pydantic-core
+ Downloaded langchain-community
+ Downloaded grpcio-tools
+ Downloaded phonenumbers
+ Downloaded tokenizers
+ Downloaded fastavro
+ Downloaded sqlalchemy
+ Downloaded jsonschema-rs
+ Downloaded hf-xet
+ Downloaded cryptography
+  × Failed to build `mee6 @ file:///app`
+  ├─▶ The build backend returned an error
+  ╰─▶ Call to `hatchling.build.build_editable` failed (exit status: 1)
+
+      [stderr]
+      Traceback (most recent call last):
+        File "<string>", line 11, in <module>
+        File
+      "/root/.cache/uv/builds-v0/.tmpscB1bG/lib/python3.12/site-packages/hatchling/build.py",
+      line 83, in build_editable
+          return os.path.basename(next(builder.build(directory=wheel_directory,
+      versions=["editable"])))
+
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/root/.cache/uv/builds-v0/.tmpscB1bG/lib/python3.12/site-packages/hatchling/builders/plugin/interface.py",
+      line 157, in build
+          artifact = version_api[version](directory, **build_data)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/root/.cache/uv/builds-v0/.tmpscB1bG/lib/python3.12/site-packages/hatchling/builders/wheel.py",
+      line 524, in build_editable
+          return self.build_editable_detection(directory, **build_data)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/root/.cache/uv/builds-v0/.tmpscB1bG/lib/python3.12/site-packages/hatchling/builders/wheel.py",
+      line 536, in build_editable_detection
+          for included_file in self.recurse_selected_project_files():
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/root/.cache/uv/builds-v0/.tmpscB1bG/lib/python3.12/site-packages/hatchling/builders/plugin/interface.py",
+      line 182, in recurse_selected_project_files
+          if self.config.only_include:
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+        File "/usr/local/lib/python3.12/functools.py", line 998, in __get__
+          val = self.func(instance)
+                ^^^^^^^^^^^^^^^^^^^
+        File
+      "/root/.cache/uv/builds-v0/.tmpscB1bG/lib/python3.12/site-packages/hatchling/builders/config.py",
+      line 715, in only_include
+          only_include = only_include_config.get("only-include",
+      self.default_only_include()) or self.packages
+
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File
+      "/root/.cache/uv/builds-v0/.tmpscB1bG/lib/python3.12/site-packages/hatchling/builders/wheel.py",
+      line 270, in default_only_include
+          return self.default_file_selection_options.only_include
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File "/usr/local/lib/python3.12/functools.py", line 998, in __get__
+          val = self.func(instance)
+                ^^^^^^^^^^^^^^^^^^^
+        File
+      "/root/.cache/uv/builds-v0/.tmpscB1bG/lib/python3.12/site-packages/hatchling/builders/wheel.py",
+      line 258, in default_file_selection_options
+          raise ValueError(message)
+      ValueError: Unable to determine which files to ship
+      inside the wheel using the following heuristics:
+      https://hatch.pypa.io/latest/plugins/builder/wheel/#default-file-selection
+
+      The most likely cause of this is that there is no directory that matches
+      the name of your project (mee6).
+
+      At least one file selection option must be defined
+      in the `tool.hatch.build.targets.wheel` table, see:
+      https://hatch.pypa.io/latest/config/build/
+
+      As an example, if you intend to ship a directory named `foo` that
+      resides within a `src` directory located at the root of your project,
+      you can define the following:
+
+      [tool.hatch.build.targets.wheel]
+      packages = ["src/foo"]
+
+      hint: This usually indicates a problem with the package or the build
+      environment.
+[+] up 0/1
+ ⠙ Image mee6-mee6 Building                                                                                                                                        53.6s
+The command '/bin/sh -c uv sync --frozen --no-dev' returned a non-zero code: 1

@@ -1,0 +1,11 @@
+Register router_agent in plugin_registry
+
+Requirements:
+- Add router_agent to plugin registry
+- Follow existing plugin registration pattern
+- Ensure plugin is discoverable and loadable by pipeline system
+
+Desired result:
+- router_agent registered in plugin_registry
+- Plugin appears in available plugins list
+- Configuration fields correctly exposed

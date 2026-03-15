@@ -1,0 +1,17 @@
+Implement auto-migrate existing pipelines on first save
+
+Requirements:
+- When saving in graph editor mode for the first time:
+  * Check if pipeline has graph column null (legacy)
+  * If legacy, generate linear graph from steps
+  * Set graph column with generated graph data
+  * Keep steps column (will be dropped in v0.3.0)
+- Saving in Simple (linear) mode should also produce linear graph internally
+- Auto-migration happens transparently to user
+
+Desired result:
+- First save in graph mode migrates legacy pipeline
+- Linear graph generated from steps
+- Graph column populated with node/edge data
+- Steps column preserved
+- No user intervention required

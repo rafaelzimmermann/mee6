@@ -1,0 +1,6 @@
+All configuration will be sourced from a folder outside of the repo under $HOME/.config/agentrick/
+We also need to load whatsapp config from there $HOME/.config/agntrick/whatsapp.yaml
+configuration specific for this project will be under .mee6.conf (add to gitignore), add .mee6.conf.example
+
+Let's create a dir scripts and add install-requirements.sh; check for agntrick dependencies and generate the script
+For instance https://github.com/jeancsil/agntrick/tree/main/packages/agntrick-whatsapp#requirements

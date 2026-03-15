@@ -1,0 +1,20 @@
+Create PipelineNode and PipelineEdge models
+
+Requirements:
+- Create PipelineNode dataclass/model:
+  * id: str (uuid, stable across edits)
+  * agent_type: str
+  * config: dict[str, str]
+  * label: str | None (optional user-visible name)
+- Create PipelineEdge dataclass/model:
+  * id: str
+  * from_node_id: str
+  * to_node_id: str
+  * condition: str | None (None = unconditional, non-None = label matching router output)
+- Follow existing model patterns in codebase
+- Include proper type hints and validation
+
+Desired result:
+- Models exist at appropriate location (e.g., models/pipeline_graph.py)
+- Both PipelineNode and PipelineEdge classes defined
+- Models follow project conventions

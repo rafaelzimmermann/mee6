@@ -1,0 +1,12 @@
+Register memory_agent in plugin_registry
+
+Requirements:
+- Add memory_agent to plugin registry
+- Follow existing plugin registration pattern
+- Ensure plugin is discoverable and loadable by pipeline system
+- Set plugin label as "Memory"
+
+Desired result:
+- memory_agent registered in plugin_registry
+- Plugin appears in available plugins list
+- Configuration fields correctly exposed

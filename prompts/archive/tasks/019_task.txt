@@ -1,0 +1,20 @@
+Write unit tests for graph executor
+
+Requirements:
+- Create comprehensive unit tests for graph executor in tests/test_executor.py or similar
+- Test cases:
+  * Linear chain execution (A → B → C)
+  * Branching with router (A → router → B or C based on condition)
+  * Fan-out (A → B and A → C, both executed)
+  * Convergence queue semantics (B → D and C → D, D runs twice)
+  * Back-edge guard (A → B → A, second visit skipped with warning)
+  * Terminal node output collection
+  * Summary is last terminal output
+- Use mocking for node execution
+- Verify queue behavior and output collection
+
+Desired result:
+- Unit tests file created
+- All test cases implemented and passing
+- Edge cases covered
+- Tests verify correct executor behavior

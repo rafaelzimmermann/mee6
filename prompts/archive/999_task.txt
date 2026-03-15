@@ -1,0 +1,30 @@
+Implement pipeline step reordering functionality
+
+Requirements:
+- Allow users to drag and drop steps to reorder them within a pipeline
+- Support inserting new steps between existing steps or at the top
+- Implement a user-friendly interface (drag handles or buttons)
+- Create a backend endpoint to update step order
+- Frontend should show visual feedback during reordering
+- Maintain all existing step data when reordering
+- Add buttons to move step up/down or drag handle for full reordering
+
+Backend requirements:
+- Add endpoint to update step order: PUT /pipelines/{pipeline_id}/steps
+- Accepts array of step IDs in new order
+- Updates pipeline.steps with reordered steps
+- Validation to ensure all steps are preserved
+
+Frontend requirements:
+- Add drag handles (⋮⋮) to each step in pipeline editor
+- OR add "move up" and "move down" buttons
+- Visual feedback when dragging (highlight drop zones)
+- Preserve step configuration data
+- Smooth animations for reordering
+- Easy way to insert new step between existing steps
+
+Desired result:
+- Users can easily reorder pipeline steps by drag & drop or button clicks
+- Steps can be inserted anywhere in the sequence
+- Interface is intuitive and responsive
+- All step configurations are preserved

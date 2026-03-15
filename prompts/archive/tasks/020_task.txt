@@ -1,0 +1,20 @@
+Write unit tests for memory_agent
+
+Requirements:
+- Create comprehensive unit tests for memory_agent in tests/test_memory_agent.py or similar
+- Test cases:
+  * Memorize mode: store input, return unchanged
+  * Memorize with truncation (max_value_size)
+  * Remember mode: retrieve recent memories within TTL
+  * Memory formatting (index, timestamp, value)
+  * Delete expired entries
+  * Eviction: delete oldest when count > max_memories (compaction = none)
+  * Compaction: LLM summarization when count > max_memories (compaction = summarize)
+  * Multiple memory slots per pipeline (different labels)
+- Use mocking for repository and LLM calls
+
+Desired result:
+- Unit tests file created
+- All test cases implemented and passing
+- Memory lifecycle correctly tested
+- Eviction and compaction logic verified

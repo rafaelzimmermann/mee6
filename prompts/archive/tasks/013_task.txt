@@ -1,0 +1,25 @@
+Create router_agent plugin
+
+Requirements:
+- Create router_agent plugin under plugins/ directory
+- Fields:
+  * prompt (textarea): instruction for LLM, e.g. "Reply with exactly one word: 'yes' if input mentions event date, otherwise 'no'."
+  * routes (text): comma-separated expected output labels, e.g. "yes, no"
+  * provider (combobox): LLM provider
+  * model (combobox): LLM model
+- Execution logic:
+  * Call LLM with prompt and current input
+  * Strip and lowercase response
+  * Match against outgoing edge conditions
+  * Take first matching conditional edge
+  * Or take unconditional edge (condition = None) as default/fallback
+  * If nothing matches and no default edge, terminate that branch
+- Output: same input router received (transparent - routes without transforming)
+- Follow existing plugin patterns
+
+Desired result:
+- router_agent plugin file exists
+- LLM call implemented with prompt/input
+- Condition matching logic correct
+- Default/fallback edge handling
+- Data passed through unchanged

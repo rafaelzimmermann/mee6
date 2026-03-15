@@ -1,0 +1,22 @@
+Update README with v0.2.0 features
+
+Requirements:
+- Update README.md to document v0.2.0 features
+- Add sections:
+  * Pipeline Graph overview
+  * Nodes, edges, branching, fan-out
+  * Router agent plugin
+  * Memory agent plugin
+  * Graph editor (nodes panel, edges panel, topology preview)
+- Include examples of:
+  * Creating branching pipelines with routers
+  * Using memory agent for cross-run context
+  * Converting legacy linear pipelines to graph
+- Note: loops deferred to v0.3.0
+- Keep existing README content, add new sections
+
+Desired result:
+- README updated with v0.2.0 documentation
+- Clear explanations of new features
+- Examples provided
+- Migration notes included

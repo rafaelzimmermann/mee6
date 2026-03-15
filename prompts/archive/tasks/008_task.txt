@@ -1,0 +1,26 @@
+Create migration 005_pipeline_graph.sql
+
+Requirements:
+- Add graph JSONB column to pipelines table
+- Keep existing steps column for backward compatibility
+- Migration adds graph column alongside existing columns
+- If graph IS NOT NULL the pipeline is a graph; if NULL it's a legacy linear pipeline
+
+SQL:
+```sql
+ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS graph JSONB;
+```
+
+Graph column stores:
+```json
+{
+  "entry_node_id": "abc",
+  "nodes": [{"id": "abc", "agent_type": "llm_agent", "config": {}, "label": null}, ...],
+  "edges": [{"id": "xyz", "from_node_id": "abc", "to_node_id": "def", "condition": null}, ...]
+}
+```
+
+Desired result:
+- Migration file exists at migrations/005_pipeline_graph.sql
+- Graph column added to pipelines table
+- Migration can be applied with existing migration system

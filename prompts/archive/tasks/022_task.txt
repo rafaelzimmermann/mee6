@@ -1,0 +1,26 @@
+Update CHANGELOG for v0.2.0 release
+
+Requirements:
+- Update CHANGELOG.md with v0.2.0 release entry
+- Include:
+  * Version number and date
+  * New features:
+    - Pipeline Graph (nodes, edges, branching, fan-out)
+    - Router agent plugin
+    - Memory agent plugin
+    - Graph editor (nodes panel, edges panel, topology preview)
+  * Breaking changes (if any)
+  * Migration notes:
+    - Linear pipelines auto-migrated to graph format
+    - steps column retained (will be removed in v0.3.0)
+  * Known limitations:
+    - Loops deferred to v0.3.0
+    - True fan-in merge/join deferred
+    - Visual canvas editor deferred
+- Follow existing CHANGELOG format
+
+Desired result:
+- CHANGELOG.md updated with v0.2.0 entry
+- All features listed
+- Migration guidance included
+- Limitations documented

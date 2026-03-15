@@ -1,0 +1,21 @@
+Create memory_agent plugin with memorize mode
+
+Requirements:
+- Create memory_agent plugin under plugins/ directory
+- Memorize mode: takes input, stores as new memory entry, returns input unchanged
+- Plugin configuration fields:
+  * mode (select: "memorize" / "remember")
+  * label (text, required): names memory slot per pipeline
+  * max_memories (text, default "20"): max entries to retain
+  * ttl_hours (text, default "720" = 30 days): entries older excluded from retrieval
+  * max_value_size (text, default "2000"): characters, input truncated before storing
+- Implement memorize mode logic:
+  * Truncate input to max_value_size if > 0
+  * Store as new PipelineMemoryRow entry
+  * Return input unchanged (transparent node)
+
+Desired result:
+- memory_agent plugin file exists
+- Memorize mode fully implemented
+- Plugin follows existing plugin patterns
+- Integration with PipelineMemoryRepository

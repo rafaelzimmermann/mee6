@@ -1,0 +1,18 @@
+Implement backward-compat auto-migration in PipelineStore.get()
+
+Requirements:
+- In PipelineStore.get(), check if graph column is not null
+- If graph is not null → parse as graph pipeline
+- If graph is null → parse steps and auto-generate linear graph
+- Auto-generated linear graph:
+  * Create nodes from each step
+  * Create unconditional edges between consecutive nodes
+  * Set entry_node_id to first node
+- Auto-generated graphs are written back to graph column on first save
+- This migrates pipelines transparently
+
+Desired result:
+- PipelineStore.get() implements auto-migration logic
+- Legacy pipelines with steps converted to graph format
+- Auto-generated graph correctly represents linear chain
+- First save writes graph column to DB

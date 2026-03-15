@@ -1,0 +1,133 @@
+  Code Review Plan — mee6
+
+  The codebase is in good shape overall. Issues are real but tractable, grouped into 6 themes and 3 implementation phases.
+
+  ---
+  Theme 1: Coupling
+
+  ┌─────┬────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ ID  │ Impact │                                                                                            Issue                                                                                            │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ C-1 │ HIGH   │ whatsapp_session.py imports scheduler inside a nested callback — dependency flows the wrong direction (integration → scheduler). Fix: pass on_message/on_group_message callbacks into       │
+  │     │        │ connect() from app.py.                                                                                                                                                                      │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ C-2 │ HIGH   │ Three plugins (calendar_agent, whatsapp_group_read, whatsapp_group_send) open DB sessions directly inside get_fields(). Plugins should not own infrastructure access. Fix: pass pre-fetched │
+  │     │        │  options in, or use a service layer.                                                                                                                                                        │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ C-3 │ MEDIUM │ integrations/whatsapp.py owns read_messages/read_group_messages which are pure DB reads — no neonize involved. These belong in the plugin or a service.                                     │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ C-4 │ MEDIUM │ Jinja2Templates instantiated 5 times, once per route file. Fix: shared instance in mee6/web/templates.py.                                                                                   │
+  └─────┴────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ---
+  Theme 2: Magic Values / Constants
+
+  ┌──────┬────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │  ID  │ Impact │                                                                                 Issue                                                                                  │
+  ├──────┼────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ MV-1 │ HIGH   │ 17 for neonize MessageEv code is undocumented. If neonize reorders its event table this silently breaks group messages. Name it _NEONIZE_MESSAGE_EV_CODE.              │
+  ├──────┼────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ MV-2 │ HIGH   │ max_tokens=4096 hardcoded identically in llm_agent/agent.py and calendar_agent/agent.py. Extract to config.py.                                                         │
+  ├──────┼────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ MV-3 │ MEDIUM │ 1e10 timestamp threshold in group handler is undocumented, and DM handler unconditionally divides by 1000 — the two handlers disagree on the neonize timestamp format. │
+  ├──────┼────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ MV-4 │ MEDIUM │ Run history cap 200 appears in two places in scheduler/engine.py. Name it _MAX_RUN_HISTORY.                                                                            │
+  ├──────┼────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ MV-5 │ MEDIUM │ QR watchdog 65, monitor poll 2, reconnect delay 1 are bare numbers. Name them.                                                                                         │
+  ├──────┼────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ MV-6 │ MEDIUM │ /app/data/credentials.json hardcoded in models.py server_default and config.py. Should be a single source.                                                             │
+  └──────┴────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ---
+  Theme 3: Duplication
+
+  ┌─────┬────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ ID  │ Impact │                                                                                         Issue                                                                                         │
+  ├─────┼────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D-1 │ HIGH   │ get_fields() DB open-session-load-encode pattern duplicated identically in 3 plugins. Extract _load_group_options() and _load_calendar_options().                                     │
+  ├─────┼────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D-2 │ MEDIUM │ Timestamp parsing code duplicated between _store_incoming (DM) and _store_group_message (group), with disagreeing logic. Extract _parse_wa_timestamp(ts_raw).                         │
+  ├─────┼────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D-3 │ MEDIUM │ send_group_message uses loop.run_in_executor while everything else uses asyncio.to_thread. Standardize on to_thread.                                                                  │
+  ├─────┼────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D-4 │ MEDIUM │ create_pipeline and update_pipeline route handlers duplicate the Pipeline(...) construction. Extract _pipeline_from_form(data, id).                                                   │
+  ├─────┼────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D-5 │ MEDIUM │ asyncio.to_thread(cal_lib.fn, calendar_id, credentials_file, ...) repeated 4× in calendar agent. Extract a bound _call(fn, *args) helper.                                             │
+  ├─────┼────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ D-6 │ MEDIUM │ create_event and update_event both have identical except HttpError attendee-fallback blocks. Extract _execute_with_attendee_fallback(execute_fn, event_body, attendees, description). │
+  └─────┴────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ---
+  Theme 4: Design Pattern Opportunities
+
+  ┌─────┬────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ ID  │ Impact │                                                                                            Issue                                                                                            │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ P-1 │ HIGH   │ AgentPlugin Protocol is defined but AGENT_PLUGINS is typed dict[str, object]. No enforcement. get_fields() is not in the Protocol — the route uses hasattr() duck-typing. Add get_fields to │
+  │     │        │  the Protocol with a default implementation.                                                                                                                                                │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ P-2 │ HIGH   │ Three separate add_trigger / add_whatsapp_trigger / add_wa_group_trigger methods — adding a 4th type requires touching both the engine and the route handler. Unify into add_trigger(meta:  │
+  │     │        │ TriggerMeta) dispatching internally.                                                                                                                                                        │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ P-3 │ MEDIUM │ check_wa_triggers and check_wa_group_triggers are near-identical. Extract _check_event_triggers(triggers, key, incoming_id).                                                                │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ P-4 │ MEDIUM │ _dispatch_pipeline is a module-level function that accesses the scheduler singleton directly — untestable. Make it a method or use a weak reference.                                        │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ P-5 │ LOW    │ Plugin dict key must match plugin.name manually — not enforced. Build registry as {p.name: p for p in _ALL_PLUGINS}.                                                                        │
+  └─────┴────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ---
+  Theme 5: Error Handling Gaps
+
+  ┌─────┬────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ ID  │ Impact │                                                                                  Issue                                                                                  │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ E-1 │ HIGH   │ except Exception: pass swallows ConnectedEv/DisconnectedEv registration failures — even non-import errors are invisible. Catch ImportError separately.                  │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ E-2 │ HIGH   │ except Exception: pass in the _monitor poll loop hides legitimate errors. At minimum, log them.                                                                         │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ E-3 │ MEDIUM │ except Exception: jid = group_jid in send_group_message silently falls back with no logging.                                                                            │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ E-4 │ MEDIUM │ get_qr_svg() returns None on any exception — UI shows no QR with no explanation. Log before returning None.                                                             │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ E-5 │ MEDIUM │ Raw exception strings embedded in HTML/URL (/integrations?error={exc}) without sanitisation. Use urllib.parse.quote and logger.exception.                               │
+  ├─────┼────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ E-6 │ MEDIUM │ No timeout on pipeline step execution — a hung LLM or browser call blocks the scheduler indefinitely. Wrap with asyncio.wait_for(..., timeout=settings.step_timeout_s). │
+  └─────┴────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ---
+  Theme 6: Misc / Best Practices
+
+  ┌─────┬────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ ID  │ Impact │                                                                            Issue                                                                             │
+  ├─────┼────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ M-1 │ HIGH   │ Module-level side effects at import time (create_async_engine, SchedulerEngine(), Settings(), etc.) make unit testing hard. At minimum, lazify db/engine.py. │
+  ├─────┼────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ M-2 │ HIGH   │ datetime.now() (naive, local timezone) in scheduler/engine.py. Should be datetime.now(timezone.utc) consistently with the rest of the codebase.              │
+  ├─────┼────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ M-3 │ MEDIUM │ _pending_run keyed by pipeline name — two pipelines with the same name collide. Key by pipeline_id instead.                                                  │
+  ├─────┼────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ M-4 │ MEDIUM │ _get_service() in calendar.py rebuilds the Google API client on every call (parses discovery document each time). Cache per credentials file path.           │
+  ├─────┼────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ M-5 │ MEDIUM │ (Already noted in D-6) Attendee fallback duplicated in two functions.                                                                                        │
+  ├─────┼────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ M-6 │ MEDIUM │ browser_use log level set in both browser_agent/agent.py (module-level side effect) and app.py. Remove from agent.py.                                        │
+  ├─────┼────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ M-7 │ MEDIUM │ _migrate_db splits SQL on ; — fragile for any non-trivial SQL (CTEs, DO $$ ... $$). Enforce single-statement-per-file or adopt Alembic.                      │
+  ├─────┼────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ M-9 │ LOW    │ config["phone"] raises KeyError instead of a readable error message.                                                                                         │
+  └─────┴────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ---
+  Recommended Implementation Sequence
+
+  Phase 1 — Safe constants/cleanup (1–2 hours, zero behavior change):
+  MV-1 through MV-5 (name all the magic values), P-5 (self-describing registry), D-3 (standardize to_thread), D-4, D-5, D-6 (extract small helpers), M-6 (remove duplicate log setter), M-9 (.get("phone", "")),
+  M-10 (remove unused templates from app.py)
+
+  Phase 2 — Moderate effort, low risk (half day):
+  D-1, D-2 (shared helpers in plugins and session), E-1 through E-5 (improve exception handling), M-3 (key _pending_run by ID), M-4 (cache Google service), P-1 (Protocol typing + get_fields), C-4 (shared Jinja2
+   instance), P-3 (merge check_wa_triggers)
+
+  Phase 3 — Design changes (1–2 days, coordinate carefully):
+  C-1 (decouple session from scheduler via callbacks), C-2+C-3 (remove DB access from plugins), P-2 (unify add_trigger), E-6 (step timeout), M-2 (timezone-aware datetimes throughout), M-1 (lazy DB engine init)

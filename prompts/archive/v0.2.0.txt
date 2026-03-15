@@ -1,0 +1,376 @@
+# mee6 v0.2.0 — Plan
+
+## Overview
+
+Two independent features shipped together under v0.2.0:
+
+1. **Pipeline Graph** — replace the linear step list with a directed graph of nodes and
+   edges, supporting branching (router nodes) and fan-out. Loops are deferred to v0.3.0
+   but the data model is designed to accommodate them without further schema changes.
+
+2. **Memory Agent** — a new plugin that lets any pipeline accumulate or recall context
+   across runs, stored in PostgreSQL and scoped per pipeline + label.
+
+
+────────────────────────────────────────────────────────────────
+## Feature 1: Pipeline Graph
+────────────────────────────────────────────────────────────────
+
+### Motivation
+
+The current model is a flat list: step[0] → step[1] → ... → step[N].
+This prevents:
+  - Branching (do A or B depending on the previous output)
+  - Fan-out (send the same output to multiple independent downstream nodes)
+  - Loops (retry or poll until a condition is met) — deferred to v0.3.0
+
+v0.2.0 adds branching and fan-out. Loops are out of scope but the graph model
+supports back edges structurally; the executor will simply not follow them yet
+(treat any edge pointing to an already-visited node as a no-op and log a warning).
+
+---
+
+### Constraints
+
+- **Nodes are unique.** Each `PipelineNode.id` appears exactly once in the graph.
+  Reuse is not allowed. If you need the same agent logic at two points, create two
+  separate nodes with the same configuration.
+- **No loops in v0.2.0.** The executor detects back edges (edges to already-visited
+  nodes) and skips them with a warning. The data model does not forbid them so that
+  v0.3.0 can enable loop execution without a schema change.
+
+---
+
+### Data Model
+
+Replace `Pipeline.steps: list[PipelineStep]` with nodes + edges.
+
+```python
+class PipelineNode:
+    id: str                    # uuid, stable across edits
+    agent_type: str
+    config: dict[str, str]
+    label: str | None          # optional user-visible name for the node
+
+class PipelineEdge:
+    id: str
+    from_node_id: str
+    to_node_id: str
+    condition: str | None      # None = unconditional (always followed)
+                               # non-None = label that must match router output
+                               # e.g. "yes", "no", "done"
+
+class Pipeline:
+    id: str
+    name: str
+    entry_node_id: str         # execution starts here
+    nodes: list[PipelineNode]  # each id is unique within the pipeline
+    edges: list[PipelineEdge]
+```
+
+**Backward compatibility:** on load, if a pipeline still has the old `steps` list,
+auto-convert it to a linear chain of nodes with unconditional edges.
+This happens transparently in `PipelineStore.get()`. The `steps` column is retained
+until all pipelines are migrated; it can be dropped in v0.3.0.
+
+---
+
+### New Plugin: Router
+
+`router_agent` — evaluates the current input and decides which branch to follow.
+
+Fields:
+  - `prompt` (textarea): instruction for the LLM, e.g. "Reply with exactly one word:
+    'yes' if the input mentions an event date, otherwise 'no'."
+  - `routes` (text): comma-separated expected output labels, e.g. "yes, no"
+  - `provider`, `model` (combobox): same as llm_agent
+
+Execution: calls the LLM with the prompt, strips and lowercases the response,
+matches against outgoing edge conditions. Takes the first matching conditional edge,
+or the unconditional edge (`condition = None`) as the default/fallback. If nothing
+matches and there is no default edge, execution of that branch terminates.
+
+Output passed to the next node: the same input the router received.
+Routers are transparent — they route the data without transforming it.
+
+---
+
+### Fan-out Behaviour
+
+When a node has **multiple outgoing edges** (and is not a router), all edges are
+followed. Each downstream node is enqueued and executed in the order the edges
+are defined. Each receives the same output from the upstream node.
+
+When a node has **multiple incoming edges** (convergence point), it does NOT merge
+inputs. Instead, it is executed once per incoming value, in the order each value
+arrives (queue semantics). If node C is downstream of both A and B, C runs twice:
+first with A's output, then with B's output (or B then A, depending on edge order).
+There is no merge, no concatenation — just sequential independent executions.
+
+This keeps fan-in simple and predictable. True merge/join is deferred to v0.3.0.
+
+---
+
+### Executor Design (`pipelines/executor.py`)
+
+Uses a **work queue** (a `deque`) rather than a simple pointer. Each queue entry is
+a `(node_id, input_text)` pair. This naturally handles fan-out and queue semantics
+for convergence points.
+
+```python
+async def run_pipeline(pipeline: Pipeline) -> dict:
+    visited: set[str] = set()          # for back-edge detection (loops deferred)
+    queue: deque[tuple[str, str]] = deque()
+    outputs: list[str] = []            # collect all terminal outputs
+
+    queue.append((pipeline.entry_node_id, ""))
+
+    while queue:
+        node_id, input_text = queue.popleft()
+        node = pipeline.get_node(node_id)
+
+        # Back-edge guard (loops deferred to v0.3.0)
+        if node_id in visited:
+            logger.warning("Back edge to node %s detected — skipping (loops not yet supported)", node_id)
+            continue
+        visited.add(node_id)
+
+        output = await _run_node(node, input_text)
+
+        outgoing = pipeline.edges_from(node_id)
+        if not outgoing:
+            outputs.append(output)     # terminal node
+        else:
+            for edge in outgoing:
+                if edge.condition is None or output.strip().lower() == edge.condition:
+                    queue.append((edge.to_node_id, output))
+
+    return {"summary": outputs[-1] if outputs else ""}
+```
+
+Notes:
+  - `visited` prevents re-entering a node in the same run (back-edge guard).
+    When loops are enabled in v0.3.0 this set becomes a counter dict.
+  - A router node only enqueues the matching edge(s); other nodes enqueue all
+    unconditional edges plus any matching conditional ones.
+  - The `summary` is the output of the last terminal node to complete. With fan-out
+    producing multiple terminal outputs the last one in queue order is used.
+    A more sophisticated aggregation can be added in v0.3.0.
+
+---
+
+### DB Migration
+
+`005_pipeline_graph.sql`:
+
+```sql
+-- Add graph JSONB column alongside existing steps column.
+-- If graph IS NOT NULL the pipeline is a graph; if NULL it is a legacy linear pipeline.
+ALTER TABLE pipelines ADD COLUMN IF NOT EXISTS graph JSONB;
+```
+
+The `graph` column stores the full serialised graph:
+```json
+{
+  "entry_node_id": "abc",
+  "nodes": [{"id": "abc", "agent_type": "llm_agent", "config": {}, "label": null}, ...],
+  "edges": [{"id": "xyz", "from_node_id": "abc", "to_node_id": "def", "condition": null}, ...]
+}
+```
+
+`steps` is kept as-is. `PipelineStore.get()` checks: if `graph` is not null → parse
+as graph pipeline; otherwise → parse `steps` and auto-generate a linear graph.
+Auto-generated graphs are written back to the `graph` column on the first save,
+migrating the pipeline transparently.
+
+Normalised `pipeline_nodes` / `pipeline_edges` tables are deferred to v0.3.0.
+
+---
+
+### Pipeline Editor UI
+
+The linear "add step" editor is no longer sufficient.
+
+**v0.2.0 approach (pragmatic):**
+  - Keep the existing step list UI for any pipeline not yet in graph mode.
+  - Add a "Graph" editor mode with:
+      • A nodes panel — add/remove/configure nodes (same field UI as today)
+      • An edges panel — from (select) → to (select) + optional condition label
+      • A simple read-only topology preview (e.g. a text-based adjacency list or
+        minimal SVG rendered server-side)
+  - The full drag-and-drop canvas (Cytoscape.js or similar) is deferred to v0.3.0.
+
+A pipeline is converted to graph mode the first time it is saved in the graph editor.
+Saving in Simple (linear) mode produces a linear graph internally.
+
+---
+
+### Designing for v0.3.0 Loops
+
+The data model and executor are written with loops in mind:
+  - `PipelineEdge` already supports back edges (no structural restriction).
+  - The `visited` set in the executor is the only thing preventing loops; replacing
+    it with an `iterations: dict[node_id, int]` counter and a `max_iterations`
+    pipeline property is the entire change needed to enable loops.
+  - No schema changes will be required.
+
+---
+
+### Open Questions
+
+- **Multiple terminal outputs:** with fan-out it is possible to have >1 terminal node.
+  v0.2.0 uses the last terminal output as the run summary. Revisit in v0.3.0.
+- **Edge ordering:** fan-out order matches the order edges are defined in the graph.
+  The editor should make edge ordering explicit.
+
+
+────────────────────────────────────────────────────────────────
+## Feature 2: Memory Agent
+────────────────────────────────────────────────────────────────
+
+### Motivation
+
+Pipelines currently have no memory across runs. Every execution starts fresh.
+The Memory Agent lets a pipeline accumulate context over time (e.g. remember
+which events were already processed, what the user said last time, summaries
+of previous outputs).
+
+---
+
+### Plugin Design
+
+Plugin name: `memory_agent`
+Plugin label: "Memory"
+
+Mode: **memorize** — takes the current input, stores it as a new memory entry.
+      **remember**  — retrieves recent memories for the label, formats them as
+                      context text, and passes that to the next node.
+
+Fields:
+  - `mode`          (select: "memorize" / "remember")
+  - `label`         (text, required): names this memory slot, e.g. "processed_events".
+                    Multiple memory slots can exist per pipeline with different labels.
+  - `max_memories`  (text, default "20"): max entries to retain per pipeline+label.
+                    Oldest entries are evicted when exceeded. 0 = unlimited.
+  - `ttl_hours`     (text, default "720" = 30 days): entries older than this are
+                    excluded from retrieval and eligible for deletion. 0 = no expiry.
+  - `max_value_size` (text, default "2000"): characters; input is truncated before
+                    storing. 0 = no truncation.
+  - `compaction`    (select: "none" / "summarize"): when max_memories is exceeded and
+                    compaction = "summarize", instead of discarding old entries an LLM
+                    call compresses them into a single compacted entry before eviction.
+  - `provider`, `model` (combobox, only relevant when compaction = "summarize")
+
+`run(config, input)`:
+  - memorize: store input (truncated to max_value_size) → return input unchanged
+    (transparent node — passes data through so it can sit anywhere in the graph)
+  - remember: query recent memories within TTL → format as:
+    ```
+    [Memory: processed_events]
+    [1] 2026-03-01 — <value>
+    [2] 2026-03-02 — <value>
+    ...
+    ```
+    → return formatted block as output
+
+---
+
+### Database Schema
+
+`006_pipeline_memories.sql`:
+
+```sql
+CREATE TABLE IF NOT EXISTS pipeline_memories (
+    id          SERIAL PRIMARY KEY,
+    pipeline_id VARCHAR NOT NULL,
+    trigger_id  VARCHAR,          -- NULL if run manually
+    label       VARCHAR NOT NULL,
+    created_at  TIMESTAMP NOT NULL,
+    value       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_memories_pipeline_label_ts
+    ON pipeline_memories (pipeline_id, label, created_at DESC);
+```
+
+No foreign key on `trigger_id` (triggers can be deleted independently).
+
+---
+
+### Repository: `PipelineMemoryRepository`
+
+```python
+get_recent(pipeline_id, label, limit, since: datetime) -> list[PipelineMemoryRow]
+insert(row: PipelineMemoryRow) -> None
+count(pipeline_id, label) -> int
+delete_oldest(pipeline_id, label, keep: int) -> None   # eviction
+delete_expired(pipeline_id, label, before: datetime) -> None
+```
+
+---
+
+### Compaction Flow (memorize + compaction = "summarize")
+
+1. Insert the new memory entry.
+2. Count entries for (pipeline_id, label).
+3. If count > max_memories:
+   a. Fetch all entries oldest-first.
+   b. Call LLM: "Summarise these memory entries into one concise entry preserving
+      all key facts: <entries>". Max output: max_value_size characters.
+   c. Delete all entries for (pipeline_id, label).
+   d. Insert the compacted summary as a single new entry with `created_at = now()`.
+
+Without compaction: delete the oldest entries beyond `max_memories`.
+
+---
+
+### Housekeeping
+
+On each `memory_agent` run, call `delete_expired()` for that pipeline+label.
+No global reaper needed for v0.2.0; revisit if tables grow large.
+
+
+────────────────────────────────────────────────────────────────
+## Implementation Order
+────────────────────────────────────────────────────────────────
+
+Recommended sequence (each item is independently shippable):
+
+  1. Memory Agent (self-contained, no UI changes beyond the plugin form)
+     a. Migration 006_pipeline_memories.sql
+     b. PipelineMemoryRow model + PipelineMemoryRepository
+     c. memory_agent plugin (memorize + remember, no compaction yet)
+     d. Register in plugin_registry
+     e. Compaction (summarize mode)
+
+  2. Pipeline Graph — data model + executor
+     a. Migration 005_pipeline_graph.sql (graph JSONB column)
+     b. PipelineNode, PipelineEdge, update Pipeline model
+     c. Backward-compat auto-migration in PipelineStore.get()
+     d. Queue-based graph executor with back-edge guard
+     e. Router plugin
+
+  3. Pipeline Graph — editor UI
+     a. Nodes panel + edges panel (structured, no canvas)
+     b. Topology preview
+     c. Auto-migrate existing pipelines on first save
+
+  4. Polish + tests
+     a. Unit tests for graph executor (linear chain, branch, fan-out,
+        convergence queue semantics, back-edge guard)
+     b. Unit tests for memory agent (memorize, remember, eviction, compaction)
+     c. Update README and CHANGELOG
+
+
+────────────────────────────────────────────────────────────────
+## Deferred to v0.3.0
+────────────────────────────────────────────────────────────────
+
+  - Loop execution (replace visited set with iteration counter + max_iterations)
+  - True fan-in merge/join nodes
+  - Multiple terminal output aggregation
+  - Drag-and-drop visual graph canvas editor
+  - Normalised pipeline_nodes / pipeline_edges tables (replace JSONB)
+  - Global memory reaper / scheduled TTL cleanup
+  - Memory export / inspection UI
+  - Drop legacy `steps` JSONB column

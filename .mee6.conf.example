@@ -1,9 +1,0 @@
-# Project-specific configuration for mee6.
-# Copy to .mee6.conf (gitignored) and fill in your values.
-# These settings are specific to this mee6 instance.
-
-# Google Calendar
-# Events are written via the Google Calendar API using a service account.
-# Share your calendar with the service account email and place the JSON key at GOOGLE_CREDENTIALS_FILE.
-GOOGLE_CALENDAR_ID=your-calendar-id@group.calendar.google.com
-GOOGLE_CREDENTIALS_FILE=/app/data/credentials.json

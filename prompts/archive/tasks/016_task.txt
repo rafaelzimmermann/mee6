@@ -1,0 +1,21 @@
+Create edges panel UI
+
+Requirements:
+- Create UI component for managing edges in graph editor
+- Edges panel features:
+  * Add edge button
+  * Remove edge button
+  * List of existing edges with: from_node → to_node (+ condition if any)
+  * Edge creation form:
+    - From node (dropdown/select)
+    - To node (dropdown/select)
+    - Condition label (text input, optional - empty = unconditional)
+- Edge ordering should be explicit (fan-out order matches edge definition order)
+- Follow existing UI patterns and styling
+
+Desired result:
+- Edges panel UI component exists
+- Add/remove edge functionality works
+- Edge configuration form with condition input
+- Edge ordering displayed and editable
+- Integration with graph data model

@@ -1,0 +1,1673 @@
+# Refactoring Plan: Pipeline Editor (mee6/web/templates/pipeline_editor.html)
+
+## Current Issues
+
+### 1. If-else Mass in renderFields() Function (Lines 51-116)
+- 7 different conditional branches for field types
+- Inline HTML generation with string concatenation
+- Complex nested conditions for select-based fields
+- No code reuse between similar field types
+
+### 2. Mixed Concerns
+- Rendering logic mixed with DOM manipulation
+- State management scattered across global variables
+- Event handling interwoven with business logic
+- Validation tightly coupled to DOM
+
+### 3. No Separation of Concerns
+- All JavaScript is inline in HTML template
+- No modularization
+- Difficult to test individual components
+- Hard to maintain and extend
+
+### 4. Lack of Reusability
+- Field rendering logic is not reusable
+- No component-based architecture
+- Duplication in similar field types (select, group_select, calendar_select)
+
+### 5. Insufficient Field Validation
+- Only validates memory agent checkbox state (validateMemorySteps function)
+- No validation for required fields with missing values
+- No validation for empty text inputs
+- No validation for select fields with no option selected
+- Allows saving pipelines with completely empty steps
+- No client-side feedback for validation errors
+- No validation on field change, only on save
+
+### 6. No Testing Infrastructure
+- JavaScript code is not testable
+- No test coverage for client-side logic
+- Difficult to verify correctness of dynamic field rendering
+- No tests for validation logic
+
+## Proposed Architecture
+
+### Phase 1: Extract JavaScript to Separate Modules
+
+#### File Structure
+```
+mee6/web/static/js/
+├── pipeline-editor.js              # Main entry point
+├── modules/
+│   ├── state-manager.js           # State management
+│   ├── field-renderer.js          # Field rendering logic
+│   ├── field-components/
+│   │   ├── index.js               # Component registry
+│   │   ├── text-field.js          # Text input component
+│   │   ├── textarea-field.js     # Textarea component
+│   │   ├── select-field.js        # Select component
+│   │   ├── checkbox-field.js      # Checkbox component
+│   │   ├── combobox-field.js      # Combobox component
+│   │   ├── group-select-field.js  # Group select component
+│   │   └── calendar-select-field.js
+│   ├── step-manager.js            # Step CRUD operations
+│   ├── validator.js               # Form validation
+│   └── api-client.js              # API communication
+└── utils/
+    ├── dom-utils.js               # DOM helpers
+    └── esc.js                     # Escaping utilities
+```
+
+#### Module Responsibilities
+
+**state-manager.js**
+- Manage pipeline state (name, steps)
+- Handle schema cache
+- Provide reactive state updates
+- Centralized state mutations
+
+**field-renderer.js**
+- Coordinate field component rendering
+- Handle placeholder hints injection
+- Manage field container updates
+
+**field-components/** (Strategy Pattern)
+- Each file exports a render function
+- Consistent interface: `render(field, value, index, options)`
+- Component registry maps field_type to renderer
+
+**step-manager.js**
+- Add, remove, move steps
+- Update step data
+- Reorder steps
+- Step index management
+
+**validator.js**
+- Validate individual fields
+- Validate memory agent steps
+- Return error messages
+
+**api-client.js**
+- Fetch schemas
+- Save/update pipelines
+- Handle errors
+
+### Phase 2: Create Reusable Field Components
+
+#### Component Interface
+```javascript
+// Each field component implements this interface
+{
+  name: 'textarea',
+  render(field, value, index, options) {
+    // Returns HTML string or DOM element
+  },
+  getValue(element) {
+    // Extract value from DOM element
+  },
+  validate(field, value) {
+    // Validate field value
+    // Returns { valid: boolean, error: string | null }
+  }
+}
+```
+
+#### Component Registry Pattern
+```javascript
+// modules/field-components/index.js
+import { TextComponent } from './text-field.js';
+import { TextareaComponent } from './textarea-field.js';
+import { SelectComponent } from './select-field.js';
+// ... other imports
+
+const COMPONENTS = {
+  text: TextComponent,
+  textarea: TextareaComponent,
+  select: SelectComponent,
+  checkbox: CheckboxComponent,
+  combobox: ComboboxComponent,
+  group_select: GroupSelectComponent,
+  calendar_select: CalendarSelectComponent,
+};
+
+export function getComponent(fieldType) {
+  return COMPONENTS[fieldType] || TextComponent; // Fallback to text
+}
+
+export function registerComponent(name, component) {
+  COMPONENTS[name] = component;
+}
+```
+
+### Phase 3: Implement Component-Based Rendering
+
+#### Field Components Examples
+
+**textarea-field.js**
+```javascript
+export function render(field, value, index, placeholderHints) {
+  const id = `field-${index}-${field.name}`;
+  const placeholderEsc = esc(field.placeholder);
+  const valueEsc = esc(value || '');
+  const required = field.required ? 'required' : '';
+
+  let html = `<label class="field-label">${esc(field.label)}`;
+  html += `<textarea name="${esc(field.name)}" id="${id}" placeholder="${placeholderEsc}" ${required}>${valueEsc}</textarea>`;
+
+  if (placeholderHints.length) {
+    const hints = placeholderHints.map(p => `<code>${esc(p)}</code>`).join(' ');
+    html += `<span class="field-hint">Placeholders: ${hints}</span>`;
+  }
+
+  html += `</label>`;
+  return html;
+}
+```
+
+**select-field.js**
+```javascript
+export function render(field, value, index) {
+  const id = `field-${index}-${field.name}`;
+  const required = field.required ? 'required' : '';
+
+  let html = `<label class="field-label">${esc(field.label)}`;
+  html += `<select name="${esc(field.name)}" id="${id}" ${required}>`;
+
+  for (const opt of field.options) {
+    const selected = (value || field.options[0]) === opt ? ' selected' : '';
+    html += `<option value="${esc(opt)}"${selected}>${esc(opt)}</option>`;
+  }
+
+  html += `</select></label>`;
+  return html;
+}
+```
+
+**group-select-field.js** (Complex case refactored)
+```javascript
+import { renderSelectOptionsWithHint } from '../utils/select-utils.js';
+
+export function render(field, value, index) {
+  const id = `field-${index}-${field.name}`;
+  const hintId = `ghint-${index}-${esc(field.name)}`;
+  const required = field.required ? 'required' : '';
+
+  const handleChange = `(function(s){
+    var o=s.options[s.selectedIndex];
+    var h=document.getElementById('${hintId}');
+    if(h)h.textContent=o?o.dataset.hint:'';
+  })(this)`;
+
+  let html = `<label class="field-label">${esc(field.label)}`;
+  html += `<select name="${esc(field.name)}" id="${id}" ${required} onchange="${handleChange}">`;
+
+  html += `<option value="">— select group —</option>`;
+  let hintVal = '';
+
+  for (const opt of field.options) {
+    const parts = opt.split('||', 2);
+    const jid = parts.length > 1 ? parts[1] : parts[0];
+    const selected = value === jid ? ' selected' : '';
+    if (value === jid) hintVal = jid;
+    html += `<option value="${esc(jid)}" data-hint="${esc(jid)}"${selected}>${esc(parts[0])}</option>`;
+  }
+
+  html += `</select>`;
+  html += `<span class="field-hint" id="${hintId}">${esc(hintVal)}</span>`;
+  html += `</label>`;
+
+  return html;
+}
+```
+
+### Phase 4: State Management Refactoring
+
+#### Centralized State Store
+```javascript
+// modules/state-manager.js
+class PipelineEditorState {
+  constructor() {
+    this.pipeline = {
+      id: null,
+      name: '',
+      steps: []
+    };
+    this.schemas = {};
+    this.listeners = [];
+  }
+
+  setPipeline(pipeline) {
+    this.pipeline = { ...this.pipeline, ...pipeline };
+    this.notify('pipeline-updated');
+  }
+
+  setSchemas(schemas) {
+    this.schemas = schemas;
+    this.notify('schemas-loaded');
+  }
+
+  addStep(stepData) {
+    this.pipeline.steps.push({
+      agent_type: '',
+      config: {},
+      ...stepData
+    });
+    this.notify('steps-updated');
+  }
+
+  removeStep(index) {
+    this.pipeline.steps.splice(index, 1);
+    this.notify('steps-updated');
+  }
+
+  moveStepUp(index) {
+    if (index > 0) {
+      const temp = this.pipeline.steps[index];
+      this.pipeline.steps[index] = this.pipeline.steps[index - 1];
+      this.pipeline.steps[index - 1] = temp;
+      this.notify('steps-updated');
+    }
+  }
+
+  subscribe(event, callback) {
+    this.listeners.push({ event, callback });
+  }
+
+  notify(event, data) {
+    this.listeners
+      .filter(l => l.event === event)
+      .forEach(l => l.callback(data));
+  }
+}
+
+export const state = new PipelineEditorState();
+```
+
+### Phase 5: Event Handling Refactoring
+
+#### Event Delegation with Handler Registry
+```javascript
+// modules/event-handlers.js
+import { state } from './state-manager.js';
+
+const handlers = {
+  agentChange: async (card, stepIndex) => {
+    const select = card.querySelector('.agent-select');
+    state.updateStep(stepIndex, {
+      agent_type: select.value,
+      config: {}
+    });
+  },
+
+  removeStep: async (card, stepIndex) => {
+    state.removeStep(stepIndex);
+  },
+
+  moveUp: async (stepIndex) => {
+    state.moveStepUp(stepIndex);
+  },
+
+  moveDown: async (stepIndex) => {
+    state.moveStepDown(stepIndex);
+  }
+};
+
+export function setupEventDelegation(container) {
+  container.addEventListener('change', (e) => {
+    if (e.target.classList.contains('agent-select')) {
+      const card = e.target.closest('.step-card');
+      const stepIndex = parseInt(card.dataset.idx);
+      handlers.agentChange(card, stepIndex);
+    }
+  });
+
+  container.addEventListener('click', (e) => {
+    const card = e.target.closest('.step-card');
+    if (!card) return;
+    const stepIndex = parseInt(card.dataset.idx);
+
+    if (e.target.classList.contains('remove-step')) {
+      handlers.removeStep(card, stepIndex);
+    } else if (e.target.classList.contains('move-up')) {
+      handlers.moveUp(stepIndex);
+    } else if (e.target.classList.contains('move-down')) {
+      handlers.moveDown(stepIndex);
+    }
+  });
+}
+```
+
+### Phase 6: Validation Refactoring
+
+#### Current Validation Gaps
+
+**Issues Identified:**
+1. `validateMemorySteps()` only checks memory_agent checkboxes
+2. No validation for required text/textarea fields being empty
+3. No validation for required select/combobox fields having no selection
+4. No validation for empty pipeline (no steps)
+5. No validation for steps without agent type selected
+6. No real-time validation feedback (only on save)
+7. Validation errors shown via alert() instead of inline UI
+8. No visual indication of which fields have errors
+
+**Critical Bug Example:**
+- User can create a pipeline with steps that have no values
+- User can save pipeline with empty required fields
+- User can submit pipeline without any agent type selected
+- Backend accepts invalid pipelines
+
+#### Comprehensive Validation System
+
+**Schema-Based Validation:**
+```javascript
+// modules/validator.js
+export class ValidationError {
+  constructor(fieldName, stepIndex, fieldType, message) {
+    this.fieldName = fieldName;
+    this.stepIndex = stepIndex;
+    this.fieldType = fieldType;
+    this.message = message;
+  }
+}
+
+// Field-level validators for different types
+const fieldValidators = {
+  text: (field, value) => {
+    if (field.required && (!value || value.trim() === '')) {
+      return `${field.label} is required`;
+    }
+    return null;
+  },
+
+  textarea: (field, value) => {
+    if (field.required && (!value || value.trim() === '')) {
+      return `${field.label} is required`;
+    }
+    return null;
+  },
+
+  select: (field, value) => {
+    if (field.required && (!value || value === '')) {
+      return `Please select a ${field.label.toLowerCase()}`;
+    }
+    return null;
+  },
+
+  combobox: (field, value) => {
+    if (field.required && (!value || value.trim() === '')) {
+      return `${field.label} is required`;
+    }
+    return null;
+  },
+
+  group_select: (field, value) => {
+    if (field.required && (!value || value === '')) {
+      return `Please select a ${field.label.toLowerCase()}`;
+    }
+    return null;
+  },
+
+  calendar_select: (field, value) => {
+    if (field.required && (!value || value === '')) {
+      return `Please select a ${field.label.toLowerCase()}`;
+    }
+    return null;
+  },
+
+  checkbox: (field, value) => {
+    // Checkboxes are optional by default unless required is true
+    // For checkboxes, 'required' typically means it must be checked
+    if (field.required && value !== 'on') {
+      return `${field.label} must be checked`;
+    }
+    return null;
+  }
+};
+
+export function validateField(field, value) {
+  const validator = fieldValidators[field.field_type] || fieldValidators.text;
+  return validator(field, value);
+}
+
+export function validateStepConfig(step, stepIndex, schema) {
+  const errors = [];
+
+  if (!step.agent_type) {
+    errors.push(new ValidationError('agent_type', stepIndex, 'select', 'Agent type is required'));
+    return errors;
+  }
+
+  const fields = schema[step.agent_type] || [];
+  for (const field of fields) {
+    const value = step.config[field.name];
+    const errorMessage = validateField(field, value);
+    if (errorMessage) {
+      errors.push(new ValidationError(
+        field.name,
+        stepIndex,
+        field.field_type,
+        errorMessage
+      ));
+    }
+  }
+
+  // Special validation for memory agent
+  if (step.agent_type === 'memory_agent') {
+    const hasRead = step.config.read_memory === 'on';
+    const hasWrite = step.config.write_memory === 'on';
+    if (!hasRead && !hasWrite) {
+      errors.push(new ValidationError(
+        'memory_options',
+        stepIndex,
+        'checkbox',
+        'Please select at least one of Read Memory or Write Memory'
+      ));
+    }
+  }
+
+  return errors;
+}
+
+export function validateStep(step, stepIndex, schema) {
+  const errors = validateStepConfig(step, stepIndex, schema);
+  return errors;
+}
+
+export function validatePipeline(pipeline, schema) {
+  const errors = [];
+
+  // Validate pipeline has at least one step
+  if (!pipeline.steps || pipeline.steps.length === 0) {
+    errors.push(new ValidationError('steps', -1, 'pipeline', 'Pipeline must have at least one step'));
+  }
+
+  // Validate each step
+  pipeline.steps.forEach((step, index) => {
+    errors.push(...validateStep(step, index, schema));
+  });
+
+  return errors;
+}
+
+// Validate a single field for real-time feedback
+export function validateSingleField(fieldName, value, fieldDef, stepIndex) {
+  const errors = [];
+
+  const errorMessage = validateField(fieldDef, value);
+  if (errorMessage) {
+    errors.push(new ValidationError(fieldName, stepIndex, fieldDef.field_type, errorMessage));
+  }
+
+  return errors;
+}
+
+// Display inline errors next to fields
+export function displayFieldError(fieldName, stepIndex, error, container) {
+  const errorId = `error-${stepIndex}-${fieldName}`;
+  let errorEl = document.getElementById(errorId);
+
+  if (errorEl) {
+    errorEl.textContent = error.message;
+    errorEl.style.display = 'block';
+  } else {
+    errorEl = document.createElement('span');
+    errorEl.id = errorId;
+    errorEl.className = 'field-error';
+    errorEl.textContent = error.message;
+    container.appendChild(errorEl);
+  }
+}
+
+export function clearFieldError(fieldName, stepIndex, container) {
+  const errorId = `error-${stepIndex}-${fieldName}`;
+  const errorEl = document.getElementById(errorId);
+  if (errorEl) {
+    errorEl.style.display = 'none';
+  }
+}
+
+// Display summary of all validation errors
+export function displayValidationSummary(errors, container) {
+  container.innerHTML = '';
+
+  if (errors.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const summary = document.createElement('div');
+  summary.className = 'validation-summary';
+
+  const title = document.createElement('h3');
+  title.textContent = `Please fix ${errors.length} error(s):`;
+  summary.appendChild(title);
+
+  const list = document.createElement('ul');
+  errors.forEach(error => {
+    const li = document.createElement('li');
+    li.textContent = error.message;
+    if (error.stepIndex >= 0) {
+      li.textContent += ` (Step ${error.stepIndex + 1})`;
+    }
+    list.appendChild(li);
+  });
+  summary.appendChild(list);
+
+  container.appendChild(summary);
+  container.style.display = 'block';
+}
+
+export function highlightInvalidFields(errors) {
+  // Clear all previous highlights
+  document.querySelectorAll('.field-error').forEach(el => el.classList.remove('has-error'));
+
+  // Add error class to invalid fields
+  errors.forEach(error => {
+    if (error.stepIndex >= 0) {
+      const fieldId = `field-${error.stepIndex}-${error.fieldName}`;
+      const fieldEl = document.getElementById(fieldId);
+      if (fieldEl) {
+        fieldEl.classList.add('field-error');
+        fieldEl.classList.add('has-error');
+      }
+    }
+  });
+}
+
+export function clearFieldHighlights() {
+  document.querySelectorAll('.field-error').forEach(el => {
+    el.classList.remove('field-error', 'has-error');
+  });
+}
+```
+
+#### Real-Time Validation Integration
+
+```javascript
+// In field components, add real-time validation
+export function render(field, value, index, schema, onValidate) {
+  const id = `field-${index}-${field.name}`;
+  const required = field.required ? 'required' : '';
+
+  let html = `<label class="field-label">${esc(field.label)}`;
+  html += `<input type="text" name="${esc(field.name)}" id="${id}" `;
+  html += `placeholder="${esc(field.placeholder)}" value="${esc(value)}" ${required}`;
+  html += `onblur="window.fieldValidators.validate('${field.name}', ${index}, this.value)"`;
+  html += `oninput="window.fieldValidators.clear('${field.name}', ${index})"`;
+  html += `>`;
+  html += `<span class="field-error" id="error-${index}-${field.name}" style="display:none"></span>`;
+  html += `</label>`;
+
+  return html;
+}
+```
+
+#### Global Validation Registry for Real-Time Validation
+
+```javascript
+// modules/field-validators.js
+const activeValidators = {};
+
+export function registerValidator(fieldName, stepIndex, validatorFn) {
+  const key = `${fieldName}-${stepIndex}`;
+  activeValidators[key] = validatorFn;
+}
+
+export function validate(fieldName, stepIndex, value) {
+  const key = `${fieldName}-${stepIndex}`;
+  const validator = activeValidators[key];
+  if (validator) {
+    return validator(value);
+  }
+  return null;
+}
+
+export function clear(fieldName, stepIndex) {
+  const key = `${fieldName}-${stepIndex}`;
+  const errorEl = document.getElementById(`error-${stepIndex}-${fieldName}`);
+  if (errorEl) {
+    errorEl.style.display = 'none';
+  }
+}
+```
+
+### Phase 7: Testing Infrastructure
+
+#### JavaScript Testing Setup
+
+1. **Install Testing Dependencies** (if needed):
+   - Vitest (fast, modern testing)
+   - jsdom (DOM testing)
+   - @testing-library/jest-dom (matchers)
+
+2. **Test Structure**:
+```
+tests/js/
+├── pipeline-editor.test.js
+├── modules/
+│   ├── state-manager.test.js
+│   ├── field-renderer.test.js
+│   ├── field-components/
+│   │   ├── textarea-field.test.js
+│   │   ├── select-field.test.js
+│   │   └── ...
+│   ├── validator.test.js
+│   └── api-client.test.js
+└── utils/
+    └── esc.test.js
+```
+
+#### Example Test - Field Component
+```javascript
+// tests/js/modules/field-components/textarea-field.test.js
+import { describe, it, expect } from 'vitest';
+import { render } from '../../../../../mee6/web/static/js/modules/field-components/textarea-field.js';
+import { esc } from '../../../../../mee6/web/static/js/utils/esc.js';
+
+describe('TextareaField Component', () => {
+  it('renders textarea with correct attributes', () => {
+    const field = {
+      name: 'prompt',
+      label: 'Prompt',
+      field_type: 'textarea',
+      placeholder: 'Enter prompt',
+      required: true
+    };
+
+    const html = render(field, '', 0, []);
+    expect(html).toContain('<textarea');
+    expect(html).toContain('name="prompt"');
+    expect(html).toContain('placeholder="Enter prompt"');
+    expect(html).toContain('required');
+    expect(html).toContain('</textarea>');
+  });
+
+  it('includes placeholder hints when provided', () => {
+    const field = {
+      name: 'message',
+      label: 'Message',
+      field_type: 'textarea'
+    };
+
+    const hints = ['{previous_output}', '{pipeline_name}'];
+    const html = render(field, '', 0, hints);
+    expect(html).toContain('Placeholders:');
+    expect(html).toContain('<code>{previous_output}</code>');
+    expect(html).toContain('<code>{pipeline_name}</code>');
+  });
+
+  it('escapes HTML in value', () => {
+    const field = {
+      name: 'content',
+      label: 'Content',
+      field_type: 'textarea'
+    };
+
+    const html = render(field, '<script>alert("xss")</script>', 0, []);
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).not.toContain('<script>');
+  });
+});
+```
+
+#### Example Test - Validator
+```javascript
+// tests/js/modules/validator.test.js
+import { describe, it, expect } from 'vitest';
+import { validateField, validateStep, validatePipeline, ValidationError } from '../../../../../mee6/web/static/js/modules/validator.js';
+
+describe('Field Validation', () => {
+  describe('validateField - Required Fields', () => {
+    it('rejects empty required text field', () => {
+      const field = {
+        name: 'prompt',
+        label: 'Prompt',
+        field_type: 'text',
+        required: true
+      };
+      const error = validateField(field, '');
+      expect(error).toBe('Prompt is required');
+    });
+
+    it('rejects whitespace-only required text field', () => {
+      const field = {
+        name: 'prompt',
+        label: 'Prompt',
+        field_type: 'text',
+        required: true
+      };
+      const error = validateField(field, '   ');
+      expect(error).toBe('Prompt is required');
+    });
+
+    it('accepts non-empty required text field', () => {
+      const field = {
+        name: 'prompt',
+        label: 'Prompt',
+        field_type: 'text',
+        required: true
+      };
+      const error = validateField(field, 'Hello world');
+      expect(error).toBeNull();
+    });
+
+    it('accepts empty optional text field', () => {
+      const field = {
+        name: 'prompt',
+        label: 'Prompt',
+        field_type: 'text',
+        required: false
+      };
+      const error = validateField(field, '');
+      expect(error).toBeNull();
+    });
+
+    it('rejects empty required textarea field', () => {
+      const field = {
+        name: 'content',
+        label: 'Content',
+        field_type: 'textarea',
+        required: true
+      };
+      const error = validateField(field, '');
+      expect(error).toBe('Content is required');
+    });
+
+    it('rejects empty required select field', () => {
+      const field = {
+        name: 'model',
+        label: 'Model',
+        field_type: 'select',
+        required: true
+      };
+      const error = validateField(field, '');
+      expect(error).toBe('Please select a model');
+    });
+
+    it('accepts selected required select field', () => {
+      const field = {
+        name: 'model',
+        label: 'Model',
+        field_type: 'select',
+        required: true
+      };
+      const error = validateField(field, 'gpt-4');
+      expect(error).toBeNull();
+    });
+
+    it('rejects empty required combobox field', () => {
+      const field = {
+        name: 'language',
+        label: 'Language',
+        field_type: 'combobox',
+        required: true
+      };
+      const error = validateField(field, '');
+      expect(error).toBe('Language is required');
+    });
+
+    it('rejects unchecked required checkbox field', () => {
+      const field = {
+        name: 'agree',
+        label: 'I agree',
+        field_type: 'checkbox',
+        required: true
+      };
+      const error = validateField(field, '');
+      expect(error).toBe('I agree must be checked');
+    });
+
+    it('accepts checked required checkbox field', () => {
+      const field = {
+        name: 'agree',
+        label: 'I agree',
+        field_type: 'checkbox',
+        required: true
+      };
+      const error = validateField(field, 'on');
+      expect(error).toBeNull();
+    });
+
+    it('accepts unchecked optional checkbox field', () => {
+      const field = {
+        name: 'newsletter',
+        label: 'Subscribe',
+        field_type: 'checkbox',
+        required: false
+      };
+      const error = validateField(field, '');
+      expect(error).toBeNull();
+    });
+  });
+});
+
+describe('Step Validation', () => {
+  it('validates step with no agent type', () => {
+    const step = { agent_type: '', config: {} };
+    const schema = { llm_agent: [] };
+    const errors = validateStep(step, 0, schema);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('Agent type is required');
+    expect(errors[0].fieldName).toBe('agent_type');
+  });
+
+  it('validates memory agent with no options checked', () => {
+    const step = {
+      agent_type: 'memory_agent',
+      config: { read_memory: '', write_memory: '' }
+    };
+    const schema = { memory_agent: [] };
+    const errors = validateStep(step, 0, schema);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('at least one of Read Memory or Write Memory');
+  });
+
+  it('validates memory agent with read checked', () => {
+    const step = {
+      agent_type: 'memory_agent',
+      config: { read_memory: 'on', write_memory: '' }
+    };
+    const schema = { memory_agent: [] };
+    const errors = validateStep(step, 0, schema);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('validates step with empty required text field', () => {
+    const step = {
+      agent_type: 'llm_agent',
+      config: { prompt: '', model: 'gpt-4' }
+    };
+    const schema = {
+      llm_agent: [
+        { name: 'prompt', label: 'Prompt', field_type: 'text', required: true },
+        { name: 'model', label: 'Model', field_type: 'select', required: true }
+      ]
+    };
+    const errors = validateStep(step, 0, schema);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].fieldName).toBe('prompt');
+    expect(errors[0].message).toBe('Prompt is required');
+  });
+
+  it('validates step with all required fields filled', () => {
+    const step = {
+      agent_type: 'llm_agent',
+      config: { prompt: 'Hello', model: 'gpt-4' }
+    };
+    const schema = {
+      llm_agent: [
+        { name: 'prompt', label: 'Prompt', field_type: 'text', required: true },
+        { name: 'model', label: 'Model', field_type: 'select', required: true }
+      ]
+    };
+    const errors = validateStep(step, 0, schema);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('validates step with multiple errors', () => {
+    const step = {
+      agent_type: 'llm_agent',
+      config: { prompt: '', model: '', temperature: '' }
+    };
+    const schema = {
+      llm_agent: [
+        { name: 'prompt', label: 'Prompt', field_type: 'text', required: true },
+        { name: 'model', label: 'Model', field_type: 'select', required: true },
+        { name: 'temperature', label: 'Temperature', field_type: 'text', required: false }
+      ]
+    };
+    const errors = validateStep(step, 0, schema);
+    expect(errors).toHaveLength(2);
+    expect(errors.some(e => e.fieldName === 'prompt')).toBe(true);
+    expect(errors.some(e => e.fieldName === 'model')).toBe(true);
+  });
+});
+
+describe('Pipeline Validation', () => {
+  it('rejects empty pipeline with no steps', () => {
+    const pipeline = {
+      name: 'Test Pipeline',
+      steps: []
+    };
+    const schema = {};
+    const errors = validatePipeline(pipeline, schema);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('at least one step');
+  });
+
+  it('validates pipeline with all steps valid', () => {
+    const pipeline = {
+      name: 'Test Pipeline',
+      steps: [
+        { agent_type: 'llm_agent', config: { prompt: 'Hello' } },
+        { agent_type: 'browser_agent', config: { task: 'Search' } }
+      ]
+    };
+    const schema = {
+      llm_agent: [
+        { name: 'prompt', label: 'Prompt', field_type: 'text', required: true }
+      ],
+      browser_agent: [
+        { name: 'task', label: 'Task', field_type: 'text', required: true }
+      ]
+    };
+    const errors = validatePipeline(pipeline, schema);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('collects errors from multiple steps', () => {
+    const pipeline = {
+      name: 'Test Pipeline',
+      steps: [
+        { agent_type: 'llm_agent', config: { prompt: '' } },
+        { agent_type: '', config: {} },
+        { agent_type: 'browser_agent', config: { task: '' } }
+      ]
+    };
+    const schema = {
+      llm_agent: [
+        { name: 'prompt', label: 'Prompt', field_type: 'text', required: true }
+      ],
+      browser_agent: [
+        { name: 'task', label: 'Task', field_type: 'text', required: true }
+      ]
+    };
+    const errors = validatePipeline(pipeline, schema);
+    expect(errors).toHaveLength(3);
+    expect(errors.filter(e => e.stepIndex === 0)).toHaveLength(1);
+    expect(errors.filter(e => e.stepIndex === 1)).toHaveLength(1);
+    expect(errors.filter(e => e.stepIndex === 2)).toHaveLength(1);
+  });
+
+  it('creates ValidationError with correct properties', () => {
+    const error = new ValidationError('prompt', 1, 'text', 'Prompt is required');
+    expect(error.fieldName).toBe('prompt');
+    expect(error.stepIndex).toBe(1);
+    expect(error.fieldType).toBe('text');
+    expect(error.message).toBe('Prompt is required');
+  });
+});
+
+describe('Single Field Validation for Real-Time', () => {
+  it('validates single field and returns error', () => {
+    const field = {
+      name: 'email',
+      label: 'Email',
+      field_type: 'text',
+      required: true
+    };
+    const errors = validateSingleField('email', '', field, 0);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toBe('Email is required');
+  });
+
+  it('validates single field and passes', () => {
+    const field = {
+      name: 'email',
+      label: 'Email',
+      field_type: 'text',
+      required: true
+    };
+    const errors = validateSingleField('email', 'test@example.com', field, 0);
+    expect(errors).toHaveLength(0);
+  });
+});
+```
+
+#### End-to-End Validation Tests
+
+```javascript
+// tests/js/pipeline-editor-validation.test.js
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { validatePipeline, displayValidationSummary, highlightInvalidFields } from '../../../../../mee6/web/static/js/modules/validator.js';
+
+describe('Pipeline Editor - Full Validation Flow', () => {
+  let dom;
+  let container;
+
+  beforeEach(() => {
+    dom = new JSDOM(`
+      <!DOCTYPE html>
+      <html>
+        <body>
+          <div id="error-container"></div>
+          <div id="steps-container"></div>
+        </body>
+      </html>
+    `);
+    global.document = dom.window.document;
+    container = document.getElementById('error-container');
+  });
+
+  it('prevents saving pipeline with empty required fields', () => {
+    const pipeline = {
+      name: 'Invalid Pipeline',
+      steps: [
+        { agent_type: 'llm_agent', config: { prompt: '', model: '' } }
+      ]
+    };
+
+    const schema = {
+      llm_agent: [
+        { name: 'prompt', label: 'Prompt', field_type: 'text', required: true },
+        { name: 'model', label: 'Model', field_type: 'select', required: true }
+      ]
+    };
+
+    const errors = validatePipeline(pipeline, schema);
+    expect(errors.length).toBeGreaterThan(0);
+
+    // Should not be able to save
+    const canSave = errors.length === 0;
+    expect(canSave).toBe(false);
+  });
+
+  it('displays validation summary with step numbers', () => {
+    const errors = [
+      new ValidationError('prompt', 0, 'text', 'Prompt is required'),
+      new ValidationError('task', 1, 'text', 'Task is required')
+    ];
+
+    displayValidationSummary(errors, container);
+
+    expect(container.innerHTML).toContain('Please fix 2 error(s):');
+    expect(container.innerHTML).toContain('Prompt is required');
+    expect(container.innerHTML).toContain('Task is required');
+    expect(container.innerHTML).toContain('(Step 1)');
+    expect(container.innerHTML).toContain('(Step 2)');
+  });
+
+  it('highlights invalid fields in the UI', () => {
+    // Setup DOM with fields
+    const stepsContainer = document.getElementById('steps-container');
+    stepsContainer.innerHTML = `
+      <input id="field-0-prompt" name="prompt" value="">
+      <input id="field-0-model" name="model" value="gpt-4">
+    `;
+
+    const errors = [
+      new ValidationError('prompt', 0, 'text', 'Prompt is required')
+    ];
+
+    highlightInvalidFields(errors);
+
+    const promptField = document.getElementById('field-0-prompt');
+    expect(promptField.classList.contains('has-error')).toBe(true);
+
+    const modelField = document.getElementById('field-0-model');
+    expect(modelField.classList.contains('has-error')).toBe(false);
+  });
+
+  it('allows saving pipeline with all required fields filled', () => {
+    const pipeline = {
+      name: 'Valid Pipeline',
+      steps: [
+        { agent_type: 'llm_agent', config: { prompt: 'Hello world', model: 'gpt-4' } },
+        { agent_type: 'browser_agent', config: { task: 'Search web' } }
+      ]
+    };
+
+    const schema = {
+      llm_agent: [
+        { name: 'prompt', label: 'Prompt', field_type: 'text', required: true },
+        { name: 'model', label: 'Model', field_type: 'select', required: true }
+      ],
+      browser_agent: [
+        { name: 'task', label: 'Task', field_type: 'text', required: true }
+      ]
+    };
+
+    const errors = validatePipeline(pipeline, schema);
+    expect(errors).toHaveLength(0);
+
+    // Should be able to save
+    const canSave = errors.length === 0;
+    expect(canSave).toBe(true);
+  });
+
+  it('validates pipeline with memory agent', () => {
+    const pipeline = {
+      name: 'Memory Pipeline',
+      steps: [
+        { agent_type: 'memory_agent', config: { read_memory: '', write_memory: '' } }
+      ]
+    };
+
+    const schema = { memory_agent: [] };
+    const errors = validatePipeline(pipeline, schema);
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('at least one of Read Memory or Write Memory');
+  });
+
+  it('validates complex multi-step pipeline with mixed errors', () => {
+    const pipeline = {
+      name: 'Complex Pipeline',
+      steps: [
+        { agent_type: 'llm_agent', config: { prompt: 'Valid prompt', model: '' } },
+        { agent_type: '', config: {} },
+        { agent_type: 'memory_agent', config: { read_memory: '', write_memory: '' } },
+        { agent_type: 'browser_agent', config: { task: 'Valid task' } }
+      ]
+    };
+
+    const schema = {
+      llm_agent: [
+        { name: 'prompt', label: 'Prompt', field_type: 'text', required: true },
+        { name: 'model', label: 'Model', field_type: 'select', required: true }
+      ],
+      memory_agent: [],
+      browser_agent: [
+        { name: 'task', label: 'Task', field_type: 'text', required: true }
+      ]
+    };
+
+    const errors = validatePipeline(pipeline, schema);
+    expect(errors.length).toBeGreaterThan(2);
+
+    // Check specific errors
+    expect(errors.some(e => e.stepIndex === 0 && e.fieldName === 'model')).toBe(true);
+    expect(errors.some(e => e.stepIndex === 1 && e.fieldName === 'agent_type')).toBe(true);
+    expect(errors.some(e => e.stepIndex === 2 && e.fieldName === 'memory_options')).toBe(true);
+  });
+});
+```
+
+#### Example Test - State Manager
+```javascript
+// tests/js/modules/state-manager.test.js
+import { describe, it, expect, beforeEach } from 'vitest';
+import { PipelineEditorState } from '../../../../../mee6/web/static/js/modules/state-manager.js';
+
+describe('PipelineEditorState', () => {
+  let state;
+
+  beforeEach(() => {
+    state = new PipelineEditorState();
+  });
+
+  it('initializes with empty pipeline', () => {
+    expect(state.pipeline.steps).toEqual([]);
+  });
+
+  it('adds a step', () => {
+    state.addStep({ agent_type: 'llm_agent' });
+    expect(state.pipeline.steps).toHaveLength(1);
+    expect(state.pipeline.steps[0].agent_type).toBe('llm_agent');
+  });
+
+  it('removes a step', () => {
+    state.addStep({ agent_type: 'llm_agent' });
+    state.addStep({ agent_type: 'browser_agent' });
+    state.removeStep(0);
+    expect(state.pipeline.steps).toHaveLength(1);
+    expect(state.pipeline.steps[0].agent_type).toBe('browser_agent');
+  });
+
+  it('moves a step up', () => {
+    state.addStep({ agent_type: 'llm_agent' });
+    state.addStep({ agent_type: 'browser_agent' });
+    state.moveStepUp(1);
+    expect(state.pipeline.steps[0].agent_type).toBe('browser_agent');
+    expect(state.pipeline.steps[1].agent_type).toBe('llm_agent');
+  });
+
+  it('notifies listeners on state change', () => {
+    const callback = vitest.fn();
+    state.subscribe('steps-updated', callback);
+    state.addStep({ agent_type: 'llm_agent' });
+    expect(callback).toHaveBeenCalled();
+  });
+});
+```
+
+### Phase 8: HTML Template Refactoring
+
+#### Simplified Template Structure
+```html
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if pipeline else "New" }} Pipeline{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ "Edit" if pipeline else "New" }} Pipeline</h1>
+  <a href="/pipelines" class="btn secondary">Return to Pipelines</a>
+</div>
+
+<div id="save-banner" class="save-banner" style="display:none"></div>
+<div id="error-banner" class="error-banner" style="display:none"></div>
+
+<form id="pipeline-form">
+  <div class="pipeline-name-row">
+    <label>
+      Name
+      <input type="text" id="pipeline-name"
+             value="{{ pipeline.name if pipeline else '' }}"
+             placeholder="My pipeline" required>
+    </label>
+  </div>
+
+  <h2>Steps</h2>
+  <div id="steps-container"></div>
+
+  <div class="pipeline-actions">
+    <button type="button" id="add-step-btn">+ Add step</button>
+    <button type="button" id="save-btn">Save pipeline</button>
+  </div>
+</form>
+
+<script type="module">
+  import { initializePipelineEditor } from '/static/js/pipeline-editor.js';
+
+  const config = {
+    pluginList: {{ plugin_list_json | safe }},
+    placeholderHints: {{ placeholder_hints_json | safe }},
+    initialPipeline: {{ initial_pipeline_json | safe }},
+    isEdit: {{ 'true' if pipeline else 'false' }},
+    pipelineId: '{{ pipeline.id if pipeline else "" }}'
+  };
+
+  initializePipelineEditor(config);
+</script>
+{% endblock %}
+```
+
+## Implementation Plan
+
+### Step 1: Setup Testing Infrastructure (1-2 hours)
+1. Install Vitest and jsdom dependencies
+2. Configure vitest.config.js
+3. Create test directory structure
+4. Write initial tests for esc() function (easy win)
+
+### Step 2: Extract Utilities (1-2 hours)
+1. Create `static/js/utils/esc.js`
+2. Create `static/js/utils/dom-utils.js`
+3. Add unit tests for utilities
+4. Refactor template to use extracted utilities
+
+### Step 3: Create Field Component Registry (2-3 hours)
+1. Create component registry
+2. Implement text and textfield components
+3. Add tests for basic components
+4. Update renderFields() to use registry
+
+### Step 4: Implement All Field Components (3-4 hours)
+1. Implement select component
+2. Implement checkbox component
+3. Implement combobox component
+4. Implement group_select component (refactor complex logic)
+5. Implement calendar_select component (refactor complex logic)
+6. Add tests for each component
+7. Refactor renderFields() to use all components
+
+### Step 5: Extract State Manager (2-3 hours)
+1. Create PipelineEditorState class
+2. Migrate step management logic
+3. Add tests for state manager
+4. Update all functions to use state manager
+
+### Step 6: Extract Event Handlers (2-3 hours)
+1. Create handler registry
+2. Move event handling logic to modules
+3. Add tests for event handlers
+4. Update template to use module-based event system
+
+### Step 7: Extract Validation Logic (3-4 hours)
+1. Create comprehensive validator module
+2. Extract and enhance validation logic
+   - Add field-level validators for all types
+   - Add schema-based validation
+   - Add real-time validation support
+   - Add inline error display
+   - Add validation summary display
+3. Add comprehensive tests for validator
+   - Unit tests for each field type
+   - Unit tests for step validation
+   - Unit tests for pipeline validation
+   - Integration tests for real-time validation
+   - E2E tests for validation flow
+4. Update template to use validator module
+5. Add UI feedback for validation errors
+
+### Step 8: Extract API Client (1-2 hours)
+1. Create api-client module
+2. Move fetch/save logic
+3. Add tests with mocked fetch
+4. Update template to use api-client
+
+### Step 9: Create Main Entry Point (1 hour)
+1. Create pipeline-editor.js
+2. Orchestrate all modules
+3. Initialize editor with config
+4. Update template to use module script
+
+### Step 10: Final Integration & Testing (2-3 hours)
+1. Update HTML template to use refactored code
+2. Add integration tests
+3. Test full user flows
+4. Fix any bugs
+5. Update existing Python tests if needed
+
+### Step 11: Documentation (1-2 hours)
+1. Document module architecture
+2. Add JSDoc comments
+3. Update README if needed
+4. Document testing approach
+
+## Testing Strategy
+
+### Unit Tests
+- Each component in isolation
+- State manager methods
+- Validation functions
+- API client methods
+- Utility functions
+
+### Integration Tests
+- Component interactions
+- State updates triggering renders
+- Event flow
+- Validation flow
+- API communication
+
+### End-to-End Tests
+- Full user journey: create pipeline, add steps, save
+- Full user journey: edit pipeline, modify steps, update
+- **Validation scenarios**:
+  - ✓ Attempt to save pipeline with empty required fields → blocked with error
+  - ✓ Fill required field → error clears
+  - ✓ Submit form with all fields valid → success
+  - ✓ Attempt to save pipeline with no steps → blocked with error
+  - ✓ Attempt to save step without agent type → blocked with error
+  - ✓ Attempt to save memory agent without options → blocked with error
+  - ✓ Real-time validation shows errors as user types/interacts
+  - ✓ Multiple validation errors all displayed correctly
+- Error scenarios: validation failures, API errors
+- Edge cases: empty pipeline, single step, many steps
+
+## Benefits of Refactoring
+
+### 1. Maintainability
+- Clear separation of concerns
+- Smaller, focused modules
+- Easier to locate and fix bugs
+- Consistent code patterns
+
+### 2. Testability
+- Unit testable components
+- Mockable dependencies
+- Clear interfaces
+- Automated test coverage
+
+### 3. Reusability
+- Field components can be used elsewhere
+- State manager can be extended
+- Validators can be reused
+- API client can be shared
+
+### 4. Extensibility
+- Easy to add new field types
+- Easy to add new validation rules
+- Easy to add new features
+- Plugin architecture for components
+
+### 5. Developer Experience
+- Better code organization
+- Clearer module boundaries
+- Easier onboarding
+- Consistent patterns
+
+### 6. Performance
+- Potential for lazy loading components
+- Better code splitting
+- Smaller initial bundle (if using bundler)
+- Optimized re-renders
+
+## Migration Strategy
+
+### Phase 1: Parallel Development (Days 1-3)
+- Keep existing code in template
+- Develop new modules in parallel
+- Run both systems and compare behavior
+- Gradually migrate features
+
+### Phase 2: Feature Toggle (Days 4-5)
+- Add feature flag to switch between old/new
+- Test with flag enabled
+- Gather feedback
+
+### Phase 3: Complete Migration (Day 6)
+- Remove old code
+- Deploy new system
+- Monitor for issues
+
+## Success Criteria
+
+### Functional
+- ✓ All existing features work
+- ✓ No regressions
+- ✓ Better error handling
+- ✓ **Comprehensive validation**:
+  - ✓ Required fields cannot be empty
+  - ✓ Text/textarea fields reject whitespace-only values
+  - ✓ Select/combobox fields require a selection
+  - ✓ Pipeline must have at least one step
+  - ✓ Agent type must be selected
+  - ✓ Memory agent requires at least one option checked
+  - ✓ All validation errors are displayed clearly
+  - ✓ User cannot save invalid pipelines
+
+### Validation Specific
+- ✓ **Client-side validation**:
+  - ✓ Real-time validation on field blur
+  - ✓ Inline error messages next to fields
+  - ✓ Validation summary at top of form
+  - ✓ Visual highlighting of invalid fields
+  - ✓ Clear error messages with step numbers
+
+- ✓ **Validation coverage**:
+  - ✓ All field types have validators
+  - ✓ Required field validation works
+  - ✓ Optional field validation works
+  - ✓ Schema-based validation complete
+  - ✓ Edge cases handled (null, undefined, whitespace)
+
+- ✓ **User Experience**:
+  - ✓ Clear error messages
+  - ✓ Step numbers in error messages
+  - ✓ Errors cleared when fields fixed
+  - ✓ Save button disabled when invalid (optional)
+
+### Code Quality
+- ✓ No if-else mass in renderFields()
+- ✓ All modules have < 100 lines
+- ✓ All components are testable
+- ✓ Test coverage > 80%
+- ✓ Validation module is well-documented
+- ✓ Field validators are reusable
+
+### Testing
+- ✓ All unit tests pass
+- ✓ Integration tests cover user flows
+- ✓ No test regressions
+- ✓ **Validation tests**:
+  - ✓ Unit tests for each field validator
+  - ✓ Unit tests for step validation
+  - ✓ Unit tests for pipeline validation
+  - ✓ Integration tests for real-time validation
+  - ✓ E2E tests for validation scenarios
+  - ✓ Tests for edge cases and error conditions
+
+### Performance
+- ✓ No performance degradation
+- ✓ Faster field rendering (optional goal)
+- ✓ Better memory management (optional goal)
+- ✓ Validation doesn't block UI (async if needed)
+
+## Risks & Mitigations
+
+### Risk: Breaking existing functionality
+- Mitigation: Comprehensive testing
+- Mitigation: Parallel development period
+- Mitigation: Feature flag for gradual rollout
+
+### Risk: Increased complexity initially
+- Mitigation: Clear documentation
+- Mitigation: Code reviews
+- Mitigation: Incremental refactoring
+
+### Risk: Testing overhead
+- Mitigation: Reuse test utilities
+- Mitigation: Automated test generation where possible
+- Mitigation: Focus on high-value tests first
+
+## Timeline Estimate
+
+- **Setup**: 2-3 hours
+- **Utilities extraction**: 2-3 hours
+- **Field components**: 6-8 hours
+- **State manager**: 3-4 hours
+- **Event handlers**: 3-4 hours
+- **Validation**: 3-4 hours (enhanced with comprehensive validation)
+- **API client**: 2-3 hours
+- **Integration**: 4-6 hours
+- **Testing**: 10-14 hours (increased for validation test coverage)
+- **Documentation**: 2-3 hours
+- **Total**: 37-52 hours (5-7 days for one developer)
+
+## Critical Validation Issue to Address
+
+### Current Problem
+The pipeline editor allows saving pipelines with completely empty fields, which is a critical data integrity issue. This happens because:
+
+1. **Minimal Validation**: Only `validateMemorySteps()` exists, which only checks memory_agent checkboxes
+2. **No Required Field Validation**: Text, textarea, select, and combobox fields can be empty
+3. **No Empty Pipeline Check**: Pipelines with no steps can be created
+4. **No Agent Type Validation**: Steps without an agent type are accepted
+5. **No Client-Side Feedback**: Users only see errors via `alert()` after attempting save
+6. **No Schema-Based Validation**: The schema has `required` flags but they're not enforced
+
+### Impact
+- Users can create invalid pipelines that will fail at runtime
+- Data quality issues in the database
+- Poor user experience (surprise failures)
+- Difficult to debug pipeline execution errors
+- Potential for system instability
+
+### Solution in Refactoring
+
+The refactoring addresses this by implementing:
+
+1. **Schema-Based Field Validators**:
+   - Each field type has its own validator function
+   - Validators check `required` flag from schema
+   - Validators handle edge cases (null, undefined, whitespace)
+
+2. **Comprehensive Step Validation**:
+   - Validates agent type is selected
+   - Validates all required fields have values
+   - Special validation for memory_agent
+   - Returns specific, actionable error messages
+
+3. **Pipeline-Level Validation**:
+   - Ensures at least one step exists
+   - Validates all steps in sequence
+   - Collects and reports all errors
+
+4. **Real-Time Validation**:
+   - Validate fields on blur/input
+   - Show inline error messages
+   - Clear errors when fixed
+   - Visual highlighting of invalid fields
+
+5. **Improved UX**:
+   - Validation summary at top of form
+   - Step numbers in error messages
+   - Inline errors next to fields
+   - Clear, specific error messages
+   - Save button disabled when invalid (optional)
+
+### Validation Test Coverage
+
+The refactoring includes comprehensive tests:
+
+- **Unit Tests**: Each field validator tested individually
+- **Integration Tests**: Validation flow through the editor
+- **E2E Tests**: Full user journeys with validation
+- **Edge Cases**: Null, undefined, whitespace, empty arrays
+- **Error Scenarios**: Multiple errors, mixed valid/invalid
+
+### Example Scenarios Fixed
+
+**Before** (Current Behavior):
+1. User creates pipeline
+2. Adds step
+3. Leaves agent type unselected
+4. Leaves all fields empty
+5. Clicks "Save pipeline"
+6. Pipeline saves with empty values (BUG!)
+7. Later fails during execution
+
+**After** (Refactored Behavior):
+1. User creates pipeline
+2. Adds step
+3. Selects agent type → fields render
+4. Leaves fields empty → real-time validation shows errors
+5. Clicks "Save pipeline" → validation summary shows all errors
+6. User cannot save until all required fields are filled
+7. Pipeline saves only when valid
+
+### Backend Validation Note
+
+While this refactoring focuses on client-side validation for better UX, backend validation should also be added in `mee6/web/routes/pipelines.py`:
+
+1. Add validation in `create_pipeline()` and `update_pipeline()` endpoints
+2. Check schema for required fields before saving
+3. Return 400 Bad Request with validation errors if invalid
+4. Use pydantic models with validation rules
+5. Ensure data integrity at the database level
+
+This provides defense in depth and prevents invalid data even if client-side validation is bypassed.
+
+## Notes
+
+## Notes
+
+### Existing Code to Reuse
+- The `_agent_fields.html` template shows server-side rendering approach
+- The `AgentFieldsRequest` model in routes/pipelines.py shows data structure
+- The existing tests in test_web_routes.py show testing patterns
+
+### Best Practices to Follow
+- SOLID principles
+- Single Responsibility Principle
+- Dependency Inversion
+- Composition over inheritance
+- DRY (Don't Repeat Yourself)
+- Test-Driven Development (where practical)
+
+### Technologies Already in Use
+- HTMX (already included)
+- FastAPI (backend)
+- Jinja2 (templating)
+- pytest (Python testing)
+
+### Potential Enhancements (Post-Refactoring)
+- Add undo/redo functionality
+- Add keyboard shortcuts
+- Add drag-and-drop for step reordering
+- Add step templates
+- Add pipeline validation preview
+- Add real-time collaborative editing

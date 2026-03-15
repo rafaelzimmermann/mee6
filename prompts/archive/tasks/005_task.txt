@@ -1,0 +1,21 @@
+Create memory_agent plugin with remember mode
+
+Requirements:
+- Extend memory_agent plugin with remember mode
+- Remember mode: retrieves recent memories, formats as context text
+- Query recent memories for pipeline+label within TTL using PipelineMemoryRepository.get_recent()
+- Format memories as:
+  ```
+  [Memory: processed_events]
+  [1] 2026-03-01 — <value>
+  [2] 2026-03-02 — <value>
+  ...
+  ```
+- Call delete_expired() for pipeline+label to clean old entries
+- Return formatted block as output
+
+Desired result:
+- Remember mode implemented in memory_agent plugin
+- Proper memory formatting with index and timestamp
+- TTL filtering applied
+- Housekeeping (delete_expired) called on each run

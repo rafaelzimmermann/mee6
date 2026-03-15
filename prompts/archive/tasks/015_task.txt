@@ -1,0 +1,22 @@
+Create nodes panel UI
+
+Requirements:
+- Create UI component for managing nodes in graph editor
+- Nodes panel features:
+  * Add node button
+  * Remove node button
+  * List of existing nodes with their labels/agent types
+  * Click to configure node (opens node configuration form)
+  * Node configuration form same as existing step configuration:
+    - agent_type selection
+    - config fields based on agent type
+    - label (optional user-visible name)
+- Keep existing step list UI for pipelines not in graph mode
+- Follow existing UI patterns and styling
+
+Desired result:
+- Nodes panel UI component exists
+- Add/remove node functionality works
+- Node configuration form implemented
+- Integration with graph data model
+- Backward compatibility with simple mode

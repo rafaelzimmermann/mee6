@@ -1,0 +1,248 @@
+```
+You are bootstrapping a new Python personal assistant project called **mee6**.
+
+## MANDATORY FIRST STEP — read before you write anything
+
+Before creating a single file, you MUST explore the agntrick source code to understand
+its real API. Run these commands in sequence:
+
+```bash
+# 1. Install agntrick and the whatsapp sub-package in a temp venv to inspect them
+uv venv /tmp/agntrick-inspect --python 3.12
+source /tmp/agntrick-inspect/bin/activate
+uv pip install agntrick agntrick-whatsapp
+
+# 2. Read the actual public API
+python -c "import agntrick; help(agntrick)"
+python -c "from agntrick import AgentBase, AgentRegistry; help(AgentBase)"
+python -c "import agntrick_whatsapp; help(agntrick_whatsapp)"
+
+# 3. Find all exported symbols
+python -c "import agntrick; print(dir(agntrick))"
+python -c "import agntrick_whatsapp; print(dir(agntrick_whatsapp))"
+
+# 4. Read the installed source files directly
+find /tmp/agntrick-inspect -name "*.py" -path "*/agntrick*" | head -40
+# Then cat the __init__.py and key modules of both packages
+
+# 5. Check the .agntrick.yaml config schema if it exists
+find /tmp/agntrick-inspect -name "*.yaml" -o -name "*.yml" | grep -i agntrick
+```
+
+Only after completing the above may you write any code. Never assume class names,
+method signatures, constructor arguments, or config keys — use only what you confirmed.
+
+---
+
+## Project overview
+
+**Name:** mee6
+**Description:** A personal AI assistant that automates life tasks using LLMs.
+**Runtime:** Python 3.12, managed with `uv`, running in Docker.
+**LLM backends:** Anthropic (Claude) and Ollama (external, already running on the user's
+  home server — mee6 only needs to connect to it via URL, it does NOT run ollama itself).
+**Agent framework:** agntrick + agntrick-whatsapp (published to PyPI by jeancsil).
+**Interface:** A web UI where the user can configure and trigger scheduled tasks.
+
+The first agent feature to scaffold is:
+**school-monitor** — reads kids' school app, extracts calendar events, creates Google
+Calendar entries, and sends WhatsApp notifications.
+
+---
+
+## Project structure to create
+
+```
+mee6/
+├── pyproject.toml
+├── uv.lock                         # generated after uv sync
+├── .env.example
+├── .gitignore
+├── .agntrick.yaml
+├── README.md
+├── Dockerfile
+├── docker-compose.yml              # only mee6 service, no ollama
+│
+├── mee6/
+│   ├── __init__.py
+│   ├── config.py                   # pydantic-settings Settings class
+│   │
+│   ├── web/                        # web interface
+│   │   ├── __init__.py
+│   │   ├── app.py                  # FastAPI application factory
+│   │   ├── routes/
+│   │   │   ├── __init__.py
+│   │   │   ├── dashboard.py        # GET / — overview of agents and schedule status
+│   │   │   └── triggers.py         # CRUD for scheduled triggers
+│   │   ├── templates/              # Jinja2 HTML templates
+│   │   │   ├── base.html
+│   │   │   ├── dashboard.html
+│   │   │   └── triggers.html
+│   │   └── static/                 # CSS / minimal JS
+│   │       └── style.css
+│   │
+│   ├── scheduler/
+│   │   ├── __init__.py
+│   │   ├── engine.py               # APScheduler setup, start/stop, job management
+│   │   └── registry.py             # maps trigger config → task function
+│   │
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   └── school_monitor/
+│   │       ├── __init__.py
+│   │       ├── agent.py            # agntrick agent (REAL API from inspection)
+│   │       └── prompts.py
+│   │
+│   ├── integrations/
+│   │   ├── __init__.py
+│   │   ├── whatsapp.py             # agntrick-whatsapp wrapper
+│   │   ├── calendar.py             # Google Calendar API stub
+│   │   └── school_app.py           # school app HTTP client stub
+│   │
+│   └── tasks/
+│       ├── __init__.py
+│       └── school_events.py        # orchestrates the school-monitor flow
+│
+└── tests/
+    ├── __init__.py
+    └── test_school_events.py
+```
+
+---
+
+## Requirements per file
+
+### pyproject.toml
+- `[build-system]` with hatchling
+- Python = ">=3.12"
+- Dependencies:
+  - `agntrick`
+  - `agntrick-whatsapp`
+  - `anthropic`
+  - `ollama`                         # client only, no server
+  - `fastapi>=0.115`
+  - `uvicorn[standard]`
+  - `jinja2`
+  - `python-multipart`               # for form submissions in the web UI
+  - `pydantic-settings`
+  - `python-dotenv`
+  - `google-auth`, `google-api-python-client`
+  - `httpx`
+  - `apscheduler>=4.0`
+- Dev deps: `pytest`, `pytest-asyncio`, `ruff`, `mypy`
+
+### .agntrick.yaml
+- Provider: `anthropic`, model `claude-haiku-4-5-20251001`, temperature 0.2
+- Add a comment showing how to switch to ollama by changing provider/base_url
+
+### Dockerfile
+- Multi-stage: builder (python:3.12-slim + uv) → runtime (python:3.12-slim)
+- Builder: `COPY pyproject.toml uv.lock ./` then `uv sync --frozen --no-dev`
+- Runtime: copy venv + source, non-root user `mee6`
+- Expose port `8080`
+- Entrypoint: `uvicorn mee6.web.app:app --host 0.0.0.0 --port 8080`
+  (the FastAPI app also starts the APScheduler on startup)
+
+### docker-compose.yml
+- Single service: `mee6`
+- Builds from local Dockerfile
+- `env_file: .env`
+- Ports: `8080:8080`
+- Volumes: `./data:/app/data` (for persistent scheduler state / SQLite)
+- Restart: `unless-stopped`
+- NO ollama service — ollama is external and accessed via `OLLAMA_BASE_URL` in config
+
+### config.py
+Settings via pydantic-settings (all from env):
+- `ANTHROPIC_API_KEY: str`
+- `OLLAMA_BASE_URL: str`              # e.g. http://192.168.1.10:11434
+- `OLLAMA_DEFAULT_MODEL: str = "llama3"`
+- `SCHOOL_APP_URL: str`
+- `SCHOOL_APP_USERNAME: str`
+- `SCHOOL_APP_PASSWORD: str`
+- `NOTIFY_PHONE_NUMBER: str`          # E.164, e.g. +34612345678
+- `GOOGLE_CALENDAR_ID: str`
+- `GOOGLE_CREDENTIALS_FILE: str = "/app/data/credentials.json"`
+- Plus whatever agntrick-whatsapp requires (discovered during inspection)
+
+### web/app.py
+- FastAPI app factory function `create_app() -> FastAPI`
+- On startup: initialize APScheduler, load persisted triggers from SQLite, register jobs
+- On shutdown: gracefully stop the scheduler
+- Mount Jinja2 templates and static files
+- Include routers from `web/routes/`
+
+### web/routes/triggers.py
+Endpoints for managing scheduled triggers:
+- `GET /triggers` — list all configured triggers (render triggers.html)
+- `POST /triggers` — create a new trigger (form: agent name, cron expression, enabled)
+- `POST /triggers/{id}/toggle` — enable/disable a trigger
+- `DELETE /triggers/{id}` — remove a trigger
+- `POST /triggers/{id}/run-now` — manually fire a trigger immediately
+
+### web/templates/
+Keep the UI minimal but functional:
+- `base.html`: navigation with links to Dashboard and Triggers; include a small status
+  indicator showing how many jobs are active
+- `dashboard.html`: table of recent task runs with agent name, timestamp, status
+  (success/fail), and a short result summary
+- `triggers.html`: table of all triggers with their cron schedule, enabled toggle,
+  run-now button, and delete button; plus a simple form to add a new trigger
+- Use plain HTML + minimal inline CSS (no frameworks, no build step needed)
+
+### scheduler/engine.py
+- Initialize `AsyncIOScheduler` from APScheduler
+- Persist job store to SQLite at `/app/data/scheduler.db`
+- Expose `add_trigger(agent_name, cron_expr)`, `remove_trigger(job_id)`,
+  `toggle_trigger(job_id, enabled)`, `run_now(job_id)` functions
+- On each trigger fire: look up the task function from `scheduler/registry.py` and run it
+
+### scheduler/registry.py
+- A dict mapping agent name strings to their task coroutine functions
+- Example: `{"school-monitor": tasks.school_events.run_school_monitor}`
+- New agents are registered here as they are added to the project
+
+### agent.py (school_monitor)
+- Use the EXACT decorator and base class API confirmed during inspection
+- system_prompt: instructs the LLM to extract school events from raw HTML/text
+  and return structured JSON (title, date, time, description, type)
+- local_tools(): three StructuredTool stubs:
+  1. `fetch_school_app` — fetches raw content from school app
+  2. `create_calendar_event` — takes title, date, time, description
+  3. `send_whatsapp_notification` — takes phone, message
+
+### tasks/school_events.py
+Async function `run_school_monitor() -> dict`:
+1. Run the school_monitor agent
+2. Parse JSON output into event list
+3. For each event: create calendar entry + send WhatsApp notification
+4. Return a result summary dict (used by dashboard to show last run status)
+
+### .env.example
+All config keys with explanatory comments. For OLLAMA_BASE_URL specifically:
+```
+# Your existing Ollama server — mee6 does not run Ollama itself
+OLLAMA_BASE_URL=http://192.168.1.x:11434
+OLLAMA_DEFAULT_MODEL=llama3
+```
+
+### tests/test_school_events.py
+- Mock the agent output with a sample JSON event list
+- Assert that `run_school_monitor()` calls the calendar and whatsapp integrations
+  once per event
+- Use `pytest-asyncio` with `asyncio_mode = "auto"`
+
+---
+
+## Hard constraints
+- NEVER reference a class, method, or config key not confirmed by the inspection step.
+- No ollama Docker service anywhere — it is always external.
+- All secrets via environment variables only.
+- `ruff check .` must pass before declaring done.
+- Run `uv sync` at the end and confirm the lockfile resolves cleanly.
+- If agntrick-whatsapp fails to install from PyPI, stop and report the exact error.
+```
+
+---
+
+The main changes baked in: Ollama is now purely a client connection (URL + model configurable in `.env`, no Docker service), and the whole project is now driven by the FastAPI web interface — the scheduler starts as part of the app lifecycle, and the triggers UI gives you full CRUD control over what runs and when. The Docker setup is also much simpler now with just the single `mee6` container.

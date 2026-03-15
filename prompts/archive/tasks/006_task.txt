@@ -1,0 +1,19 @@
+Implement memory_agent compaction mode (summarize)
+
+Requirements:
+- Add compaction field (select: "none" / "summarize") to memory_agent
+- When compaction = "summarize" and count > max_memories:
+  1. Insert the new memory entry
+  2. Count entries for (pipeline_id, label)
+  3. If count > max_memories:
+     a. Fetch all entries oldest-first
+     b. Call LLM with provider/model fields: "Summarise these memory entries into one concise entry preserving all key facts: <entries>. Max output: max_value_size characters."
+     c. Delete all entries for (pipeline_id, label)
+     d. Insert compacted summary as single new entry with created_at = now()
+- Without compaction: delete oldest entries beyond max_memories
+
+Desired result:
+- Compaction field added to plugin configuration
+- LLM summarization implemented using existing LLM infrastructure
+- Compaction flow correctly handles overflow
+- Both compaction modes (none/summarize) work correctly

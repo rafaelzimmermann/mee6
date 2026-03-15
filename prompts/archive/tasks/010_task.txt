@@ -1,0 +1,17 @@
+Update Pipeline model for graph support
+
+Requirements:
+- Update Pipeline model to support graph structure:
+  * Keep existing id, name fields
+  * Replace or add: entry_node_id: str (execution starts here)
+  * Replace or add: nodes: list[PipelineNode]
+  * Replace or add: edges: list[PipelineEdge]
+  * Keep steps field for backward compatibility (will be dropped in v0.3.0)
+- Add method get_node(node_id: str) -> PipelineNode | None
+- Add method edges_from(node_id: str) -> list[PipelineEdge]
+- Add method to_node(node_id: str) -> PipelineNode | None
+
+Desired result:
+- Pipeline model updated with graph fields
+- Helper methods for graph traversal implemented
+- Backward compatibility maintained (steps field kept)

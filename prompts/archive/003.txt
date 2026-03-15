@@ -1,0 +1,87 @@
+.mee6.conf can also be placed under agntrick config dir
+
+- ~/.config/agntrick:/home/mee6/.config/agntrick:ro   # whatsapp.yaml, .agntrick.yaml, .mee6.conf
+
+ How to configure google credentials?
+
+● Read 1 file (ctrl+o to expand)
+
+● The code uses a service account — here's the full setup:
+
+  ---
+  1. Create a Google Cloud project & enable the API
+
+  1. Go to console.cloud.google.com
+  2. Create a project (or pick an existing one)
+  3. APIs & Services → Enable APIs → search for Google Calendar API → Enable
+
+  ---
+  2. Create a service account
+
+  1. APIs & Services → Credentials → Create Credentials → Service account
+  2. Give it a name (e.g. mee6-calendar)
+  3. No special roles needed at this step — click Done
+  4. Click the service account → Keys tab → Add Key → Create new key → JSON
+  5. Download the JSON file — this is your credentials.json
+
+  ---
+  3. Place the credentials file
+
+  # Local dev
+  cp ~/Downloads/your-key.json ./data/credentials.json
+
+  # Docker (already mounted at /app/data)
+  cp ~/Downloads/your-key.json ./data/credentials.json
+
+  The path must match GOOGLE_CREDENTIALS_FILE in .mee6.conf (default: /app/data/credentials.json).
+
+  ---
+  4. Share the calendar with the service account
+
+  The service account has an email like mee6-calendar@your-project.iam.gserviceaccount.com.
+
+  1. Open Google Calendar → find your target calendar → ⋮ → Settings and sharing
+  2. Share with specific people → add the service account email
+  3. Permission: "Make changes to events"
+  4. Copy the Calendar ID (looks like abc123@group.calendar.google.com or your Gmail for the primary calendar)
+
+  ---
+  5. Set the Calendar ID in .mee6.conf
+
+  GOOGLE_CALENDAR_ID=abc123@group.calendar.google.com
+  GOOGLE_CREDENTIALS_FILE=/app/data/credentials.json
+
+  ---
+  That's it. The service account approach works unattended (no browser login, no token refresh) which is why it's the right choice for a scheduled background process
+  like mee6.
+
+❯ can the step 1 and 2 be done through bash?
+
+● Yes, with the gcloud CLI:
+
+  # Install gcloud if needed: https://cloud.google.com/sdk/docs/install
+  gcloud auth login
+
+  # 1. Create project and enable the Calendar API
+  gcloud projects create mee6-calendar --name="mee6 Calendar"
+  gcloud config set project mee6-calendar
+  gcloud services enable calendar-json.googleapis.com
+
+  # 2. Create service account + download the key
+  gcloud iam service-accounts create mee6-calendar \
+    --display-name="mee6 Calendar"
+
+  gcloud iam service-accounts keys create ./data/credentials.json \
+    --iam-account="mee6-calendar@mee6-calendar.iam.gserviceaccount.com"
+
+  # Print the service account email (you'll need it to share the calendar)
+  echo "Share your Google Calendar with:"
+  gcloud iam service-accounts describe mee6-calendar@mee6-calendar.iam.gserviceaccount.com \
+    --format="value(email)"
+
+  Step 4 (sharing the calendar) still has to be done manually in the Google Calendar UI — there's no public API to grant calendar sharing permissions to an arbitrary
+  email. Steps 3 and 4 from the previous instructions remain manual.
+
+  Want me to add this as scripts/setup-google-credentials.sh?
+
+❯ yes

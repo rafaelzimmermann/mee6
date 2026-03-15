@@ -1,0 +1,12 @@
+Create PipelineMemoryRow model
+
+Requirements:
+- Create PipelineMemoryRow dataclass/model representing pipeline_memories table
+- Fields should match table schema: id, pipeline_id, trigger_id, label, created_at, value
+- Follow existing model patterns in codebase
+- Include proper type hints
+
+Desired result:
+- Model file exists at appropriate location (e.g., models/pipeline_memory.py)
+- PipelineMemoryRow class defined with all required fields
+- Model follows project conventions for data models

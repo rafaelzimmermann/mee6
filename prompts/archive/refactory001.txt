@@ -1,0 +1,861 @@
+# React + REST API Refactoring Plan
+
+## Executive Summary
+
+Refactor mee6 from a server-side rendered FastAPI application with Jinja2 templates to a modern React Single Page Application (SPA) with a pure JSON REST API backend. This transformation will maintain all existing functionality while providing complete separation between frontend and backend.
+
+## Current Architecture
+
+### Backend
+- FastAPI returning HTML templates (Jinja2)
+- 4 route modules: pipelines, triggers, integrations, history
+- Pydantic models for basic validation
+- Repository pattern for database access
+- Only 2 JSON endpoints exist
+
+### Frontend
+- Server-side rendered HTML (8 main templates + 4 partials)
+- Vanilla JavaScript with manual state management
+- HTMX for real-time updates (polling)
+- Mixed form submission patterns
+- HTML5 validation only
+
+## Proposed Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    React SPA (Frontend)                      │
+│  - React Components + React Router + React Query           │
+│  - Client-side validation (Zod)                           │
+│  - State management (Zustand or React Context)            │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │ REST API (JSON only)
+                       │
+┌──────────────────────▼──────────────────────────────────────────┐
+│                   FastAPI Backend                            │
+│  - Pure JSON endpoints                                     │
+│  - Enhanced Pydantic validation                            │
+│  - Repository layer unchanged                                │
+│  - WebSocket/SSE for real-time updates                     │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+## Phase 1: Backend API Transformation
+
+### 1.1 Create API Response Models
+
+Create dedicated Pydantic models for API responses:
+
+**File: `mee6/web/api/models.py`**
+```python
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
+
+# Pipeline responses
+class PipelineResponse(BaseModel):
+    id: str
+    name: str
+    steps: List[dict]
+
+class PipelineCreateResponse(BaseModel):
+    id: str
+    message: str
+
+# Trigger responses
+class TriggerResponse(BaseModel):
+    job_id: str
+    name: str
+    trigger_type: str
+    enabled: bool
+    cron_expression: Optional[str] = None
+
+# History responses
+class RunRecordResponse(BaseModel):
+    id: str
+    pipeline_id: str
+    pipeline_name: str
+    status: str
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+# Integration responses
+class WhatsAppStatusResponse(BaseModel):
+    connected: bool
+    phone: str
+
+class CalendarResponse(BaseModel):
+    id: str
+    label: str
+    calendar_id: str
+
+class MemoryConfigResponse(BaseModel):
+    label: str
+    max_memories: int
+    ttl_hours: int
+    max_value_size: int
+```
+
+### 1.2 Convert All Routes to JSON API
+
+**File: `mee6/web/api/pipelines.py`**
+```python
+from fastapi import APIRouter, HTTPException, status
+from mee6.web.api.models import *
+from mee6.db.repository import PipelineRepository, TriggerRepository
+from mee6.pipelines.store import pipeline_store
+from mee6.pipelines.plugin_registry import AGENT_PLUGINS
+
+router = APIRouter()
+
+@router.get("/api/v1/pipelines", response_model=List[PipelineResponse])
+async def list_pipelines():
+    pipelines = await pipeline_store.list()
+    return [p.model_dump() for p in pipelines]
+
+@router.get("/api/v1/pipelines/{pipeline_id}", response_model=PipelineResponse)
+async def get_pipeline(pipeline_id: str):
+    pipeline = await pipeline_store.get(pipeline_id)
+    if not pipeline:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    return pipeline.model_dump()
+
+@router.post("/api/v1/pipelines", response_model=PipelineCreateResponse, status_code=201)
+async def create_pipeline(data: PipelineCreateRequest):
+    pipeline_id = str(uuid.uuid4())
+    pipeline = Pipeline(
+        id=pipeline_id,
+        name=data.name,
+        steps=[PipelineStep(**step) for step in data.steps],
+    )
+    await pipeline_store.upsert(pipeline)
+    return PipelineCreateResponse(id=pipeline_id, message="Pipeline created")
+
+@router.put("/api/v1/pipelines/{pipeline_id}", response_model=PipelineResponse)
+async def update_pipeline(pipeline_id: str, data: PipelineCreateRequest):
+    existing = await pipeline_store.get(pipeline_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+
+    pipeline = Pipeline(
+        id=pipeline_id,
+        name=data.name,
+        steps=[PipelineStep(**step) for step in data.steps],
+    )
+    await pipeline_store.upsert(pipeline)
+    scheduler.update_pipeline_name(pipeline_id, pipeline.name)
+    return pipeline.model_dump()
+
+@router.delete("/api/v1/pipelines/{pipeline_id}", status_code=204)
+async def delete_pipeline(pipeline_id: str):
+    async with AsyncSessionLocal() as session:
+        if await TriggerRepository(session).exists_for_pipeline(pipeline_id):
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete: pipeline has associated triggers"
+            )
+    await pipeline_store.delete(pipeline_id)
+```
+
+**File: `mee6/web/api/triggers.py`**
+```python
+from fastapi import APIRouter, HTTPException, status
+
+router = APIRouter()
+
+@router.get("/api/v1/triggers", response_model=List[TriggerResponse])
+async def list_triggers():
+    # Use existing trigger logic
+    pass
+
+@router.post("/api/v1/triggers", response_model=TriggerResponse, status_code=201)
+async def create_trigger(data: TriggerCreateRequest):
+    pass
+
+@router.put("/api/v1/triggers/{job_id}/toggle")
+async def toggle_trigger(job_id: str):
+    pass
+
+@router.delete("/api/v1/triggers/{job_id}", status_code=204)
+async def delete_trigger(job_id: str):
+    pass
+
+@router.post("/api/v1/triggers/{job_id}/run-now")
+async def run_trigger(job_id: str):
+    pass
+```
+
+**File: `mee6/web/api/history.py`**
+```python
+from fastapi import APIRouter, status
+
+router = APIRouter()
+
+@router.get("/api/v1/history", response_model=List[RunRecordResponse])
+async def list_history():
+    pass
+
+@router.get("/api/v1/history/running", response_model=dict)
+async def get_running_count():
+    return {"count": await scheduler.get_running_count()}
+```
+
+**File: `mee6/web/api/integrations.py`**
+```python
+from fastapi import APIRouter, HTTPException, status
+
+router = APIRouter()
+
+@router.get("/api/v1/whatsapp/status", response_model=WhatsAppStatusResponse)
+async def whatsapp_status():
+    pass
+
+@router.post("/api/v1/whatsapp/phone")
+async def set_whatsapp_phone(data: WhatsAppPhoneRequest):
+    pass
+
+@router.post("/api/v1/whatsapp/sync")
+async def sync_whatsapp():
+    pass
+
+@router.get("/api/v1/calendars", response_model=List[CalendarResponse])
+async def list_calendars():
+    pass
+
+@router.post("/api/v1/calendars", status_code=201)
+async def create_calendar(data: CalendarCreateRequest):
+    pass
+
+@router.get("/api/v1/memories", response_model=List[MemoryConfigResponse])
+async def list_memory_configs():
+    pass
+
+@router.post("/api/v1/memories", status_code=201)
+async def create_memory_config(data: MemoryConfigRequest):
+    pass
+
+@router.delete("/api/v1/memories/{label}", status_code=204)
+async def delete_memory_config(label: str):
+    pass
+```
+
+**File: `mee6/web/api/agents.py`**
+```python
+from fastapi import APIRouter, HTTPException, status
+
+router = APIRouter()
+
+@router.get("/api/v1/agents")
+async def list_agents():
+    return [{"name": p.name, "label": p.label} for p in AGENT_PLUGINS.values()]
+
+@router.get("/api/v1/agents/{agent_type}/fields")
+async def get_agent_fields(agent_type: str):
+    plugin = AGENT_PLUGINS.get(agent_type)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Agent type not found")
+    fields = await plugin.get_fields()
+    return [f.model_dump() for f in fields]
+```
+
+### 1.3 Add Enhanced Validation
+
+**File: `mee6/web/api/validation.py`**
+```python
+from pydantic import BaseModel, field_validator, EmailStr
+from typing import Optional
+import re
+
+class PipelineNameValidator(BaseModel):
+    name: str
+
+    @field_validator('name')
+    @classmethod
+    def name_not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Pipeline name cannot be empty')
+        if len(v) > 100:
+            raise ValueError('Pipeline name must be less than 100 characters')
+        return v
+
+class StepConfigValidator(BaseModel):
+    @field_validator('*')
+    @classmethod
+    def validate_required_fields(cls, v, info):
+        # Validate required fields based on agent type
+        pass
+
+class PipelineCreateRequestEnhanced(BaseModel):
+    name: str
+    steps: list[dict]
+
+    @field_validator('steps')
+    @classmethod
+    def at_least_one_step(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError('Pipeline must have at least one step')
+        return v
+```
+
+### 1.4 Add Real-Time Updates (WebSocket/SSE)
+
+**File: `mee6/web/api/sse.py`**
+```python
+from fastapi import APIRouter
+from sse_starlette.sse import EventSourceResponse
+import asyncio
+
+router = APIRouter()
+
+async def history_event_generator():
+    while True:
+        # Emit updates when history changes
+        await asyncio.sleep(1)
+
+@router.get("/api/v1/events/history")
+async def history_events():
+    return EventSourceResponse(history_event_generator())
+
+@router.get("/api/v1/events/running")
+async def running_events():
+    # Similar for running count
+    pass
+```
+
+### 1.5 Update Main App
+
+**File: `mee6/web/app.py`**
+```python
+from mee6.web.api import pipelines, triggers, history, integrations, agents, sse
+
+app = FastAPI(title="mee6")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# API routes (JSON only)
+app.include_router(pipelines.router, prefix="/api/v1")
+app.include_router(triggers.router, prefix="/api/v1")
+app.include_router(history.router, prefix="/api/v1")
+app.include_router(integrations.router, prefix="/api/v1")
+app.include_router(agents.router, prefix="/api/v1")
+app.include_router(sse.router, prefix="/api/v1")
+
+# Single static file route for React app
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_react_app(full_path: str):
+    from fastapi.responses import FileResponse
+    return FileResponse(f"{STATIC_DIR}/index.html")
+```
+
+## Phase 2: React Frontend Setup
+
+### 2.1 Project Structure
+
+```
+mee6/frontend/
+├── public/
+│   └── index.html
+├── src/
+│   ├── components/
+│   │   ├── pipelines/
+│   │   │   ├── PipelineList.tsx
+│   │   │   ├── PipelineForm.tsx
+│   │   │   ├── StepCard.tsx
+│   │   │   └── AgentField.tsx
+│   │   ├── triggers/
+│   │   │   ├── TriggerList.tsx
+│   │   │   └── TriggerForm.tsx
+│   │   ├── integrations/
+│   │   │   ├── WhatsAppPanel.tsx
+│   │   │   ├── CalendarPanel.tsx
+│   │   │   └── MemoryPanel.tsx
+│   │   ├── history/
+│   │   │   ├── HistoryList.tsx
+│   │   │   └── HistoryFilters.tsx
+│   │   └── common/
+│   │       ├── Layout.tsx
+│   │       ├── Navigation.tsx
+│   │       ├── Button.tsx
+│   │       └── Input.tsx
+│   ├── hooks/
+│   │   ├── usePipelines.ts
+│   │   ├── useTriggers.ts
+│   │   ├── useHistory.ts
+│   │   └── useRealtime.ts
+│   ├── lib/
+│   │   ├── api.ts
+│   │   ├── validation.ts
+│   │   └── types.ts
+│   ├── App.tsx
+│   └── main.tsx
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── tailwind.config.js
+```
+
+### 2.2 Technology Stack
+
+- **React 18** with TypeScript
+- **Vite** for build tooling
+- **React Router v6** for routing
+- **React Query** for API calls and caching
+- **Zod** for client-side validation
+- **Zustand** for state management
+- **Tailwind CSS** for styling
+- **Lucide React** for icons
+
+### 2.3 API Client
+
+**File: `mee6/frontend/src/lib/api.ts`**
+```typescript
+const API_BASE = '/api/v1';
+
+export const api = {
+  // Pipelines
+  pipelines: {
+    list: () => fetch(`${API_BASE}/pipelines`).then(r => r.json()),
+    get: (id: string) => fetch(`${API_BASE}/pipelines/${id}`).then(r => r.json()),
+    create: (data: PipelineCreateRequest) =>
+      fetch(`${API_BASE}/pipelines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).then(r => r.json()),
+    update: (id: string, data: PipelineCreateRequest) =>
+      fetch(`${API_BASE}/pipelines/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).then(r => r.json()),
+    delete: (id: string) =>
+      fetch(`${API_BASE}/pipelines/${id}`, { method: 'DELETE' }),
+  },
+
+  // Agents
+  agents: {
+    list: () => fetch(`${API_BASE}/agents`).then(r => r.json()),
+    getFields: (type: string) =>
+      fetch(`${API_BASE}/agents/${type}/fields`).then(r => r.json()),
+  },
+
+  // Triggers, History, Integrations...
+};
+```
+
+### 2.4 Validation Schemas
+
+**File: `mee6/frontend/src/lib/validation.ts`**
+```typescript
+import { z } from 'zod';
+
+export const pipelineSchema = z.object({
+  name: z.string()
+    .min(1, 'Pipeline name is required')
+    .max(100, 'Pipeline name must be less than 100 characters'),
+  steps: z.array(z.object({
+    agent_type: z.string().min(1, 'Agent type is required'),
+    config: z.record(z.string()),
+  })).min(1, 'Pipeline must have at least one step'),
+});
+
+export const memoryConfigSchema = z.object({
+  label: z.string()
+    .min(1, 'Label is required')
+    .max(50, 'Label must be less than 50 characters'),
+  max_memories: z.number().int().positive().default(20),
+  ttl_hours: z.number().int().positive().default(720),
+  max_value_size: z.number().int().positive().default(2000),
+});
+
+// Shared schemas for server/client
+export type PipelineInput = z.infer<typeof pipelineSchema>;
+```
+
+### 2.5 React Query Hooks
+
+**File: `mee6/frontend/src/hooks/usePipelines.ts`**
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { pipelineSchema } from '@/lib/validation';
+
+export function usePipelines() {
+  return useQuery({
+    queryKey: ['pipelines'],
+    queryFn: api.pipelines.list,
+  });
+}
+
+export function usePipeline(id: string) {
+  return useQuery({
+    queryKey: ['pipelines', id],
+    queryFn: () => api.pipelines.get(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreatePipeline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: PipelineInput) => api.pipelines.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['pipelines']);
+    },
+  });
+}
+
+export function useUpdatePipeline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: PipelineInput }) =>
+      api.pipelines.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['pipelines']);
+    },
+  });
+}
+
+export function useDeletePipeline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.pipelines.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['pipelines']);
+    },
+  });
+}
+```
+
+### 2.6 Pipeline Form Component
+
+**File: `mee6/frontend/src/components/pipelines/PipelineForm.tsx`**
+```typescript
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { usePipeline, useUpdatePipeline, useCreatePipeline, useAgents } from '@/hooks';
+import { pipelineSchema } from '@/lib/validation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { StepCard } from './StepCard';
+
+export function PipelineForm() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { data: pipeline, isLoading } = usePipeline(id);
+  const { data: agents } = useAgents();
+  const updatePipeline = useUpdatePipeline();
+  const createPipeline = useCreatePipeline();
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(pipelineSchema),
+    defaultValues: pipeline || { name: '', steps: [{ agent_type: '', config: {} }] },
+  });
+
+  const onSubmit = (data: PipelineInput) => {
+    if (id) {
+      updatePipeline.mutate({ id, data });
+    } else {
+      createPipeline.mutate(data);
+    }
+    navigate('/pipelines');
+  };
+
+  if (isLoading) return <div>Loading...</div>;
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <Layout title={id ? 'Edit Pipeline' : 'New Pipeline'}>
+        <Input label="Name" {...register('name')} error={errors.name?.message} />
+
+        <div className="space-y-4">
+          {pipeline?.steps?.map((step, idx) => (
+            <StepCard
+              key={idx}
+              index={idx}
+              agents={agents}
+              defaultAgent={step.agent_type}
+              defaultConfig={step.config}
+            />
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <Button type="submit">Save Pipeline</Button>
+          <Button type="button" variant="secondary" onClick={() => navigate('/pipelines')}>
+            Cancel
+          </Button>
+        </div>
+      </Layout>
+    </form>
+  );
+}
+```
+
+### 2.7 Real-Time Updates Hook
+
+**File: `mee6/frontend/src/hooks/useRealtime.ts`**
+```typescript
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+
+export function useRealtime() {
+  const queryClient = useQueryClient();
+  const [eventSource, setEventSource] = useState<EventSource | null>(null);
+
+  useEffect(() => {
+    const es = new EventSource('/api/v1/events/history');
+    setEventSource(es);
+
+    es.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'history_update') {
+        queryClient.invalidateQueries(['history']);
+      }
+      if (data.type === 'running_update') {
+        queryClient.invalidateQueries(['running']);
+      }
+    };
+
+    return () => es.close();
+  }, [queryClient]);
+
+  return eventSource;
+}
+```
+
+### 2.8 Main App Component
+
+**File: `mee6/frontend/src/App.tsx`**
+```typescript
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Layout } from '@/components/common/Layout';
+import { PipelineList } from '@/components/pipelines/PipelineList';
+import { PipelineForm } from '@/components/pipelines/PipelineForm';
+import { TriggerList } from '@/components/triggers/TriggerList';
+import { HistoryList } from '@/components/history/HistoryList';
+import { IntegrationsPanel } from '@/components/integrations/IntegrationsPanel';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Layout>
+          <Routes>
+            <Route path="/pipelines" element={<PipelineList />} />
+            <Route path="/pipelines/new" element={<PipelineForm />} />
+            <Route path="/pipelines/:id" element={<PipelineForm />} />
+            <Route path="/triggers" element={<TriggerList />} />
+            <Route path="/history" element={<HistoryList />} />
+            <Route path="/integrations" element={<IntegrationsPanel />} />
+            <Route path="/" element={<PipelineList />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
+```
+
+## Phase 3: Configuration Files
+
+### 3.1 Package.json
+
+**File: `mee6/frontend/package.json`**
+```json
+{
+  "name": "mee6-frontend",
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "@tanstack/react-query": "^5.0.0",
+    "zustand": "^4.4.0",
+    "zod": "^3.22.0",
+    "react-hook-form": "^7.48.0",
+    "@hookform/resolvers": "^3.3.0",
+    "lucide-react": "^0.300.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "tailwindcss": "^3.3.0"
+  }
+}
+```
+
+### 3.2 Docker Compose Update
+
+**File: `docker-compose.yml`**
+```yaml
+services:
+  # ... existing services ...
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8080/api/v1
+    command: npm run dev
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./data:/usr/share/nginx/html:ro
+    depends_on:
+      - mee6
+      - frontend
+```
+
+### 3.3 Nginx Configuration
+
+**File: `nginx.conf`**
+```nginx
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+
+    # API proxy
+    location /api/ {
+        proxy_pass http://mee6:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Static files
+    location /static/ {
+        alias /usr/share/nginx/html/static/;
+    }
+
+    # React SPA fallback
+    location / {
+        proxy_pass http://frontend:5173;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+## Phase 4: Migration Strategy
+
+### 4.1 Incremental Migration (Recommended)
+
+**Week 1-2: Backend API Foundation**
+1. Create API response models in `mee6/web/api/models.py`
+2. Implement `/api/v1/pipelines` endpoints
+3. Add CORS middleware
+4. Test with curl/Postman
+
+**Week 3-4: Frontend Pipeline Management**
+1. Set up React + Vite project
+2. Implement PipelineList component
+3. Implement PipelineForm component
+4. Add routing
+5. Test pipeline CRUD
+
+**Week 5-6: Remaining API + Frontend Features**
+1. Implement triggers API and components
+2. Implement history API and components
+3. Implement integrations API and components
+4. Add real-time updates via SSE
+
+**Week 7-8: Polish & Deploy**
+1. Add comprehensive validation (Zod + Pydantic)
+2. Implement error handling
+3. Add loading states
+4. Deploy with nginx reverse proxy
+5. Remove old template routes
+
+### 4.2 Big Bang Migration (Alternative)
+
+1. Complete all API endpoints first
+2. Build full React frontend
+3. Single deployment cutover
+4. Keep backend as fallback during transition
+
+## Critical Files
+
+### Backend
+- `mee6/web/app.py` - Update to serve React app and API routes
+- `mee6/web/api/models.py` - Create new API response models
+- `mee6/web/api/pipelines.py` - Create new pipeline API routes
+- `mee6/web/api/triggers.py` - Create new trigger API routes
+- `mee6/web/api/history.py` - Create new history API routes
+- `mee6/web/api/integrations.py` - Create new integrations API routes
+- `mee6/web/api/agents.py` - Create agents API routes
+- `mee6/web/api/sse.py` - Create SSE endpoints
+- `mee6/db/repository.py` - Keep unchanged
+- `mee6/pipelines/models.py` - Enhance validation
+
+### Frontend
+- `mee6/frontend/src/lib/api.ts` - API client
+- `mee6/frontend/src/lib/validation.ts` - Zod schemas
+- `mee6/frontend/src/hooks/` - React Query hooks
+- `mee6/frontend/src/components/` - React components
+- `mee6/frontend/src/App.tsx` - Main app
+- `mee6/frontend/package.json` - Dependencies
+
+### Infrastructure
+- `docker-compose.yml` - Add frontend service
+- `nginx.conf` - Reverse proxy configuration
+- `vite.config.ts` - Vite configuration
+
+## Verification
+
+1. **Backend Testing**:
+   - All API endpoints return JSON with correct status codes
+   - Validation errors return 422 with details
+   - CORS configured for frontend origin
+   - SSE events fire correctly
+
+2. **Frontend Testing**:
+   - All pages render without errors
+   - Forms validate on submit
+   - API calls handle errors gracefully
+   - Real-time updates work
+
+3. **Integration Testing**:
+   - Create/read/update/delete pipelines
+   - Create/delete triggers
+   - View history with updates
+   - Configure integrations
+
+4. **End-to-End**:
+   - Pipeline creation → execution → history
+   - WhatsApp trigger → pipeline run → message sent
+   - Calendar sync → event created

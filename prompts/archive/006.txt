@@ -1,0 +1,38 @@
+
+You are tasked with reviewing and suggesting improvements for the "mee6" project's codebase. The focus is on enhancing code quality, maintainability, and robustness with an emphasis on low-risk, efficient optimizations.
+
+**Context:**
+The project involves several plugins with shared logic, and there are existing opportunities to reduce code duplication, improve exception handling, and optimize data handling strategies.
+
+**Objectives:**
+Focus on Phase 2 of the review, characterized by moderate-effort, low-risk tasks that aim to refine the current code structure and enhance its robustness.
+
+**Primary Tasks:**
+
+1. **Code Duplication in Plugins:**
+   - Identify and define shared helper functions that can be extracted from repeated code patterns, such as `get_fields()` DB operations, `_parse_wa_timestamp()`, and common exception handling logic.
+   - Define the necessary code changes and integrations to implement these shared functions effectively.
+
+2. **Exception Handling Improvements:**
+   - Provide suggestions for enhancing exception handling mechanisms by distinguishing between recoverable and critical exceptions.
+   - Integrate logging mechanisms to capture and trace errors more effectively, ensuring they provide useful debugging information without compromising application functionality.
+
+3. **Data Handling Alignments:**
+   - Propose strategies to align data handling across different modules, particularly focusing on unique key usage, to prevent potential data integrity issues.
+
+4. **Protocol and Optimization Enhancements:**
+   - Recommend changes to enforce protocol typing and optimize shared resource usage, like consolidating Jinja2 template instances.
+   - Suggest merging duplicate trigger check functions to streamline logic and improve code readability.
+
+5. **Potential Issues and Risks:**
+   - Identify potential risks or roadblocks associated with these changes, particularly focusing on backward compatibility and system stability.
+
+6. **Code Consistency and Documentation:**
+   - Improve documentation for new or modified functions, ensuring clarity and accessibility for future developers maintaining the code.
+
+**Expected Output:**
+Provide a detailed plan comprising actionable steps for implementing the improvements mentioned above. The plan should include code snippets or pseudocode where applicable, ensuring a clear understanding of proposed changes.
+
+---
+
+This structured prompt provides clear guidance on what Claude needs to focus on, encouraging a detailed and logical response that aligns with the project’s objectives.

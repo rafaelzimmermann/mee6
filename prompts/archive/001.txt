@@ -1,0 +1,5 @@
+Configure git
+it should use main as main branch
+origin: git@github.com:rafaelzimmermann/mee6.git
+Add update the readme file
+Add and update changelog

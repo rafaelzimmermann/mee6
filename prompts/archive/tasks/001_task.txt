@@ -1,0 +1,17 @@
+Create database migration 006_pipeline_memories.sql
+
+Requirements:
+- Create pipeline_memories table with columns:
+  * id (SERIAL PRIMARY KEY)
+  * pipeline_id (VARCHAR NOT NULL)
+  * trigger_id (VARCHAR, nullable - NULL if run manually)
+  * label (VARCHAR NOT NULL)
+  * created_at (TIMESTAMP NOT NULL)
+  * value (TEXT NOT NULL)
+- Create index ix_memories_pipeline_label_ts on (pipeline_id, label, created_at DESC)
+- No foreign key on trigger_id (triggers can be deleted independently)
+
+Desired result:
+- Migration file exists at migrations/006_pipeline_memories.sql
+- File creates table and index as specified
+- Migration can be applied with existing migration system

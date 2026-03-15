@@ -1,0 +1,24 @@
+Create queue-based graph executor with back-edge guard
+
+Requirements:
+- Create async run_pipeline(pipeline: Pipeline) -> dict in pipelines/executor.py
+- Use work queue (deque) of (node_id, input_text) pairs
+- Track visited nodes with set[str] for back-edge detection (loops deferred to v0.3.0)
+- Executor logic:
+  1. queue.append((entry_node_id, ""))
+  2. While queue not empty:
+     - node_id, input_text = queue.popleft()
+     - If node_id in visited: log warning and continue (skip back edge)
+     - visited.add(node_id)
+     - output = await _run_node(node, input_text)
+     - Get outgoing edges from node
+     - If no outgoing edges: outputs.append(output) (terminal node)
+     - For each edge: if edge.condition is None or output matches condition, queue.append((to_node_id, output))
+  3. Return {"summary": outputs[-1] if outputs else ""}
+- _run_node should use existing node execution logic
+
+Desired result:
+- Graph executor implemented in pipelines/executor.py
+- Queue-based execution handles fan-out and convergence
+- Back-edge guard prevents loops with warning
+- Terminal outputs collected, last one returned as summary

@@ -1,19 +1,45 @@
 .env
-.venv/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Rails
+rails/log/
+rails/tmp/
+rails/.ruby-version
+rails/.bundle/
+rails/vendor/bundle/
+
+# Rails frontend
+rails/frontend/node_modules/
+rails/frontend/dist/
+rails/frontend/.turbo/
+
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-dist/
-.mypy_cache/
-.ruff_cache/
+*.py[cod]
+*$py.class
+*.so
+.Python
 .pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Docker volumes
 data/
-uv.lock
-.mee6.conf
-prompts
-.claude
-progress.log
-.data
-**/credentials.json
-node_modules/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

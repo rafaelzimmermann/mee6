@@ -1,0 +1,17 @@
+Create PipelineMemoryRepository
+
+Requirements:
+- Create PipelineMemoryRepository class with methods:
+  * get_recent(pipeline_id, label, limit, since: datetime) -> list[PipelineMemoryRow]
+  * insert(row: PipelineMemoryRow) -> None
+  * count(pipeline_id, label) -> int
+  * delete_oldest(pipeline_id, label, keep: int) -> None
+  * delete_expired(pipeline_id, label, before: datetime) -> None
+- Follow existing repository patterns in codebase
+- Use PostgreSQL connection from existing database infrastructure
+
+Desired result:
+- Repository class exists at appropriate location
+- All methods implemented with proper SQL queries
+- Database connection handling follows project patterns
+- Methods return correct types
