@@ -16,7 +16,7 @@ RSpec.describe MemoryEntry, type: :model do
         entry2 = create(:memory_entry, memory: memory, created_at: 2.days.ago)
         entry3 = create(:memory_entry, memory: memory, created_at: Time.current)
 
-        expect(MemoryEntry.recent.to_a).to eq([entry3, entry1, entry2])
+        expect(memory.memory_entries.recent.to_a).to eq([entry3, entry1, entry2])
       end
     end
 

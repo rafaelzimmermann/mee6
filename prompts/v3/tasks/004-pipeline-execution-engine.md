@@ -50,7 +50,7 @@ module Integrations
       raise ServiceError.new(response.status, response.body) unless response.success?
 
       JSON.parse(response.body)
-    rescue Faraday::TimeoutError => e
+    rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
       raise TimeoutError, e.message
     end
 
@@ -195,9 +195,10 @@ module Memories
     private
 
     def evict(memory)
-      # Delete entries beyond max_memories, oldest first
+      # Order DESC (newest first), offset by max_memories to find the tail,
+      # then delete — this keeps the newest entries and removes the oldest.
       excess_ids = memory.memory_entries
-                         .order(created_at: :asc)
+                         .order(created_at: :desc)
                          .offset(memory.max_memories)
                          .pluck(:id)
       MemoryEntry.where(id: excess_ids).delete_all if excess_ids.any?

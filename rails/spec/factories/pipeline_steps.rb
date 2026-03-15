@@ -22,12 +22,12 @@ FactoryBot.define do
 
     trait :whatsapp_agent do
       agent_type { "whatsapp_agent" }
-      config { { phone: "+15550193456" } }
+      config { { "to" => "+15550193456" } }   # executor reads config["to"]
     end
 
     trait :whatsapp_group_send do
       agent_type { "whatsapp_group_send" }
-      config { { group_jid: "1234567890@g.us" } }
+      config { { "group_jid" => "1234567890@g.us" } }   # executor reads config["group_jid"]
     end
 
     trait :memory_agent do
