@@ -16,6 +16,15 @@ Rails.application.routes.draw do
       delete "auth/logout",         to: "auth#logout"
       get    "auth/me",             to: "auth#me"
       put    "auth/password",       to: "auth#change_password"
+
+      resources :pipelines
+      resources :triggers do
+        member do
+          post  :run_now
+          patch :toggle
+        end
+      end
+      resources :run_records, only: [:index]
     end
   end
 end
