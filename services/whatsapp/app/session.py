@@ -1,11 +1,13 @@
 import asyncio
 import enum
+import io
 import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-from neonize.client import NewClient as NewAClient
-from neonize.events import ConnectedEv, DisconnectedEv, QRChangedEv, MessageEv
+import segno
+from neonize.client import NewClient
+from neonize.events import ConnectedEv, DisconnectedEv, MessageEv
 
 from app.config import STORAGE_PATH, WEBHOOK_SECRET
 
@@ -34,8 +36,9 @@ class WASession:
         self.status: WAStatus = WAStatus.disconnected
         self.qr_svg: Optional[str] = None
         self.registration: Optional[MonitorRegistration] = None
-        self._client: Optional[NewAClient] = None
+        self._client: Optional[NewClient] = None
         self._qr_watchdog_task: Optional[asyncio.Task] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def connect(self) -> None:
         if self.status in (
@@ -45,16 +48,24 @@ class WASession:
         ):
             return
         self.status = WAStatus.connecting
-        self._client = NewAClient(f"{STORAGE_PATH}/session")
-        self._client.event.on(ConnectedEv, self._on_connected)
-        self._client.event.on(DisconnectedEv, self._on_disconnected)
-        self._client.event.on(QRChangedEv, self._on_qr)
-        self._client.event.on(MessageEv, self._on_message_combined)
-        asyncio.create_task(self._client.connect())
+        self._loop = asyncio.get_event_loop()
+        self._client = NewClient(f"{STORAGE_PATH}/session")
+
+        # Register event handlers — neonize 0.3.x uses client.event(Type)(cb)
+        self._client.event(ConnectedEv)(self._on_connected)
+        self._client.event(DisconnectedEv)(self._on_disconnected)
+        self._client.event(MessageEv)(self._on_message)
+        # QR uses a separate registration; callback receives raw bytes
+        self._client.qr(self._on_qr)
+
+        # connect() is a blocking call — run in thread to avoid blocking the loop
+        asyncio.get_event_loop().run_in_executor(None, self._client.connect)
 
     async def disconnect(self) -> None:
         if self._client:
-            await self._client.disconnect()
+            await asyncio.get_event_loop().run_in_executor(
+                None, self._client.disconnect
+            )
         self.status = WAStatus.disconnected
         self.qr_svg = None
         self._cancel_watchdog()
@@ -71,7 +82,9 @@ class WASession:
     async def send_message(self, to: str, text: str) -> None:
         if not self._client or self.status != WAStatus.connected:
             raise RuntimeError("WhatsApp session not connected")
-        await self._client.send_message(to, text)
+        await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self._client.send_message(to, text)
+        )
 
     def get_groups(self) -> list[dict]:
         if not self._client or self.status != WAStatus.connected:
@@ -80,34 +93,38 @@ class WASession:
             {"jid": g.JID, "name": g.Name} for g in self._client.get_joined_groups()
         ]
 
-    async def _on_connected(self, _client, _ev: ConnectedEv) -> None:
+    # --- Event callbacks (called from Go threads, so must be synchronous) ---
+
+    def _on_connected(self, _client, _ev: ConnectedEv) -> None:
         logger.info("WhatsApp connected")
         self.status = WAStatus.connected
         self.qr_svg = None
         self._cancel_watchdog()
 
-    async def _on_disconnected(self, _client, ev: DisconnectedEv) -> None:
+    def _on_disconnected(self, _client, ev: DisconnectedEv) -> None:
         logger.warning("WhatsApp disconnected: %s", ev)
         self.status = WAStatus.disconnected
         self._cancel_watchdog()
 
-    async def _on_qr(self, _client, ev: QRChangedEv) -> None:
+    def _on_qr(self, _client, data_qr: bytes) -> None:
+        """Receives raw QR bytes from neonize; converts to SVG for the frontend."""
         logger.info("QR code updated")
+        buf = io.BytesIO()
+        segno.make_qr(data_qr).save(buf, kind="svg", scale=5, svgid="qr")
+        self.qr_svg = buf.getvalue().decode("utf-8")
         self.status = WAStatus.pending_qr
-        self.qr_svg = ev.QR
         self._cancel_watchdog()
-        self._qr_watchdog_task = asyncio.create_task(self._qr_watchdog())
+        if self._loop:
+            asyncio.run_coroutine_threadsafe(self._schedule_watchdog(), self._loop)
 
-    async def _on_message_combined(self, _client, ev: MessageEv) -> None:
+    def _on_message(self, _client, ev: MessageEv) -> None:
         if self.registration is None:
             return
-
         msg = ev.Info
         is_group = msg.IsGroup
         text = _extract_text(ev)
         if not text:
             return
-
         if is_group:
             chat_jid = str(msg.Chat)
             if chat_jid not in self.registration.group_jids:
@@ -119,8 +136,13 @@ class WASession:
             if not any(p.lstrip("+") in phone for p in self.registration.phones):
                 return
             payload = {"type": "dm", "sender": sender, "text": text}
+        if self._loop:
+            asyncio.run_coroutine_threadsafe(
+                _post_callback(self.registration.callback_url, payload), self._loop
+            )
 
-        await _post_callback(self.registration.callback_url, payload)
+    async def _schedule_watchdog(self) -> None:
+        self._qr_watchdog_task = asyncio.create_task(self._qr_watchdog())
 
     async def _qr_watchdog(self) -> None:
         await asyncio.sleep(QR_EXPIRY_SECONDS)
