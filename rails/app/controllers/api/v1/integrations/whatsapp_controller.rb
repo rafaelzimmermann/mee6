@@ -49,7 +49,7 @@ module Api
         end
 
         def settings_params
-          params.require(:whatsapp_setting).permit(:phone_number)
+          params.permit(:phone_number)
         end
 
         def upsert_groups(groups_data)
