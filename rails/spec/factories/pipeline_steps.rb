@@ -3,7 +3,7 @@ FactoryBot.define do
     pipeline
     step_index { 0 }
     agent_type { "llm_agent" }
-    config { {} }
+    config { { test: true } }
 
     trait :llm_agent do
       agent_type { "llm_agent" }
@@ -37,7 +37,7 @@ FactoryBot.define do
 
     trait :debug_agent do
       agent_type { "debug_agent" }
-      config { {} }
+      config { { debug: true } }
     end
   end
 end

@@ -5,7 +5,8 @@
 Define all nine ActiveRecord models with associations, validations, and scopes.
 Write Rails migrations that produce a schema matching the v2 database layout as
 closely as possible so that data can be copied across without transformation.
-Provide a seeds file for local development and full model specs.
+Provide a seeds file for local development, FactoryBot factories, and full model
+specs.
 
 ---
 
@@ -42,7 +43,7 @@ create_table :pipeline_steps do |t|
   t.string  :pipeline_id, null: false
   t.integer :step_index,  null: false
   t.string  :agent_type,  null: false
-  t.jsonb   :config,      null: false, default: {}
+  t.jsonb   :config,      null: false, default: {}  # DB default only; model requires non-empty (see note below)
   t.timestamps
 end
 
@@ -57,7 +58,7 @@ create_table :triggers, id: :string, force: :cascade do |t|
   t.string  :pipeline_id,   null: false
   t.integer :trigger_type,  null: false   # stored as integer via Rails enum
   t.string  :cron_expr
-  t.jsonb   :config,        null: false, default: {}
+  t.jsonb   :config,        null: false, default: {}  # DB default only; see note below
   t.boolean :enabled,       null: false, default: true
   t.timestamps
 end
@@ -143,6 +144,12 @@ end
 Only one row is ever written (id `"default"`). The model exposes a
 `WhatsAppSetting.current` class method that finds-or-creates it.
 
+> **Config validation note**: `validates :config, presence: true` on
+> `PipelineStep` rejects empty hashes because `{}.blank? # => true` in
+> ActiveSupport. The `default: {}` in the migration is a DB-level safety net
+> only. All code that creates steps or triggers (factories, seeds, application
+> code) must always supply a non-empty `config` hash.
+
 ---
 
 ### 2. Models
@@ -163,12 +170,17 @@ class Pipeline < ApplicationRecord
 
   accepts_nested_attributes_for :pipeline_steps, allow_destroy: true
 
+  before_validation :assign_id
+
   scope :ordered, -> { order(:name) }
+
+  private
+
+  def assign_id
+    self.id ||= SecureRandom.uuid
+  end
 end
 ```
-
-`id` is assigned before creation: `before_validation :assign_id`.
-Use `SecureRandom.uuid` if `id` is blank.
 
 #### `PipelineStep` — `rails/app/models/pipeline_step.rb`
 
@@ -176,18 +188,16 @@ Use `SecureRandom.uuid` if `id` is blank.
 class PipelineStep < ApplicationRecord
   belongs_to :pipeline
 
-  validates :step_index,  presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
-  validates :agent_type,  presence: true
-  validates :config,      presence: true
-  validates :step_index,  uniqueness: { scope: :pipeline_id }
-
   AGENT_TYPES = %w[
     llm_agent browser_agent calendar_agent
     whatsapp_agent whatsapp_group_send
     memory_agent debug_agent
   ].freeze
 
-  validates :agent_type, inclusion: { in: AGENT_TYPES }
+  validates :step_index,  presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :agent_type,  presence: true, inclusion: { in: AGENT_TYPES }
+  validates :config,      presence: true
+  validates :step_index,  uniqueness: { scope: :pipeline_id }
 
   scope :ordered, -> { order(:step_index) }
 end
@@ -199,19 +209,19 @@ end
 class Trigger < ApplicationRecord
   belongs_to :pipeline
 
-  enum trigger_type: { cron: 0, whatsapp: 1, wa_group: 2 }
+  enum :trigger_type, { cron: 0, whatsapp: 1, wa_group: 2 }
 
   validates :id,           presence: true
   validates :trigger_type, presence: true
-  validates :cron_expr,    presence: true, if: :cron?
   validates :pipeline_id,  presence: true
+  validates :cron_expr,    presence: true, if: :cron?
   validates :enabled,      inclusion: { in: [true, false] }
 
   before_validation :assign_id
 
-  scope :enabled,    -> { where(enabled: true) }
-  scope :cron_type,  -> { cron }
-  scope :wa_types,   -> { where(trigger_type: [:whatsapp, :wa_group]) }
+  scope :enabled,   -> { where(enabled: true) }
+  scope :cron_type, -> { cron }
+  scope :wa_types,  -> { where(trigger_type: [:whatsapp, :wa_group]) }
 
   private
 
@@ -272,8 +282,8 @@ class MemoryEntry < ApplicationRecord
   validates :memory_id, presence: true
   validates :value,     presence: true
 
-  scope :recent,       -> { order(created_at: :desc) }
-  scope :within_ttl,   ->(hours) { where("created_at > ?", hours.hours.ago) }
+  scope :recent,     -> { order(created_at: :desc) }
+  scope :within_ttl, ->(hours) { where("created_at > ?", hours.hours.ago) }
 end
 ```
 
@@ -315,7 +325,8 @@ end
 class WhatsAppSetting < ApplicationRecord
   DEFAULT_ID = "default"
 
-  validates :phone_number, presence: false  # may be blank until configured
+  # phone_number may be blank until the device is linked
+  validates :phone_number, presence: false
 
   def self.current
     find_or_create_by!(id: DEFAULT_ID) do |s|
@@ -327,10 +338,7 @@ end
 
 ---
 
-### 3. Seeds file
-
-`rails/db/seeds.rb` — creates enough data to exercise development without
-external services.
+### 3. Seeds file — `rails/db/seeds.rb`
 
 ```ruby
 # Sample pipeline with two steps
@@ -339,19 +347,15 @@ pipeline = Pipeline.find_or_create_by!(id: "seed-pipeline-001") do |p|
 end
 
 pipeline.pipeline_steps.destroy_all
-pipeline.pipeline_steps.create!(
-  [
-    { step_index: 0, agent_type: "llm_agent",   config: { prompt: "Summarise: {{input}}" } },
-    { step_index: 1, agent_type: "debug_agent", config: {} }
-  ]
-)
+pipeline.pipeline_steps.create!(step_index: 0, agent_type: "llm_agent",   config: { prompt: "Summarise: {{input}}" })
+pipeline.pipeline_steps.create!(step_index: 1, agent_type: "debug_agent", config: { debug: true })
 
 # Cron trigger — every day at 08:00
 Trigger.find_or_create_by!(id: "seed-trigger-cron-001") do |t|
-  t.pipeline    = pipeline
+  t.pipeline     = pipeline
   t.trigger_type = :cron
-  t.cron_expr   = "0 8 * * *"
-  t.enabled     = false
+  t.cron_expr    = "0 8 * * *"
+  t.enabled      = false
 end
 
 # WhatsApp trigger
@@ -376,47 +380,171 @@ WhatsAppSetting.current
 
 ---
 
-### 4. Model specs
+### 4. FactoryBot factories
+
+Create one file per model under `rails/spec/factories/`. Use traits for
+agent types and trigger variants.
+
+**`spec/factories/pipelines.rb`**
+```ruby
+FactoryBot.define do
+  factory :pipeline do
+    id   { SecureRandom.uuid }
+    name { Faker::Lorem.words(number: 3).join(" ").titleize }
+  end
+end
+```
+
+**`spec/factories/pipeline_steps.rb`**
+```ruby
+FactoryBot.define do
+  factory :pipeline_step do
+    pipeline
+    step_index { 0 }
+    agent_type { "llm_agent" }
+    config     { { test: true } }   # non-empty: {}.blank? == true in Rails
+
+    trait :llm_agent          do; agent_type { "llm_agent" };          config { { prompt: "Summarise: {{input}}" } }; end
+    trait :browser_agent      do; agent_type { "browser_agent" };      config { { url: "https://example.com" } }; end
+    trait :calendar_agent     do; agent_type { "calendar_agent" };     config { { calendar_id: "primary" } }; end
+    trait :whatsapp_agent     do; agent_type { "whatsapp_agent" };     config { { phone: "+15550193456" } }; end
+    trait :whatsapp_group_send do; agent_type { "whatsapp_group_send" }; config { { group_jid: "1234567890@g.us" } }; end
+    trait :memory_agent       do; agent_type { "memory_agent" };       config { { memory_label: "general" } }; end
+    trait :debug_agent        do; agent_type { "debug_agent" };        config { { debug: true } }; end
+  end
+end
+```
+
+**`spec/factories/triggers.rb`**
+```ruby
+FactoryBot.define do
+  factory :trigger do
+    id           { SecureRandom.uuid }
+    pipeline
+    trigger_type { :cron }
+    cron_expr    { "0 8 * * *" }
+    config       { { test: true } }   # non-empty: see config validation note
+    enabled      { true }
+
+    trait :cron     do; trigger_type { :cron };     cron_expr { "0 8 * * *" }; end
+    trait :whatsapp do; trigger_type { :whatsapp }; config { { phone: "+15550193456" } }; end
+    trait :wa_group do; trigger_type { :wa_group }; config { { group_jid: "1234567890@g.us" } }; end
+    trait :disabled do; enabled { false }; end
+  end
+end
+```
+
+**`spec/factories/run_records.rb`**
+```ruby
+FactoryBot.define do
+  factory :run_record do
+    pipeline_id   { SecureRandom.uuid }
+    pipeline_name { Faker::Lorem.words(number: 3).join(" ").titleize }
+    timestamp     { Time.current }
+    status        { "success" }
+    summary       { Faker::Lorem.sentence }
+
+    trait :success do; status { "success" }; end
+    trait :error   do; status { "error" };   end
+    trait :running do; status { "running" }; end
+  end
+end
+```
+
+**`spec/factories/memories.rb`**
+```ruby
+FactoryBot.define do
+  factory :memory do
+    id             { SecureRandom.uuid }
+    label          { "general" }
+    max_memories   { 100 }
+    ttl_hours      { 24 }
+    max_value_size { 1000 }
+  end
+end
+```
+
+**`spec/factories/memory_entries.rb`**
+```ruby
+FactoryBot.define do
+  factory :memory_entry do
+    memory
+    value { Faker::Lorem.paragraph }
+  end
+end
+```
+
+**`spec/factories/calendars.rb`**
+```ruby
+FactoryBot.define do
+  factory :calendar do
+    id               { SecureRandom.uuid }
+    label            { "primary" }
+    calendar_id      { "primary" }
+    credentials_file { "credentials.json" }
+  end
+end
+```
+
+**`spec/factories/whats_app_groups.rb`**
+```ruby
+FactoryBot.define do
+  factory :whats_app_group do
+    jid   { "#{Faker::Number.unique.number(digits: 10)}@g.us" }
+    name  { Faker::Lorem.words(number: 3).join(" ").titleize }
+    label { "" }
+  end
+end
+```
+
+**`spec/factories/whats_app_settings.rb`**
+```ruby
+FactoryBot.define do
+  factory :whats_app_setting do
+    id           { "default" }
+    phone_number { "" }
+  end
+end
+```
+
+---
+
+### 5. Model specs
 
 All specs live under `rails/spec/models/`. Use `shoulda-matchers` for
-association and validation one-liners; write explicit examples for custom
-scopes and class methods.
+association and validation one-liners; write explicit examples for scopes,
+class methods, and enum behaviour.
 
-#### Key spec cases (implement for every model)
+**Pipeline** — associations, `validates :name`, `scope :ordered`, UUID
+auto-assignment, `accepts_nested_attributes_for :pipeline_steps`.
 
-**Pipeline**
-- `validates :name` — invalid without name
-- `has_many :pipeline_steps` association
-- `has_many :triggers` association
-- `scope :ordered` — returns records sorted by name
-- `before_validation` assigns a UUID `id` when blank
+**PipelineStep** — `belongs_to :pipeline`, agent_type inclusion (valid and
+invalid), `validates :config` presence, uniqueness of `step_index` scoped to
+`pipeline_id`.
 
-**PipelineStep**
-- `validates :agent_type` inclusion — rejects unknown type
-- `validates :step_index` uniqueness scoped to `pipeline_id`
-- `belongs_to :pipeline`
+**Trigger** — `belongs_to :pipeline`, enum predicates (`cron?`, `whatsapp?`,
+`wa_group?`), enum scopes (`Trigger.cron`, `.whatsapp`, `.wa_group`),
+`cron_expr` required only for cron, `.enabled` scope, `.wa_types` scope, UUID
+auto-assignment.
 
-**Trigger**
-- `enum trigger_type` — `cron?`, `whatsapp?`, `wa_group?` predicates work
-- `validates :cron_expr` only required when `cron?`
-- `scope :enabled` — excludes `enabled: false` records
-- `scope :wa_types` — returns only whatsapp + wa_group
+**RunRecord** — `validates :status` inclusion, `scope :for_pipeline`, `scope
+:recent` (orders by timestamp desc), `scope :succeeded`, `scope :failed`.
 
-**RunRecord**
-- `validates :status` inclusion
-- `scope :for_pipeline` filters correctly
-- `scope :recent` orders by timestamp desc
+**Memory** — `has_many :memory_entries`, `validates :label` uniqueness,
+numeric validations reject `<= 0`, UUID auto-assignment, `scope :by_label`
+raises `RecordNotFound` when missing.
 
-**Memory**
-- `validates :label` uniqueness
-- `has_many :memory_entries`
+**MemoryEntry** — `belongs_to :memory`, `validates :value` presence,
+`scope :within_ttl` excludes entries older than the given hours.
 
-**MemoryEntry**
-- `scope :within_ttl` excludes expired entries
-- `belongs_to :memory`
+**Calendar** — all presence validations, UUID auto-assignment.
 
-**WhatsAppSetting**
-- `WhatsAppSetting.current` returns the same record on repeated calls
+**WhatsAppGroup** — custom primary key `jid`, `validates :name`, `scope
+:labeled` excludes blank labels.
+
+**WhatsAppSetting** — `phone_number` blank is valid, `.current` returns
+same record on repeated calls without creating duplicates, `DEFAULT_ID`
+constant equals `"default"`.
 
 ---
 
@@ -424,31 +552,42 @@ scopes and class methods.
 
 | Path | Description |
 |---|---|
-| `rails/db/migrate/YYYYMMDDHHMMSS_create_pipelines.rb` | Pipelines table |
-| `rails/db/migrate/YYYYMMDDHHMMSS_create_pipeline_steps.rb` | PipelineSteps table |
-| `rails/db/migrate/YYYYMMDDHHMMSS_create_triggers.rb` | Triggers table |
-| `rails/db/migrate/YYYYMMDDHHMMSS_create_run_records.rb` | RunRecords table |
-| `rails/db/migrate/YYYYMMDDHHMMSS_create_memories.rb` | Memories table |
-| `rails/db/migrate/YYYYMMDDHHMMSS_create_memory_entries.rb` | MemoryEntries table |
-| `rails/db/migrate/YYYYMMDDHHMMSS_create_calendars.rb` | Calendars table |
-| `rails/db/migrate/YYYYMMDDHHMMSS_create_whats_app_groups.rb` | WhatsAppGroups table |
-| `rails/db/migrate/YYYYMMDDHHMMSS_create_whats_app_settings.rb` | WhatsAppSettings table |
-| `rails/app/models/pipeline.rb` | Pipeline AR model |
-| `rails/app/models/pipeline_step.rb` | PipelineStep AR model |
-| `rails/app/models/trigger.rb` | Trigger AR model with enum |
-| `rails/app/models/run_record.rb` | RunRecord AR model |
-| `rails/app/models/memory.rb` | Memory AR model |
-| `rails/app/models/memory_entry.rb` | MemoryEntry AR model |
-| `rails/app/models/calendar.rb` | Calendar AR model |
-| `rails/app/models/whats_app_group.rb` | WhatsAppGroup AR model (custom PK) |
-| `rails/app/models/whats_app_setting.rb` | WhatsAppSetting AR model + `.current` |
+| `rails/db/migrate/YYYYMMDDHHMMSS_create_pipelines.rb` | pipelines table |
+| `rails/db/migrate/YYYYMMDDHHMMSS_create_pipeline_steps.rb` | pipeline_steps table |
+| `rails/db/migrate/YYYYMMDDHHMMSS_create_triggers.rb` | triggers table |
+| `rails/db/migrate/YYYYMMDDHHMMSS_create_run_records.rb` | run_records table |
+| `rails/db/migrate/YYYYMMDDHHMMSS_create_memories.rb` | memories table |
+| `rails/db/migrate/YYYYMMDDHHMMSS_create_memory_entries.rb` | memory_entries table |
+| `rails/db/migrate/YYYYMMDDHHMMSS_create_calendars.rb` | calendars table |
+| `rails/db/migrate/YYYYMMDDHHMMSS_create_whats_app_groups.rb` | whats_app_groups table |
+| `rails/db/migrate/YYYYMMDDHHMMSS_create_whats_app_settings.rb` | whats_app_settings table |
+| `rails/app/models/pipeline.rb` | Pipeline model |
+| `rails/app/models/pipeline_step.rb` | PipelineStep model |
+| `rails/app/models/trigger.rb` | Trigger model with enum |
+| `rails/app/models/run_record.rb` | RunRecord model |
+| `rails/app/models/memory.rb` | Memory model |
+| `rails/app/models/memory_entry.rb` | MemoryEntry model |
+| `rails/app/models/calendar.rb` | Calendar model |
+| `rails/app/models/whats_app_group.rb` | WhatsAppGroup model (custom PK) |
+| `rails/app/models/whats_app_setting.rb` | WhatsAppSetting model + `.current` |
 | `rails/db/seeds.rb` | Development seed data |
+| `rails/spec/factories/pipelines.rb` | Pipeline factory |
+| `rails/spec/factories/pipeline_steps.rb` | PipelineStep factory with agent traits |
+| `rails/spec/factories/triggers.rb` | Trigger factory with type traits |
+| `rails/spec/factories/run_records.rb` | RunRecord factory with status traits |
+| `rails/spec/factories/memories.rb` | Memory factory |
+| `rails/spec/factories/memory_entries.rb` | MemoryEntry factory |
+| `rails/spec/factories/calendars.rb` | Calendar factory |
+| `rails/spec/factories/whats_app_groups.rb` | WhatsAppGroup factory |
+| `rails/spec/factories/whats_app_settings.rb` | WhatsAppSetting factory |
 | `rails/spec/models/pipeline_spec.rb` | Pipeline model specs |
 | `rails/spec/models/pipeline_step_spec.rb` | PipelineStep model specs |
 | `rails/spec/models/trigger_spec.rb` | Trigger model specs |
 | `rails/spec/models/run_record_spec.rb` | RunRecord model specs |
 | `rails/spec/models/memory_spec.rb` | Memory model specs |
 | `rails/spec/models/memory_entry_spec.rb` | MemoryEntry model specs |
+| `rails/spec/models/calendar_spec.rb` | Calendar model specs |
+| `rails/spec/models/whats_app_group_spec.rb` | WhatsAppGroup model specs |
 | `rails/spec/models/whats_app_setting_spec.rb` | WhatsAppSetting model specs |
 
 ---
@@ -456,11 +595,11 @@ scopes and class methods.
 ## Acceptance criteria
 
 - [ ] `rails db:migrate` runs without errors on a fresh database
-- [ ] `rails db:schema:dump` produces a `schema.rb` that matches the column
-      types described above
+- [ ] `rails db:schema:dump` produces a `schema.rb` matching the column types
+      described above
 - [ ] `rails db:seed` runs without errors
 - [ ] `rails runner "Pipeline.count"` returns `1` after seeding
-- [ ] All nine models are loadable via `rails console` without errors
+- [ ] All nine models load in `rails console` without errors
 - [ ] `bundle exec rspec spec/models` passes with zero failures
 - [ ] Trigger enum works: `Trigger.cron`, `Trigger.whatsapp`, `Trigger.wa_group`
       return correct AR relations

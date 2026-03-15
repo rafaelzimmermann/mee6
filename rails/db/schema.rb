@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_15_101145) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_15_115958) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -48,7 +48,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_101145) do
 
   create_table "pipeline_steps", force: :cascade do |t|
     t.string "agent_type", null: false
-    t.jsonb "config", default: {}, null: false
+    t.jsonb "config", null: false
     t.datetime "created_at", null: false
     t.string "pipeline_id", null: false
     t.integer "step_index", null: false
@@ -74,7 +74,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_15_101145) do
   end
 
   create_table "triggers", id: :string, force: :cascade do |t|
-    t.jsonb "config", default: {}, null: false
+    t.jsonb "config", null: false
     t.datetime "created_at", null: false
     t.string "cron_expr"
     t.boolean "enabled", default: true, null: false

@@ -5,7 +5,7 @@ end
 
 pipeline.pipeline_steps.destroy_all
 pipeline.pipeline_steps.create!(step_index: 0, agent_type: "llm_agent", config: { prompt: "Summarise: {{input}}" })
-pipeline.pipeline_steps.create!(step_index: 1, agent_type: "debug_agent", config: {})
+pipeline.pipeline_steps.create!(step_index: 1, agent_type: "debug_agent", config: { debug: true })
 
 # Cron trigger — every day at 08:00
 Trigger.find_or_create_by!(id: "seed-trigger-cron-001") do |t|

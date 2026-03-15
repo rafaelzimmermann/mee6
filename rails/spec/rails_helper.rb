@@ -48,6 +48,8 @@ RSpec.configure do |config|
   # You can uncomment this line to turn off ActiveRecord support entirely.
   # config.use_active_record = false
 
+  Rails.root.glob('spec/support/**/*.rb').sort_by(&:to_s).each { |f| require f }
+
   # RSpec Rails uses metadata to mix in different behaviours to your tests,
   # for example enabling you to call `get` and `post` in request specs. e.g.:
   #

@@ -201,6 +201,8 @@ end
 
 `rails/config/routes.rb`
 
+Add these routes to the existing `namespace :api` block and its `namespace :v1` sub-block. Do not replace the entire file.
+
 ```ruby
 namespace :api do
   namespace :v1 do

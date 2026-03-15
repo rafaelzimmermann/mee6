@@ -4,7 +4,7 @@ FactoryBot.define do
     pipeline
     trigger_type { :cron }
     cron_expr { "0 8 * * *" }
-    config { {} }
+    config { { test: true } }
     enabled { true }
 
     trait :cron do
