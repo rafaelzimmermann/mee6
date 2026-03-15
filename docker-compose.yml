@@ -9,6 +9,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - mee6_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7
@@ -35,10 +40,12 @@ services:
       AGENT_SERVICE_URL: http://agents:8001
       WHATSAPP_SERVICE_URL: http://whatsapp:8002
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     ports:
-      - "3000:3000"
+      - "3000:80"
     networks:
       - mee6_network
 
@@ -50,7 +57,7 @@ services:
       STORAGE_PATH: /data/whatsapp
       WEBHOOK_SECRET: ${WEBHOOK_SECRET}
       WHATSAPP_SERVICE_SECRET: ${WHATSAPP_SERVICE_SECRET}
-      RAILS_BASE_URL: http://rails:3000
+      RAILS_BASE_URL: http://rails:80
     depends_on:
       - rails
     volumes:
