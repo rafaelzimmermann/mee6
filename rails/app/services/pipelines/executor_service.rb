@@ -21,7 +21,10 @@ module Pipelines
     def dispatch(step, input)
       case step.agent_type
       when "memory_agent"
-        Memories::AgentService.new.call(config: step.config.symbolize_keys, input:)
+        svc   = Memories::AgentService.new
+        label = step.config["memory_label"]
+        svc.store(label, input) if step.config["operation"] == "append"
+        svc.read(label).join("\n")
       when "debug_agent"
         Rails.logger.debug("[DebugAgent] step=#{step.step_index} input=#{input.inspect}")
         input

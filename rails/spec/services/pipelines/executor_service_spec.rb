@@ -37,14 +37,13 @@ RSpec.describe Pipelines::ExecutorService do
         create(:pipeline_step, pipeline:, agent_type: "memory_agent", step_index: 0,
                config: { memory_label: "test_memory", operation: "read" })
         allow(Memories::AgentService).to receive(:new).and_return(memory_service)
-        allow(memory_service).to receive(:call).and_return("memory output")
+        allow(memory_service).to receive(:read).with("test_memory").and_return(["memory output"])
       end
 
-      it "delegates to Memories::AgentService" do
+      it "delegates to Memories::AgentService#read" do
         result = service.call(pipeline:, initial_input: "input")
         expect(result.output).to eq("memory output")
-        expect(memory_service).to have_received(:call)
-          .with(config: { memory_label: "test_memory", operation: "read" }, input: "input")
+        expect(memory_service).to have_received(:read).with("test_memory")
       end
     end
 

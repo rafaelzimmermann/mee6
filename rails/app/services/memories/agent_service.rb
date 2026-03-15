@@ -1,33 +1,42 @@
 module Memories
   class AgentService
-    class MemoryNotFound < StandardError; end
+    def store(label, value)
+      memory = Memory.find_by!(label: label)
 
-    def call(config:, input:)
-      memory = Memory.find_by!(label: config[:memory_label])
+      truncated = value.to_s.first(memory.max_value_size)
 
-      if config[:operation] == "append"
-        memory.memory_entries.create!(value: input.to_s.slice(0, memory.max_value_size))
-        evict(memory)
+      MemoryEntry.transaction do
+        memory.memory_entries.create!(value: truncated)
+        enforce_max_memories(memory)
       end
+    end
 
-      memory.memory_entries
-            .within_ttl(memory.ttl_hours)
-            .recent
-            .limit(memory.max_memories)
-            .pluck(:value)
-            .join("\n")
-    rescue ActiveRecord::RecordNotFound
-      raise MemoryNotFound, "No memory with label '#{config[:memory_label]}'"
+    def read(label, n = 10)
+      memory = Memory.find_by!(label: label)
+      cutoff = memory.ttl_hours.hours.ago
+
+      memory
+        .memory_entries
+        .where("created_at > ?", cutoff)
+        .order(created_at: :desc)
+        .limit(n)
+        .pluck(:value)
     end
 
     private
 
-    def evict(memory)
-      excess_ids = memory.memory_entries
-                         .order(created_at: :desc)
-                         .offset(memory.max_memories)
-                         .pluck(:id)
-      MemoryEntry.where(id: excess_ids).delete_all if excess_ids.any?
+    def enforce_max_memories(memory)
+      total = memory.memory_entries.count
+      excess = total - memory.max_memories
+      return unless excess > 0
+
+      oldest_ids = memory
+        .memory_entries
+        .order(created_at: :asc)
+        .limit(excess)
+        .pluck(:id)
+
+      MemoryEntry.where(id: oldest_ids).delete_all
     end
   end
 end

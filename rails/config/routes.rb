@@ -46,6 +46,18 @@ Rails.application.routes.draw do
       resources :run_records, only: [:index]
 
       namespace :integrations do
+        resources :memories, param: :label, only: [:index, :show, :create, :destroy] do
+          get  :entries, on: :member
+        end
+
+        resources :calendars, only: [:index, :create, :destroy]
+
+        resources :whatsapp_groups, only: [:index, :update], constraints: { id: /[^\/]+/ } do
+          collection do
+            post :sync
+          end
+        end
+
         scope :whatsapp do
           get    "status",     to: "whatsapp#status"
           post   "connect",    to: "whatsapp#connect"
