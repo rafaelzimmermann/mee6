@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Memories::AgentService, type: :service do
+RSpec.describe Memories::MemoryService, type: :service do
   let(:service) { described_class.new }
   let(:memory) { create(:memory, max_memories: 10, ttl_hours: 24, max_value_size: 100) }
 

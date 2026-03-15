@@ -21,7 +21,7 @@ module Pipelines
     def dispatch(step, input)
       case step.agent_type
       when "memory_agent"
-        svc   = Memories::AgentService.new
+        svc   = Memories::MemoryService.new
         label = step.config["memory_label"]
         svc.store(label, input) if step.config["operation"] == "append"
         svc.read(label).join("\n")

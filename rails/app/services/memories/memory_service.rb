@@ -1,5 +1,5 @@
 module Memories
-  class AgentService
+  class MemoryService
     def store(label, value)
       memory = Memory.find_by!(label: label)
 
