@@ -7,14 +7,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
-COPY pyproject.toml ./
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -e ".[dev]"
-
 # Copy application code
 COPY . .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir ".[dev]"
 
 # Create data directory for WhatsApp session
 RUN mkdir -p /data/whatsapp && chown -R nobody:nogroup /data/whatsapp
