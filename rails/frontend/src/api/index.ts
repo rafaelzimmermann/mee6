@@ -4,6 +4,6 @@ export * from "./pipelines";
 export * from "./triggers";
 export * from "./runRecords";
 export * from "./agents";
+export * from "./whatsapp";
 export * from "./integrations/memories";
 export * from "./integrations/calendars";
-export * from "./integrations/whatsapp";
