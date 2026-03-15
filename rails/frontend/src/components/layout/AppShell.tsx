@@ -24,7 +24,7 @@ export function AppShell() {
     <div className="flex h-screen bg-gray-50">
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h1 className="text-xl font-bold text-gray-900">mee6</h1>
+          <img src="/mee6.png" alt="mee6" className="h-10 w-10 rounded-lg" />
         </div>
         <nav className="flex-1 p-4">
           <ul className="space-y-1">
