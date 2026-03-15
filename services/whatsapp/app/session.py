@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-from neonize.client import NewAClient
+from neonize.client import NewClient as NewAClient
 from neonize.events import ConnectedEv, DisconnectedEv, QRChangedEv, MessageEv
 
 from app.config import STORAGE_PATH, WEBHOOK_SECRET

@@ -43,7 +43,7 @@ module Mee6App
       expire_after: 30.days,
       httponly:     true,
       same_site:    :strict,
-      secure:       Rails.env.production?
+      secure:       ENV.fetch("SECURE_COOKIES", "false") == "true"
 
     # Only loads a smaller set of middleware suitable for API only apps.
     # Middleware like session, flash, cookies can be added back manually.

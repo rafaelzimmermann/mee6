@@ -26,6 +26,10 @@ Rails.application.routes.draw do
 
   post "/webhooks/whatsapp", to: "webhooks/whats_app#receive"
 
+  # Serve SPA for all non-API routes (React Router handles client-side routing)
+  get "*path", to: proc { [200, { "Content-Type" => "text/html" }, [Rails.root.join("public/index.html").read]] },
+    constraints: ->(req) { !req.path.start_with?("/api", "/up", "/sidekiq", "/assets", "/webhooks") }
+
   namespace :api do
     namespace :v1 do
       get    "auth/setup_required", to: "auth#setup_required"
