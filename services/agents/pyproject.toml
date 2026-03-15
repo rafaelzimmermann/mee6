@@ -8,11 +8,17 @@ dependencies = [
     "uvicorn[standard]",
     "anthropic",
     "pydantic",
+    "pydantic-settings",
+    "playwright",
+    "google-api-python-client",
+    "google-auth-httplib2",
+    "google-auth-oauthlib",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-mock",
 ]
 
 [build-system]
