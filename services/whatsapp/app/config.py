@@ -1,12 +1,5 @@
-from pydantic import BaseSettings
+import os
 
-
-class Settings(BaseSettings):
-    storage_path: str = "/data/whatsapp"
-    webhook_secret: str = "change_me_in_production"
-
-    class Config:
-        env_file = ".env"
-
-
-settings = Settings()
+RAILS_BASE_URL: str = os.environ.get("RAILS_BASE_URL", "http://localhost:3000")
+WEBHOOK_SECRET: str = os.environ.get("WEBHOOK_SECRET", "changeme")
+STORAGE_PATH: str = os.environ.get("STORAGE_PATH", "/data/whatsapp")
