@@ -1,19 +1,23 @@
 import asyncio
 import enum
-import io
 import logging
 from dataclasses import dataclass, field
 from typing import Optional
-
-import segno
-from neonize.client import NewClient
-from neonize.events import ConnectedEv, DisconnectedEv, MessageEv
 
 from app.config import STORAGE_PATH, WEBHOOK_SECRET
 
 logger = logging.getLogger(__name__)
 
 QR_EXPIRY_SECONDS = 65
+
+# neonize bundles a Go binary and is only available inside Docker.
+# Import gracefully so tests can import this module without it installed.
+try:
+    from neonize.client import NewClient
+    from neonize.events import ConnectedEv, DisconnectedEv, MessageEv
+except ImportError:
+    NewClient = None  # type: ignore[assignment,misc]
+    ConnectedEv = DisconnectedEv = MessageEv = None  # type: ignore[assignment]
 
 
 class WAStatus(str, enum.Enum):
@@ -36,7 +40,7 @@ class WASession:
         self.status: WAStatus = WAStatus.disconnected
         self.qr_svg: Optional[str] = None
         self.registration: Optional[MonitorRegistration] = None
-        self._client: Optional[NewClient] = None
+        self._client = None
         self._qr_watchdog_task: Optional[asyncio.Task] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
@@ -93,21 +97,23 @@ class WASession:
             {"jid": g.JID, "name": g.Name} for g in self._client.get_joined_groups()
         ]
 
-    # --- Event callbacks (called from Go threads, so must be synchronous) ---
+    # --- Synchronous neonize callbacks (called from Go threads) ---
 
-    def _on_connected(self, _client, _ev: ConnectedEv) -> None:
+    def _on_connected(self, _client, _ev) -> None:
         logger.info("WhatsApp connected")
         self.status = WAStatus.connected
         self.qr_svg = None
         self._cancel_watchdog()
 
-    def _on_disconnected(self, _client, ev: DisconnectedEv) -> None:
+    def _on_disconnected(self, _client, ev) -> None:
         logger.warning("WhatsApp disconnected: %s", ev)
         self.status = WAStatus.disconnected
         self._cancel_watchdog()
 
     def _on_qr(self, _client, data_qr: bytes) -> None:
         """Receives raw QR bytes from neonize; converts to SVG for the frontend."""
+        import io
+        import segno  # installed as neonize transitive dep inside Docker
         logger.info("QR code updated")
         buf = io.BytesIO()
         segno.make_qr(data_qr).save(buf, kind="svg", scale=5, svgid="qr")
@@ -117,7 +123,16 @@ class WASession:
         if self._loop:
             asyncio.run_coroutine_threadsafe(self._schedule_watchdog(), self._loop)
 
-    def _on_message(self, _client, ev: MessageEv) -> None:
+    def _on_message(self, _client, ev) -> None:
+        """Sync wrapper registered with neonize; schedules async routing logic."""
+        if self._loop:
+            asyncio.run_coroutine_threadsafe(
+                self._on_message_combined(_client, ev), self._loop
+            )
+
+    # --- Async logic (directly tested) ---
+
+    async def _on_message_combined(self, _client, ev) -> None:
         if self.registration is None:
             return
         msg = ev.Info
@@ -136,10 +151,7 @@ class WASession:
             if not any(p.lstrip("+") in phone for p in self.registration.phones):
                 return
             payload = {"type": "dm", "sender": sender, "text": text}
-        if self._loop:
-            asyncio.run_coroutine_threadsafe(
-                _post_callback(self.registration.callback_url, payload), self._loop
-            )
+        await _post_callback(self.registration.callback_url, payload)
 
     async def _schedule_watchdog(self) -> None:
         self._qr_watchdog_task = asyncio.create_task(self._qr_watchdog())
@@ -158,7 +170,7 @@ class WASession:
         self._qr_watchdog_task = None
 
 
-def _extract_text(ev: MessageEv) -> Optional[str]:
+def _extract_text(ev) -> Optional[str]:
     try:
         return ev.Message.Conversation or ev.Message.ExtendedTextMessage.Text
     except AttributeError:

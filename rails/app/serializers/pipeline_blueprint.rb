@@ -3,6 +3,6 @@ class PipelineBlueprint < Blueprinter::Base
   fields :name, :created_at, :updated_at
 
   view :with_steps do
-    association :pipeline_steps, blueprint: PipelineStepBlueprint, name: :steps
+    association :pipeline_steps, blueprint: PipelineStepBlueprint
   end
 end

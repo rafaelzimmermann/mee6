@@ -28,11 +28,9 @@ def test_get_status_returns_disconnected_on_fresh_container():
 
 
 def test_connect_returns_202():
-    with patch("app.session.NewAClient") as mock_client_class:
+    with patch("app.session.NewClient") as mock_client_class:
         mock_client = MagicMock()
         mock_client_class.return_value = mock_client
-        mock_client.event.on = MagicMock()
-        mock_client.connect = AsyncMock()
 
         response = client.post("/connect")
         assert response.status_code == 202
