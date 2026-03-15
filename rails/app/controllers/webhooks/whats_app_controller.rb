@@ -1,5 +1,6 @@
 module Webhooks
   class WhatsAppController < ApplicationController
+    skip_before_action :require_auth
     before_action :verify_secret
 
     def receive
