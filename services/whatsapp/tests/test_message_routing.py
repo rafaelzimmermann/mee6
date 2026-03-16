@@ -27,10 +27,10 @@ async def test_dm_from_registered_phone_triggers_callback():
     )
 
     mock_ev = MagicMock()
-    mock_ev.Info.IsGroup = False
-    mock_ev.Info.Sender = "1234567890@s.whatsapp.net"
-    mock_ev.Info.Chat = "1234567890@s.whatsapp.net"
-    mock_ev.Message.Conversation = "Hello"
+    mock_ev.Info.MessageSource.IsGroup = False
+    mock_ev.Info.MessageSource.Sender = "1234567890@s.whatsapp.net"
+    mock_ev.Info.MessageSource.Chat = "1234567890@s.whatsapp.net"
+    mock_ev.Message.conversation = "Hello"
 
     with patch("app.session._post_callback", new_callable=AsyncMock) as mock_callback:
         await session._on_message_combined(None, mock_ev)
@@ -49,10 +49,10 @@ async def test_dm_from_unregistered_phone_no_callback():
     )
 
     mock_ev = MagicMock()
-    mock_ev.Info.IsGroup = False
-    mock_ev.Info.Sender = "9999999999@s.whatsapp.net"
-    mock_ev.Info.Chat = "9999999999@s.whatsapp.net"
-    mock_ev.Message.Conversation = "Hello"
+    mock_ev.Info.MessageSource.IsGroup = False
+    mock_ev.Info.MessageSource.Sender = "9999999999@s.whatsapp.net"
+    mock_ev.Info.MessageSource.Chat = "9999999999@s.whatsapp.net"
+    mock_ev.Message.conversation = "Hello"
 
     with patch("app.session._post_callback", new_callable=AsyncMock) as mock_callback:
         await session._on_message_combined(None, mock_ev)
@@ -68,9 +68,9 @@ async def test_group_message_from_registered_jid_triggers_callback():
     )
 
     mock_ev = MagicMock()
-    mock_ev.Info.IsGroup = True
-    mock_ev.Info.Chat = "1234567890@g.us"
-    mock_ev.Message.Conversation = "Hello group"
+    mock_ev.Info.MessageSource.IsGroup = True
+    mock_ev.Info.MessageSource.Chat = "1234567890@g.us"
+    mock_ev.Message.conversation = "Hello group"
 
     with patch("app.session._post_callback", new_callable=AsyncMock) as mock_callback:
         await session._on_message_combined(None, mock_ev)
@@ -89,9 +89,9 @@ async def test_group_message_from_unregistered_jid_no_callback():
     )
 
     mock_ev = MagicMock()
-    mock_ev.Info.IsGroup = True
-    mock_ev.Info.Chat = "9999999999@g.us"
-    mock_ev.Message.Conversation = "Hello group"
+    mock_ev.Info.MessageSource.IsGroup = True
+    mock_ev.Info.MessageSource.Chat = "9999999999@g.us"
+    mock_ev.Message.conversation = "Hello group"
 
     with patch("app.session._post_callback", new_callable=AsyncMock) as mock_callback:
         await session._on_message_combined(None, mock_ev)
@@ -107,11 +107,11 @@ async def test_message_with_no_text_body_no_callback():
     )
 
     mock_ev = MagicMock()
-    mock_ev.Info.IsGroup = False
-    mock_ev.Info.Sender = "1234567890@s.whatsapp.net"
-    mock_ev.Info.Chat = "1234567890@s.whatsapp.net"
-    mock_ev.Message.Conversation = None
-    del mock_ev.Message.ExtendedTextMessage
+    mock_ev.Info.MessageSource.IsGroup = False
+    mock_ev.Info.MessageSource.Sender = "1234567890@s.whatsapp.net"
+    mock_ev.Info.MessageSource.Chat = "1234567890@s.whatsapp.net"
+    mock_ev.Message.conversation = ""
+    mock_ev.Message.extendedTextMessage = None
 
     with patch("app.session._post_callback", new_callable=AsyncMock) as mock_callback:
         await session._on_message_combined(None, mock_ev)
@@ -123,10 +123,10 @@ async def test_no_registration_set_no_callback():
     session.registration = None
 
     mock_ev = MagicMock()
-    mock_ev.Info.IsGroup = False
-    mock_ev.Info.Sender = "1234567890@s.whatsapp.net"
-    mock_ev.Info.Chat = "1234567890@s.whatsapp.net"
-    mock_ev.Message.Conversation = "Hello"
+    mock_ev.Info.MessageSource.IsGroup = False
+    mock_ev.Info.MessageSource.Sender = "1234567890@s.whatsapp.net"
+    mock_ev.Info.MessageSource.Chat = "1234567890@s.whatsapp.net"
+    mock_ev.Message.conversation = "Hello"
 
     with patch("app.session._post_callback", new_callable=AsyncMock) as mock_callback:
         await session._on_message_combined(None, mock_ev)

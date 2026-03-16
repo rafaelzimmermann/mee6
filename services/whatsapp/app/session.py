@@ -91,8 +91,11 @@ class WASession:
     async def send_message(self, to: str, text: str) -> None:
         if not self._client or self.status != WAStatus.connected:
             raise RuntimeError("WhatsApp session not connected")
+        from neonize.utils import build_jid
+        user, _, server = to.partition("@")
+        jid = build_jid(user, server or "s.whatsapp.net")
         await asyncio.get_event_loop().run_in_executor(
-            None, lambda: self._client.send_message(to, text)
+            None, lambda: self._client.send_message(jid, text)
         )
 
     def get_groups(self) -> list[dict]:
@@ -132,8 +135,12 @@ class WASession:
         """Sync wrapper registered with neonize; schedules async routing logic."""
         logger.info("_on_message fired — loop=%s", self._loop is not None)
         if self._loop:
-            asyncio.run_coroutine_threadsafe(
+            future = asyncio.run_coroutine_threadsafe(
                 self._on_message_combined(_client, ev), self._loop
+            )
+            future.add_done_callback(
+                lambda f: logger.error("Message handler exception: %s", f.exception(), exc_info=f.exception())
+                if not f.cancelled() and f.exception() else None
             )
         else:
             logger.warning("_on_message: event loop not set, message dropped")
@@ -141,24 +148,28 @@ class WASession:
     # --- Async logic (directly tested) ---
 
     async def _on_message_combined(self, _client, ev) -> None:
+        try:
+            src = ev.Info.MessageSource
+            is_group = src.IsGroup
+            text = _extract_text(ev)
+        except Exception as e:
+            logger.error("Failed to parse message event: %s", e, exc_info=True)
+            return
         if self.registration is None:
             logger.info("Message received but no monitor registration — ignoring")
             return
-        msg = ev.Info
-        is_group = msg.IsGroup
-        text = _extract_text(ev)
         logger.info("Message received — is_group=%s, text=%r", is_group, text)
         if not text:
             logger.info("Message has no text — ignoring")
             return
         if is_group:
-            chat_jid = Jid2String(msg.Chat)
+            chat_jid = Jid2String(src.Chat)
             if chat_jid not in self.registration.group_jids:
                 logger.info("Group %s not in monitored list %s — ignoring", chat_jid, self.registration.group_jids)
                 return
             payload = {"type": "group", "chat_jid": chat_jid, "text": text}
         else:
-            sender = Jid2String(msg.Sender)
+            sender = Jid2String(src.Sender)
             phone = sender.split("@")[0]
             if not any(p.lstrip("+") in phone for p in self.registration.phones):
                 logger.info("Sender %s not in monitored phones %s — ignoring", sender, self.registration.phones)
@@ -185,10 +196,12 @@ class WASession:
 
 
 def _extract_text(ev) -> Optional[str]:
-    try:
-        return ev.Message.Conversation or ev.Message.ExtendedTextMessage.Text
-    except AttributeError:
-        return None
+    text = getattr(ev.Message, "conversation", "")
+    if not text:
+        ext = getattr(ev.Message, "extendedTextMessage", None)
+        if ext:
+            text = getattr(ext, "text", "")
+    return text or None
 
 
 import httpx
