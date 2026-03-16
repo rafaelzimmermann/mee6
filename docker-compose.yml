@@ -58,8 +58,12 @@ services:
       WEBHOOK_SECRET: ${WEBHOOK_SECRET}
       WHATSAPP_SERVICE_SECRET: ${WHATSAPP_SERVICE_SECRET}
       RAILS_BASE_URL: http://rails:80
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/mee6_production
     depends_on:
-      - rails
+      postgres:
+        condition: service_healthy
+      rails:
+        condition: service_started
     volumes:
       - whatsapp_data:/data/whatsapp
     networks:

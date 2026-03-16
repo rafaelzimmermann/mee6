@@ -11,7 +11,8 @@ def reset_session():
     session.registration = None
     session.status = WAStatus.disconnected
     session.qr_svg = None
-    yield
+    with patch("app.session.Jid2String", side_effect=lambda x: x):
+        yield
     session.registration = original_registration
     session.status = original_status
     session.qr_svg = original_qr_svg

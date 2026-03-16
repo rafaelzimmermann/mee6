@@ -37,6 +37,7 @@ module Api
 
         def update_settings
           WhatsAppSetting.current.update!(settings_params)
+          WhatsAppRegistration.register_all
           render json: { phone_number: WhatsAppSetting.current.phone_number }
         rescue ActiveRecord::RecordInvalid => e
           render json: { error: e.message }, status: :unprocessable_entity

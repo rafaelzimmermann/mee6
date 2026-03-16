@@ -57,12 +57,13 @@ def test_get_groups_returns_groups_when_connected():
     session.status = WAStatus.connected
     mock_group = MagicMock()
     mock_group.JID = "1234567890@g.us"
-    mock_group.Name = "Test Group"
+    mock_group.GroupName.Name = "Test Group"
 
     mock_client = MagicMock()
     mock_client.get_joined_groups = MagicMock(return_value=[mock_group])
     session._client = mock_client
 
-    response = client.get("/groups")
+    with patch("app.session.Jid2String", side_effect=lambda x: x):
+        response = client.get("/groups")
     assert response.status_code == 200
     assert response.json() == [{"jid": "1234567890@g.us", "name": "Test Group"}]

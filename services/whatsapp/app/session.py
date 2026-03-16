@@ -15,9 +15,11 @@ QR_EXPIRY_SECONDS = 65
 try:
     from neonize.client import NewClient
     from neonize.events import ConnectedEv, DisconnectedEv, MessageEv
+    from neonize.utils import Jid2String
 except ImportError:
     NewClient = None  # type: ignore[assignment,misc]
     ConnectedEv = DisconnectedEv = MessageEv = None  # type: ignore[assignment]
+    Jid2String = None  # type: ignore[assignment]
 
 
 class WAStatus(str, enum.Enum):
@@ -77,11 +79,14 @@ class WASession:
     def register_monitor(
         self, callback_url: str, phones: list[str], group_jids: list[str]
     ) -> None:
+        from app import store
         self.registration = MonitorRegistration(
             callback_url=callback_url,
             phones=phones,
             group_jids=group_jids,
         )
+        store.save_registration(phones=phones, group_jids=group_jids, callback_url=callback_url)
+        logger.info("Monitor registered — phones: %s, groups: %s", phones or "(none)", group_jids or "(none)")
 
     async def send_message(self, to: str, text: str) -> None:
         if not self._client or self.status != WAStatus.connected:
@@ -94,7 +99,7 @@ class WASession:
         if not self._client or self.status != WAStatus.connected:
             return []
         return [
-            {"jid": g.JID, "name": g.Name} for g in self._client.get_joined_groups()
+            {"jid": Jid2String(g.JID), "name": g.GroupName.Name} for g in self._client.get_joined_groups()
         ]
 
     # --- Synchronous neonize callbacks (called from Go threads) ---
@@ -125,32 +130,41 @@ class WASession:
 
     def _on_message(self, _client, ev) -> None:
         """Sync wrapper registered with neonize; schedules async routing logic."""
+        logger.info("_on_message fired — loop=%s", self._loop is not None)
         if self._loop:
             asyncio.run_coroutine_threadsafe(
                 self._on_message_combined(_client, ev), self._loop
             )
+        else:
+            logger.warning("_on_message: event loop not set, message dropped")
 
     # --- Async logic (directly tested) ---
 
     async def _on_message_combined(self, _client, ev) -> None:
         if self.registration is None:
+            logger.info("Message received but no monitor registration — ignoring")
             return
         msg = ev.Info
         is_group = msg.IsGroup
         text = _extract_text(ev)
+        logger.info("Message received — is_group=%s, text=%r", is_group, text)
         if not text:
+            logger.info("Message has no text — ignoring")
             return
         if is_group:
-            chat_jid = str(msg.Chat)
+            chat_jid = Jid2String(msg.Chat)
             if chat_jid not in self.registration.group_jids:
+                logger.info("Group %s not in monitored list %s — ignoring", chat_jid, self.registration.group_jids)
                 return
             payload = {"type": "group", "chat_jid": chat_jid, "text": text}
         else:
-            sender = str(msg.Sender)
+            sender = Jid2String(msg.Sender)
             phone = sender.split("@")[0]
             if not any(p.lstrip("+") in phone for p in self.registration.phones):
+                logger.info("Sender %s not in monitored phones %s — ignoring", sender, self.registration.phones)
                 return
             payload = {"type": "dm", "sender": sender, "text": text}
+        logger.info("Dispatching callback: %s", payload)
         await _post_callback(self.registration.callback_url, payload)
 
     async def _schedule_watchdog(self) -> None:

@@ -29,6 +29,11 @@ export function WhatsAppSection() {
     },
   });
 
+  const { data: settingsData } = useQuery({
+    queryKey: ["whatsapp_settings"],
+    queryFn: whatsappApi.settings,
+  });
+
   const { data: groups, isLoading: groupsLoading } = useQuery({
     queryKey: ["whatsapp_groups"],
     queryFn: whatsappApi.groups,
@@ -75,7 +80,7 @@ export function WhatsAppSection() {
         isDisconnecting={disconnectMutation.isPending}
       />
 
-      <PhoneNumberCard phoneNumber={statusData?.phone_number ?? ""} />
+      <PhoneNumberCard phoneNumber={settingsData?.phone_number ?? ""} />
 
       <Card className="mt-6">
         <CardHeader>
@@ -155,7 +160,7 @@ function PhoneNumberCard({ phoneNumber }: { phoneNumber: string }) {
   const updateMutation = useMutation({
     mutationFn: (phone: string) => whatsappApi.updateSettings({ phone_number: phone }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["whatsapp_status"] });
+      queryClient.invalidateQueries({ queryKey: ["whatsapp_settings"] });
       showSuccess("Phone number saved");
       setEditing(false);
     },

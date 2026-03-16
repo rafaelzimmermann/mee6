@@ -39,10 +39,11 @@ describe("WhatsAppSection", () => {
       qr_svg: null,
       phone_number: "+15550001234",
     });
+    vi.mocked(whatsappApi.settings).mockResolvedValue({ phone_number: "+15550001234" });
     vi.mocked(whatsappApi.groups).mockResolvedValue(mockGroups);
     vi.mocked(whatsappApi.connect).mockResolvedValue({ ok: true });
     vi.mocked(whatsappApi.disconnect).mockResolvedValue({ ok: true });
-    vi.mocked(whatsappApi.updateSettings).mockResolvedValue({ ok: true });
+    vi.mocked(whatsappApi.updateSettings).mockResolvedValue({ phone_number: "+15550001234" });
     vi.mocked(whatsappApi.updateGroupLabel).mockResolvedValue(mockGroups[0]);
     vi.mocked(whatsappApi.syncGroups).mockResolvedValue({ ok: true });
     vi.mocked(toast.showSuccess).mockImplementation(() => "");
