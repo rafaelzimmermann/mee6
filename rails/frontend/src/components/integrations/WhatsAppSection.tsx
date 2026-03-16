@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppStatus } from "../../api/integrations/whatsapp";
+import { triggersApi } from "../../api/triggers";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Card, CardHeader, CardBody } from "../ui/Card";
@@ -8,7 +9,7 @@ import { Input } from "../ui/Input";
 import { Table, Th, Td, Tr } from "../ui/Table";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
 import { showSuccess, showError } from "../../lib/toast";
-import type { WhatsAppGroup } from "../../api/types";
+import type { WhatsAppGroup, Trigger } from "../../api/types";
 
 function statusBadgeVariant(status: string) {
   if (status === "connected") return "success" as const;
@@ -82,25 +83,12 @@ export function WhatsAppSection() {
 
       <PhoneNumberCard phoneNumber={settingsData?.phone_number ?? ""} />
 
-      <Card className="mt-6">
-        <CardHeader>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>WhatsApp Groups</span>
-            <Button size="sm" variant="secondary" onClick={() => syncMutation.mutate()} loading={syncMutation.isPending}>
-              Sync Groups
-            </Button>
-          </div>
-        </CardHeader>
-        <CardBody>
-          {groupsLoading ? (
-            <LoadingSpinner />
-          ) : !groups?.length ? (
-            <p>No groups synced yet. Click "Sync Groups" to fetch them from WhatsApp.</p>
-          ) : (
-            <GroupsTable groups={groups} />
-          )}
-        </CardBody>
-      </Card>
+      <GroupsCard
+        groups={groups}
+        groupsLoading={groupsLoading}
+        onSync={() => syncMutation.mutate()}
+        isSyncing={syncMutation.isPending}
+      />
     </div>
   );
 }
@@ -200,68 +188,169 @@ function PhoneNumberCard({ phoneNumber }: { phoneNumber: string }) {
   );
 }
 
-function GroupsTable({ groups }: { groups: WhatsAppGroup[] }) {
+const PAGE_SIZE = 25;
+
+function GroupsCard({
+  groups, groupsLoading, onSync, isSyncing,
+}: {
+  groups: WhatsAppGroup[] | undefined;
+  groupsLoading: boolean;
+  onSync: () => void;
+  isSyncing: boolean;
+}) {
+  const { data: triggers } = useQuery({
+    queryKey: ["triggers"],
+    queryFn: triggersApi.list,
+  });
+
+  const monitoredJids = new Set(
+    (triggers ?? [])
+      .filter((t: Trigger) => t.trigger_type === "wa_group" && t.enabled)
+      .map((t: Trigger) => t.config.group_jid as string)
+      .filter(Boolean)
+  );
+
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>WhatsApp Groups</span>
+          <Button size="sm" variant="secondary" onClick={onSync} loading={isSyncing}>
+            Sync Groups
+          </Button>
+        </div>
+      </CardHeader>
+      <CardBody>
+        {groupsLoading ? (
+          <LoadingSpinner />
+        ) : !groups?.length ? (
+          <p>No groups synced yet. Click "Sync Groups" to fetch them from WhatsApp.</p>
+        ) : (
+          <GroupsTable groups={groups} monitoredJids={monitoredJids} />
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+function GroupsTable({ groups, monitoredJids }: { groups: WhatsAppGroup[]; monitoredJids: Set<string> }) {
   const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
 
   const updateLabelMutation = useMutation({
     mutationFn: ({ jid, label }: { jid: string; label: string }) =>
       whatsappApi.updateGroupLabel(jid, label),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp_groups"] });
-      showSuccess("Group label updated");
+      showSuccess("Alias saved");
     },
     onError: (err: Error) => showError(err.message),
   });
 
+  const q = query.toLowerCase();
+  const filtered = groups
+    .filter((g) => !q || g.name.toLowerCase().includes(q) || g.jid.includes(q))
+    .sort((a, b) => {
+      const aM = monitoredJids.has(a.jid), bM = monitoredJids.has(b.jid);
+      if (aM !== bM) return aM ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const visible = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const monitoredCount = groups.filter((g) => monitoredJids.has(g.jid)).length;
+
   return (
-    <Table>
-      <thead>
-        <Tr>
-          <Th>JID</Th>
-          <Th>Name</Th>
-          <Th>Label</Th>
-        </Tr>
-      </thead>
-      <tbody>
-        {groups.map((group) => (
-          <GroupRow
-            key={group.jid}
-            group={group}
-            onSaveLabel={(label) => updateLabelMutation.mutate({ jid: group.jid, label })}
-            isSaving={updateLabelMutation.isPending}
-          />
-        ))}
-      </tbody>
-    </Table>
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+        <input
+          type="search"
+          placeholder="Search by name or JID…"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setPage(0); }}
+          style={{ flex: 1, padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db", fontSize: 14 }}
+          aria-label="Search groups"
+        />
+        {monitoredCount > 0 && (
+          <span style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap" }}>
+            {monitoredCount} monitored
+          </span>
+        )}
+      </div>
+
+      <Table>
+        <thead>
+          <Tr>
+            <Th>Name</Th>
+            <Th>Status</Th>
+          </Tr>
+        </thead>
+        <tbody>
+          {visible.map((group) => (
+            <GroupRow
+              key={group.jid}
+              group={group}
+              monitored={monitoredJids.has(group.jid)}
+              onSaveLabel={(label) => updateLabelMutation.mutate({ jid: group.jid, label })}
+              isSaving={updateLabelMutation.isPending}
+            />
+          ))}
+          {visible.length === 0 && (
+            <tr><td colSpan={2} style={{ textAlign: "center", color: "#9ca3af", padding: "16px" }}>No groups match your search.</td></tr>
+          )}
+        </tbody>
+      </Table>
+
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 13, color: "#6b7280" }}>
+          <Button size="sm" variant="secondary" onClick={() => setPage((p) => p - 1)} disabled={safePage === 0}>
+            Previous
+          </Button>
+          <span>Page {safePage + 1} of {totalPages} ({filtered.length} groups)</span>
+          <Button size="sm" variant="secondary" onClick={() => setPage((p) => p + 1)} disabled={safePage >= totalPages - 1}>
+            Next
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
 function GroupRow({
-  group, onSaveLabel, isSaving,
+  group, monitored, onSaveLabel, isSaving,
 }: {
   group: WhatsAppGroup;
+  monitored: boolean;
   onSaveLabel: (label: string) => void;
   isSaving: boolean;
 }) {
-  const [label, setLabel] = useState(group.label);
+  const [label, setLabel] = useState(group.label ?? "");
 
   return (
-    <Tr>
-      <Td><code>{group.jid}</code></Td>
-      <Td>{group.name}</Td>
+    <Tr className={monitored ? "bg-green-50" : undefined}>
       <Td>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            id={`group-label-${group.jid}`}
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            aria-label={`Label for group ${group.name}`}
-          />
-          <Button size="sm" onClick={() => onSaveLabel(label)} loading={isSaving}>
-            Save
-          </Button>
+        <div>
+          <div style={{ fontWeight: monitored ? 600 : undefined }}>{group.name}</div>
+          <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "monospace" }}>{group.jid}</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Alias…"
+              aria-label={`Alias for group ${group.name}`}
+              style={{ padding: "2px 6px", borderRadius: 4, border: "1px solid #d1d5db", fontSize: 12, width: 140 }}
+            />
+            <Button size="sm" onClick={() => onSaveLabel(label)} loading={isSaving}>
+              Save
+            </Button>
+          </div>
         </div>
+      </Td>
+      <Td>
+        {monitored && <Badge variant="success">Monitored</Badge>}
       </Td>
     </Tr>
   );
