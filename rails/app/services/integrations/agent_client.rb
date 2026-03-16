@@ -19,7 +19,7 @@ module Integrations
       response = connection.post("/run") do |req|
         req.body = { agent_type:, config:, input: }.to_json
         req.headers["Content-Type"] = "application/json"
-        req.headers["X-Service-Secret"] = secret
+        req.headers["Authorization"] = "Bearer #{secret}"
       end
 
       raise ServiceError.new(response.status, response.body) unless response.success?

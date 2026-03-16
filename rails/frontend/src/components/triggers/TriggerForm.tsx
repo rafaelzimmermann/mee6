@@ -1,7 +1,7 @@
 import { useForm, Controller } from "react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { usePipelines } from "../../hooks/usePipelines";
-import { whatsappApi } from "../../api/whatsapp";
+import { whatsappApi } from "../../api/integrations/whatsapp";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Button } from "../ui/Button";

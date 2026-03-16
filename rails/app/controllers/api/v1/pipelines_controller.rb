@@ -2,7 +2,7 @@ module Api
   module V1
     class PipelinesController < BaseController
       def index
-        render json: PipelineBlueprint.render(Pipeline.ordered)
+        render json: PipelineBlueprint.render(Pipeline.ordered.includes(:pipeline_steps), view: :with_steps)
       end
 
       def show
@@ -22,7 +22,7 @@ module Api
       def update
         ActiveRecord::Base.transaction do
           pipeline.assign_attributes(pipeline_params_without_steps)
-          replace_steps(pipeline, steps_params) if params[:pipeline]&.key?(:steps)
+          replace_steps(pipeline, steps_params) if params[:pipeline]&.key?(:pipeline_steps_attributes)
           pipeline.save!
         end
         render json: PipelineBlueprint.render(pipeline, view: :with_steps)
@@ -44,7 +44,7 @@ module Api
       end
 
       def steps_params
-        params[:pipeline][:steps]&.map do |s|
+        params[:pipeline][:pipeline_steps_attributes]&.map do |s|
           s.permit(:step_index, :agent_type, config: {})
         end || []
       end

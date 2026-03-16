@@ -31,7 +31,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       RAILS_ENV: production
-      RAILS_BASE_URL: http://localhost:3000
+      RAILS_BASE_URL: http://rails:80
       AGENT_SERVICE_SECRET: ${AGENT_SERVICE_SECRET}
       WHATSAPP_SERVICE_SECRET: ${WHATSAPP_SERVICE_SECRET}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET}

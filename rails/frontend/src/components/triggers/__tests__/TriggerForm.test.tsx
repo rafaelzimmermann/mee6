@@ -3,10 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TriggerForm } from "../TriggerForm";
-import { whatsappApi } from "../../../api/whatsapp";
+import { whatsappApi } from "../../../api/integrations/whatsapp";
 import { pipelinesApi } from "../../../api/pipelines";
 
-vi.mock("../../../api/whatsapp");
+vi.mock("../../../api/integrations/whatsapp");
 vi.mock("../../../api/pipelines");
 
 const mockSubmit = vi.fn();
