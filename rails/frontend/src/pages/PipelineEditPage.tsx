@@ -123,6 +123,15 @@ export function PipelineEditPage() {
     markDirty();
   }
 
+  function updateStepConfigMulti(index: number, updates: Record<string, string>) {
+    setSteps((prev) =>
+      prev.map((s, i) =>
+        i === index ? { ...s, config: { ...s.config, ...updates } } : s
+      )
+    );
+    markDirty();
+  }
+
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
     if (!name.trim()) newErrors.name = "Pipeline name is required";
@@ -195,6 +204,7 @@ export function PipelineEditPage() {
               }}
               onAgentTypeChange={(type) => updateStepAgentType(index, type)}
               onConfigChange={(field, value) => updateStepConfig(index, field, value)}
+              onConfigChangeMulti={(updates) => updateStepConfigMulti(index, updates)}
               onRemove={() => removeStep(index)}
             />
           ))}

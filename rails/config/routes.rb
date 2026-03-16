@@ -40,6 +40,7 @@ Rails.application.routes.draw do
       put    "auth/password",       to: "auth#change_password"
 
       get "agents/schema", to: "agents#schema"
+      get "agents/models", to: "agents#models"
 
       resources :pipelines
       resources :triggers do

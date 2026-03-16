@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+import httpx
 
 from app.auth import require_auth
-from app.agents.llm_agent import LlmAgent
+from app.config import config as app_config
+from app.agents.llm_agent import LlmAgent, ANTHROPIC_MODELS
 from app.agents.browser_agent import BrowserAgent
 from app.agents.calendar_agent import CalendarAgent
 
@@ -19,6 +21,21 @@ class RunRequest(BaseModel):
     agent_type: str
     config: dict
     input: str
+
+
+@router.get("/models")
+def list_models(provider: str = "anthropic"):
+    """Returns available model names for the given provider."""
+    if provider == "anthropic":
+        return ANTHROPIC_MODELS
+    if provider == "ollama":
+        try:
+            r = httpx.get(f"{app_config.ollama_base_url}/api/tags", timeout=5)
+            r.raise_for_status()
+            return [m["name"] for m in r.json().get("models", [])]
+        except Exception:
+            return []
+    raise HTTPException(status_code=422, detail=f"Unknown provider: {provider}")
 
 
 @router.get("/schema")

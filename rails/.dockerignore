@@ -40,6 +40,10 @@
 # Ignore development files
 /.devcontainer
 
+# Ignore frontend build artifacts and dependencies (built during Docker build)
+/frontend/node_modules
+/public/assets
+
 # Ignore Docker-related files
 /.dockerignore
 /Dockerfile*

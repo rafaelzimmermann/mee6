@@ -30,4 +30,11 @@ class Api::V1::AgentsController < ApplicationController
   rescue Integrations::AgentClient::Error
     render json: RAILS_STEP_SCHEMAS
   end
+
+  def models
+    provider = params[:provider].presence || "anthropic"
+    render json: Integrations::AgentClient.new.models(provider: provider)
+  rescue Integrations::AgentClient::Error
+    render json: []
+  end
 end

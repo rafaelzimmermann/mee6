@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 
 FieldType = Literal[
-    "textarea", "text", "tel", "combobox", "select", "group_select", "calendar_select"
+    "textarea", "text", "tel", "combobox", "select", "group_select", "calendar_select", "model_select"
 ]
 
 

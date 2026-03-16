@@ -15,6 +15,14 @@ module Integrations
       raise TimeoutError, e.message
     end
 
+    def models(provider:)
+      response = connection.get("/models", { provider: provider })
+      raise ServiceError.new(response.status, response.body) unless response.success?
+      JSON.parse(response.body)
+    rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+      raise TimeoutError, e.message
+    end
+
     def run(agent_type:, config:, input:)
       response = connection.post("/run") do |req|
         req.body = { agent_type:, config:, input: }.to_json

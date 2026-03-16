@@ -57,6 +57,7 @@ describe("StepCard", () => {
     errors: {},
     onAgentTypeChange: vi.fn(),
     onConfigChange: vi.fn(),
+    onConfigChangeMulti: vi.fn(),
     onRemove: vi.fn(),
   };
 

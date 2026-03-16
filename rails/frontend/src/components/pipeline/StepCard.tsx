@@ -14,12 +14,13 @@ interface StepCardProps {
   errors: Record<string, string>;
   onAgentTypeChange: (type: string) => void;
   onConfigChange: (field: string, value: string) => void;
+  onConfigChangeMulti: (updates: Record<string, string>) => void;
   onRemove: () => void;
 }
 
 export function StepCard({
   id, stepIndex, agentType, config, schema, errors,
-  onAgentTypeChange, onConfigChange, onRemove,
+  onAgentTypeChange, onConfigChange, onConfigChangeMulti, onRemove,
 }: StepCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
 
@@ -55,8 +56,15 @@ export function StepCard({
           key={field.name}
           field={field}
           value={(config[field.name] as string) ?? ""}
-          onChange={(val) => onConfigChange(field.name, val)}
+          onChange={(val) => {
+            if (field.name === "provider") {
+              onConfigChangeMulti({ provider: val, model: "" });
+            } else {
+              onConfigChange(field.name, val);
+            }
+          }}
           error={errors[field.name]}
+          stepConfig={config}
         />
       ))}
 

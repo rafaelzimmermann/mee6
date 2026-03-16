@@ -71,6 +71,22 @@ services:
     ports:
       - "8002:8002"
 
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11435
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - mee6_network
+    ports:
+      - "11435:11435"
+    entrypoint: >
+      sh -c "ollama serve &
+             until ollama list > /dev/null 2>&1; do sleep 1; done &&
+             ollama pull phi4:14b &&
+             wait"
+
   agents:
     build:
       context: ./services/agents
@@ -80,6 +96,7 @@ services:
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL}
       AGENT_SERVICE_SECRET: ${AGENT_SERVICE_SECRET}
       GOOGLE_CREDENTIALS_PATH: /run/secrets/google_credentials.json
+      OLLAMA_BASE_URL: http://ollama:11435
     volumes:
       - ${GOOGLE_CREDENTIALS_PATH}:/run/secrets/google_credentials.json:ro
     networks:
@@ -91,6 +108,7 @@ volumes:
   postgres_data:
   redis_data:
   whatsapp_data:
+  ollama_data:
 
 networks:
   mee6_network:

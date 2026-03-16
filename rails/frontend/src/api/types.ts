@@ -66,7 +66,7 @@ export interface WhatsAppGroup {
 export interface FieldSchema {
   name: string;
   label: string;
-  field_type: "textarea" | "text" | "tel" | "combobox" | "select" | "group_select" | "calendar_select";
+  field_type: "textarea" | "text" | "tel" | "combobox" | "select" | "group_select" | "calendar_select" | "model_select";
   placeholder: string;
   options: string[];
   required: boolean;

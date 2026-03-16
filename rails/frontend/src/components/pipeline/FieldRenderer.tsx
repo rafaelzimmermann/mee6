@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { calendarsApi } from "../../api/integrations/calendars";
 import { whatsappApi } from "../../api/integrations/whatsapp";
+import { agentsApi } from "../../api/agents";
 import { Input } from "../ui/Input";
 import { Textarea } from "../ui/Textarea";
 import { Select } from "../ui/Select";
@@ -11,9 +12,10 @@ interface FieldRendererProps {
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  stepConfig?: Record<string, string>;
 }
 
-export function FieldRenderer({ field, value, onChange, error }: FieldRendererProps) {
+export function FieldRenderer({ field, value, onChange, error, stepConfig }: FieldRendererProps) {
   const { data: calendars } = useQuery({
     queryKey: ["calendars"],
     queryFn: calendarsApi.list,
@@ -24,6 +26,14 @@ export function FieldRenderer({ field, value, onChange, error }: FieldRendererPr
     queryKey: ["whatsapp_groups"],
     queryFn: whatsappApi.groups,
     enabled: field.field_type === "group_select",
+  });
+
+  const provider = stepConfig?.provider ?? "anthropic";
+  const { data: models } = useQuery({
+    queryKey: ["agent_models", provider],
+    queryFn: () => agentsApi.listModels(provider),
+    enabled: field.field_type === "model_select",
+    staleTime: 60_000,
   });
 
   const commonProps = {
@@ -97,6 +107,17 @@ export function FieldRenderer({ field, value, onChange, error }: FieldRendererPr
             value: g.jid,
             label: g.label || g.name,
           }))}
+        />
+      );
+
+    case "model_select":
+      return (
+        <Select
+          {...commonProps}
+          options={[
+            { value: "", label: "Select model…" },
+            ...(models ?? []).map((m) => ({ value: m, label: m })),
+          ]}
         />
       );
 
