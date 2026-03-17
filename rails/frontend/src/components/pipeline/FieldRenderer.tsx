@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { calendarsApi } from "../../api/integrations/calendars";
 import { whatsappApi } from "../../api/integrations/whatsapp";
@@ -13,6 +14,44 @@ interface FieldRendererProps {
   onChange: (value: string) => void;
   error?: string;
   stepConfig?: Record<string, string>;
+}
+
+const PLACEHOLDERS = [
+  { text: "{input}",         hint: "Previous step's output" },
+  { text: "{date}",          hint: "Current date & time (YYYY-MM-DD HH:MM)" },
+  { text: "{memory:label}",  hint: "Memory contents — replace 'label' with your memory name" },
+];
+
+function PlaceholderChips() {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copy(text: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(text);
+    setTimeout(() => setCopied(null), 1500);
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <span className="text-xs text-gray-400">Placeholders:</span>
+      {PLACEHOLDERS.map(({ text, hint }) => (
+        <button
+          key={text}
+          type="button"
+          title={hint}
+          onClick={() => copy(text)}
+          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-xs font-mono transition-colors ${
+            copied === text
+              ? "bg-green-50 border-green-300 text-green-700"
+              : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 hover:border-gray-300 cursor-pointer"
+          }`}
+        >
+          {text}
+          <span className="font-sans text-gray-300">{copied === text ? "✓" : "⧉"}</span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export function FieldRenderer({ field, value, onChange, error, stepConfig }: FieldRendererProps) {
@@ -46,18 +85,12 @@ export function FieldRenderer({ field, value, onChange, error, stepConfig }: Fie
     error,
   };
 
-  const placeholderHint = (
-    <p className="mt-1 text-xs text-gray-400">
-      Use <code className="bg-gray-100 px-1 rounded">{"{input}"}</code> to insert the previous step&apos;s output.
-    </p>
-  );
-
   switch (field.field_type) {
     case "textarea":
       return (
         <div>
           <Textarea {...commonProps} />
-          {placeholderHint}
+          <PlaceholderChips />
         </div>
       );
 
@@ -66,7 +99,7 @@ export function FieldRenderer({ field, value, onChange, error, stepConfig }: Fie
       return (
         <div>
           <Input {...commonProps} type={field.field_type} />
-          {field.field_type === "text" && placeholderHint}
+          {field.field_type === "text" && <PlaceholderChips />}
         </div>
       );
 

@@ -169,6 +169,36 @@ describe("FieldRenderer", () => {
     expect(handleChange).toHaveBeenCalled();
   });
 
+  it("shows placeholder chips below textarea fields", () => {
+    renderWithProviders(
+      <FieldRenderer
+        field={{ ...baseField, field_type: "textarea" }}
+        value=""
+        onChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTitle("Previous step's output")).toBeInTheDocument();
+    expect(screen.getByTitle("Current date & time (YYYY-MM-DD HH:MM)")).toBeInTheDocument();
+    expect(screen.getByTitle(/Memory contents/)).toBeInTheDocument();
+  });
+
+  it("copies placeholder text to clipboard on click", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    renderWithProviders(
+      <FieldRenderer
+        field={{ ...baseField, field_type: "textarea" }}
+        value=""
+        onChange={vi.fn()}
+      />
+    );
+
+    await userEvent.click(screen.getByTitle("Previous step's output"));
+    expect(writeText).toHaveBeenCalledWith("{input}");
+  });
+
   it("displays error message when provided", () => {
     renderWithProviders(
       <FieldRenderer

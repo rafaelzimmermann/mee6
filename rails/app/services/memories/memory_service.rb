@@ -1,7 +1,7 @@
 module Memories
   class MemoryService
     def store(label, value)
-      memory = Memory.find_by!(label: label)
+      memory = Memory.find_or_create_by!(label: label)
 
       truncated = value.to_s.first(memory.max_value_size)
 
@@ -12,7 +12,8 @@ module Memories
     end
 
     def read(label, n = 10)
-      memory = Memory.find_by!(label: label)
+      memory = Memory.find_by(label: label)
+      return [] unless memory
       cutoff = memory.ttl_hours.hours.ago
 
       memory

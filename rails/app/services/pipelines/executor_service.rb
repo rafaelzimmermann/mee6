@@ -21,10 +21,8 @@ module Pipelines
     def dispatch(step, input)
       case step.agent_type
       when "memory_agent"
-        svc   = Memories::MemoryService.new
-        label = step.config["memory_label"]
-        svc.store(label, input) if step.config["operation"] == "append"
-        svc.read(label).join("\n")
+        Memories::MemoryService.new.store(step.config["memory_label"], input)
+        input
       when "debug_agent"
         Rails.logger.debug("[DebugAgent] step=#{step.step_index} input=#{input.inspect}")
         input
@@ -38,10 +36,20 @@ module Pipelines
       else
         result = Integrations::AgentClient.new.run(
           agent_type: step.agent_type,
-          config:     step.config,
+          config:     resolve_placeholders(step.config, input),
           input:
         )
         result["output"].to_s
+      end
+    end
+
+    def resolve_placeholders(config, input)
+      memory_svc = Memories::MemoryService.new
+      config.transform_values do |v|
+        next v unless v.is_a?(String)
+        v = v.gsub(/\{memory:([^}]+)\}/) { memory_svc.read($1).join("\n") }
+        v = v.gsub("{date}", Time.current.strftime("%Y-%m-%d %H:%M"))
+        v
       end
     end
   end

@@ -12,6 +12,13 @@ class Api::V1::AgentsController < ApplicationController
           options: [], required: false }
       ]
     },
+    "memory_agent" => {
+      label: "Memory — Append",
+      fields: [
+        { name: "memory_label", label: "Memory Label", field_type: "text",
+          placeholder: "e.g. claudia", options: [], required: true }
+      ]
+    },
     "whatsapp_group_send" => {
       label: "WhatsApp — Send to Group",
       fields: [

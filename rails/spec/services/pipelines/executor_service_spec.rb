@@ -30,20 +30,57 @@ RSpec.describe Pipelines::ExecutorService do
     end
 
     context "with a memory_agent step" do
-      let(:memory) { create(:memory, label: "test_memory") }
       let(:memory_service) { instance_double(Memories::MemoryService) }
 
       before do
         create(:pipeline_step, pipeline:, agent_type: "memory_agent", step_index: 0,
-               config: { memory_label: "test_memory", operation: "read" })
+               config: { "memory_label" => "test_memory" })
         allow(Memories::MemoryService).to receive(:new).and_return(memory_service)
-        allow(memory_service).to receive(:read).with("test_memory").and_return(["memory output"])
+        allow(memory_service).to receive(:store)
       end
 
-      it "delegates to Memories::MemoryService#read" do
-        result = service.call(pipeline:, initial_input: "input")
-        expect(result.output).to eq("memory output")
-        expect(memory_service).to have_received(:read).with("test_memory")
+      it "stores the input and passes it through unchanged" do
+        result = service.call(pipeline:, initial_input: "hello")
+        expect(result.output).to eq("hello")
+        expect(memory_service).to have_received(:store).with("test_memory", "hello")
+      end
+    end
+
+    context "resolving {memory:label} placeholders in config" do
+      let(:memory_service) { instance_double(Memories::MemoryService) }
+
+      before do
+        create(:pipeline_step, pipeline:, agent_type: "llm_agent", step_index: 0,
+               config: { "prompt" => "Context: {memory:ctx}" })
+        allow(Memories::MemoryService).to receive(:new).and_return(memory_service)
+        allow(memory_service).to receive(:read).with("ctx").and_return(["past value"])
+        stub_request(:post, "#{agent_service_url}/run")
+          .with(body: hash_including({ "config" => { "prompt" => "Context: past value" } }))
+          .to_return(status: 200, body: { "output" => "ok" }.to_json)
+      end
+
+      it "resolves {memory:label} before dispatching to agent service" do
+        result = service.call(pipeline:, initial_input: "hi")
+        expect(result.output).to eq("ok")
+      end
+    end
+
+    context "resolving {date} placeholder in config" do
+      before do
+        create(:pipeline_step, pipeline:, agent_type: "llm_agent", step_index: 0,
+               config: { "system_prompt" => "Today is {date}" })
+      end
+
+      it "resolves {date} with current formatted time before dispatching" do
+        received = nil
+        stub_request(:post, "#{agent_service_url}/run")
+          .to_return { |req| received = JSON.parse(req.body); { status: 200, body: { "output" => "ok" }.to_json } }
+
+        travel_to Time.zone.parse("2026-03-16 10:00") do
+          service.call(pipeline:, initial_input: "hi")
+        end
+
+        expect(received["config"]["system_prompt"]).to eq("Today is 2026-03-16 10:00")
       end
     end
 
