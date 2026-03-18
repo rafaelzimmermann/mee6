@@ -18,7 +18,7 @@ export interface Trigger {
   id: string;
   pipeline_id: string;
   pipeline_name?: string;
-  trigger_type: "cron" | "whatsapp" | "wa_group";
+  trigger_type: "cron" | "whatsapp" | "wa_group" | "telegram_dm" | "telegram_chat";
   cron_expr: string | null;
   config: Record<string, unknown>;
   enabled: boolean;
@@ -60,6 +60,13 @@ export interface Calendar {
 export interface WhatsAppGroup {
   jid: string;
   name: string;
+  label: string;
+}
+
+export interface TelegramChat {
+  chat_id: string;
+  title: string;
+  chat_type: string;
   label: string;
 }
 

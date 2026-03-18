@@ -2,14 +2,16 @@ import { useState } from "react";
 import { MemoriesSection } from "../components/integrations/MemoriesSection";
 import { CalendarsSection } from "../components/integrations/CalendarsSection";
 import { WhatsAppSection } from "../components/integrations/WhatsAppSection";
+import { TelegramSection } from "../components/integrations/TelegramSection";
 import { AdminSection } from "../components/integrations/AdminSection";
 
-type Tab = "memories" | "calendars" | "whatsapp" | "admin";
+type Tab = "memories" | "calendars" | "whatsapp" | "telegram" | "admin";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "memories",  label: "Memories" },
   { id: "calendars", label: "Calendars" },
   { id: "whatsapp",  label: "WhatsApp" },
+  { id: "telegram",  label: "Telegram" },
   { id: "admin",     label: "Admin" },
 ];
 
@@ -42,6 +44,7 @@ export function IntegrationsPage() {
         {activeTab === "memories"  && <MemoriesSection />}
         {activeTab === "calendars" && <CalendarsSection />}
         {activeTab === "whatsapp"  && <WhatsAppSection />}
+        {activeTab === "telegram"  && <TelegramSection />}
         {activeTab === "admin"     && <AdminSection />}
       </div>
     </div>

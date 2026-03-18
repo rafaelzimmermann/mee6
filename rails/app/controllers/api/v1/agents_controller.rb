@@ -28,6 +28,16 @@ class Api::V1::AgentsController < ApplicationController
           placeholder: "Leave blank to forward the previous step's output as-is.",
           options: [], required: false }
       ]
+    },
+    "telegram_send" => {
+      label: "Telegram — Send Message",
+      fields: [
+        { name: "to", label: "Chat / User ID", field_type: "text",
+          placeholder: "e.g. 123456789 or -100123456789", options: [], required: true },
+        { name: "message", label: "Message", field_type: "textarea",
+          placeholder: "Leave blank to forward the previous step's output as-is.",
+          options: [], required: false }
+      ]
     }
   }.freeze
 

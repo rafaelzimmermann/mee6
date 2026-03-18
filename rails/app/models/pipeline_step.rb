@@ -9,6 +9,7 @@ class PipelineStep < ApplicationRecord
   AGENT_TYPES = %w[
     llm_agent browser_agent calendar_agent
     whatsapp_agent whatsapp_group_send
+    telegram_send
     memory_agent debug_agent
   ].freeze
 

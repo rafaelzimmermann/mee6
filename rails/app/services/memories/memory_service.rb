@@ -1,6 +1,8 @@
 module Memories
   class MemoryService
     def store(label, value)
+      return if value.to_s.blank?
+
       memory = Memory.find_or_create_by!(label: label)
 
       truncated = value.to_s.first(memory.max_value_size)

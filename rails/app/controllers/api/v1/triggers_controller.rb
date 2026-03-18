@@ -6,6 +6,7 @@ module Api
       def index
         triggers = params[:pipeline_id] ? Trigger.where(pipeline_id: params[:pipeline_id])
                                    : Trigger.all
+        triggers = triggers.includes(:pipeline)
         render json: TriggerBlueprint.render(triggers)
       end
 
@@ -53,11 +54,17 @@ module Api
 
       def sync_whatsapp_registration
         WhatsAppRegistration.register_all if whatsapp_trigger_affected?
+        TelegramRegistration.register_all if telegram_trigger_affected?
       end
 
       def whatsapp_trigger_affected?
         @trigger&.whatsapp? || @trigger&.wa_group? ||
           %w[whatsapp wa_group].include?(params.dig(:trigger, :trigger_type))
+      end
+
+      def telegram_trigger_affected?
+        @trigger&.telegram_dm? || @trigger&.telegram_chat? ||
+          %w[telegram_dm telegram_chat].include?(params.dig(:trigger, :trigger_type))
       end
     end
   end

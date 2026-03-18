@@ -24,7 +24,8 @@ Rails.application.routes.draw do
 
   mount Sidekiq::Web => "/sidekiq"
 
-  post "/webhooks/whatsapp", to: "webhooks/whats_app#receive"
+  post "/webhooks/whatsapp",  to: "webhooks/whats_app#receive"
+  post "/webhooks/telegram",  to: "webhooks/telegram#receive"
 
   # Serve SPA for all non-API routes (React Router handles client-side routing)
   get "*path", to: proc { [200, { "Content-Type" => "text/html" }, [Rails.root.join("public/index.html").read]] },
@@ -42,7 +43,11 @@ Rails.application.routes.draw do
       get "agents/schema", to: "agents#schema"
       get "agents/models", to: "agents#models"
 
-      resources :pipelines
+      resources :pipelines do
+        member do
+          post :run_now
+        end
+      end
       resources :triggers do
         member do
           post  :run_now
@@ -72,6 +77,17 @@ Rails.application.routes.draw do
           get    "groups",     to: "whatsapp#groups"
           get    "settings",   to: "whatsapp#settings"
           patch  "settings",   to: "whatsapp#update_settings"
+        end
+
+        resources :telegram_chats, only: [:index, :update], constraints: { id: /[^\/]+/ }
+
+        scope :telegram do
+          get    "status",     to: "telegram#status"
+          post   "connect",    to: "telegram#connect"
+          post   "disconnect", to: "telegram#disconnect"
+          get    "contacts",   to: "telegram#contacts"
+          get    "settings",   to: "telegram#settings"
+          patch  "settings",   to: "telegram#update_settings"
         end
       end
     end

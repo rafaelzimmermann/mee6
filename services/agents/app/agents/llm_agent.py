@@ -48,9 +48,13 @@ class LlmAgent(BaseAgent):
     def schema(self) -> dict:
         return self.SCHEMA.model_dump()
 
+    # ~4 chars per token; cap at 150k tokens to stay safely under the 200k limit
+    MAX_INPUT_CHARS = 600_000
+
     def run(self, config: dict, input: str) -> str:
         provider = config.get("provider", "anthropic")
         model = config.get("model", "") or app_config.anthropic_model
+        input = input[: self.MAX_INPUT_CHARS]
         prompt = config.get("prompt", "").replace("{input}", input)
         system_prompt = config.get("system_prompt", "").replace("{input}", input)
 

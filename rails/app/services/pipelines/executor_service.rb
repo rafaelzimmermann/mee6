@@ -33,6 +33,13 @@ module Pipelines
                  : input
         Integrations::WhatsAppClient.new.send(to:, text:)
         input
+      when "telegram_send"
+        to   = step.config["to"]
+        text = step.config["message"].present? \
+                 ? step.config["message"].gsub("{input}", input) \
+                 : input
+        Integrations::TelegramClient.new.send(to:, text:)
+        input
       else
         result = Integrations::AgentClient.new.run(
           agent_type: step.agent_type,

@@ -93,7 +93,7 @@ class WASession:
             raise RuntimeError("WhatsApp session not connected")
         from neonize.utils import build_jid
         user, _, server = to.partition("@")
-        jid = build_jid(user, server or "s.whatsapp.net")
+        jid = build_jid(user.lstrip("+"), server or "s.whatsapp.net")
         await asyncio.get_event_loop().run_in_executor(
             None, lambda: self._client.send_message(jid, text)
         )

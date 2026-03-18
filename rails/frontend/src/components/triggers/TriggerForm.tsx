@@ -2,13 +2,14 @@ import { useForm, Controller } from "react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { usePipelines } from "../../hooks/usePipelines";
 import { whatsappApi } from "../../api/integrations/whatsapp";
+import { telegramApi, type TelegramContact } from "../../api/integrations/telegram";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Button } from "../ui/Button";
 import { CronPreview } from "./CronPreview";
 import type { Trigger, WhatsAppGroup } from "../../api/types";
 
-type TriggerType = "cron" | "whatsapp" | "wa_group";
+type TriggerType = "cron" | "whatsapp" | "wa_group" | "telegram_dm" | "telegram_chat";
 
 interface TriggerFormValues {
   pipeline_id: string;
@@ -16,12 +17,58 @@ interface TriggerFormValues {
   cron_expr: string;
   phone: string;
   group_jid: string;
+  telegram_user_id: string;
+  telegram_chat_id: string;
   enabled: boolean;
 }
 
 interface TriggerFormProps {
   onSubmit: (data: Partial<Trigger>) => void;
   isSubmitting: boolean;
+}
+
+function TelegramContactSelect({
+  contactType,
+  error,
+  fieldProps,
+}: {
+  contactType: "user" | "chat";
+  error?: string;
+  fieldProps: any;
+}) {
+  const { data: contacts, isLoading } = useQuery({
+    queryKey: ["telegram_contacts"],
+    queryFn: telegramApi.contacts,
+  });
+
+  const filtered = (contacts ?? []).filter((c: TelegramContact) => c.type === contactType);
+  const label = contactType === "user" ? "User" : "Group / Chat";
+  const hint = contactType === "user"
+    ? "Ask the user to send /start to your bot"
+    : "Add the bot to a group and send a message";
+
+  const options = filtered.map((c: TelegramContact) => ({
+    value: c.contact_id,
+    label: `${c.name}${c.username ? ` (@${c.username})` : ""} — ${c.contact_id}`,
+  }));
+
+  return (
+    <div>
+      <Select
+        id={`telegram_${contactType}`}
+        label={label}
+        options={[
+          { value: "", label: isLoading ? "Loading…" : options.length ? `Select ${label.toLowerCase()}…` : `No ${label.toLowerCase()}s seen yet` },
+          ...options,
+        ]}
+        error={error}
+        {...fieldProps}
+      />
+      {!isLoading && options.length === 0 && (
+        <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{hint}</p>
+      )}
+    </div>
+  );
 }
 
 function GroupJidSelect({ error, fieldProps }: { error?: string; fieldProps: any }) {
@@ -59,6 +106,8 @@ export function TriggerForm({ onSubmit, isSubmitting }: TriggerFormProps) {
       cron_expr: "",
       phone: "",
       group_jid: "",
+      telegram_user_id: "",
+      telegram_chat_id: "",
       enabled: true,
     },
   });
@@ -75,6 +124,8 @@ export function TriggerForm({ onSubmit, isSubmitting }: TriggerFormProps) {
     const config: Record<string, string> = {};
     if (values.trigger_type === "whatsapp") config.phone = values.phone;
     if (values.trigger_type === "wa_group") config.group_jid = values.group_jid;
+    if (values.trigger_type === "telegram_dm") config.user_id = values.telegram_user_id;
+    if (values.trigger_type === "telegram_chat") config.chat_id = values.telegram_chat_id;
 
     onSubmit({
       pipeline_id: values.pipeline_id,
@@ -96,9 +147,11 @@ export function TriggerForm({ onSubmit, isSubmitting }: TriggerFormProps) {
             id="trigger_type"
             label="Trigger Type"
             options={[
-              { value: "cron", label: "Cron Schedule" },
-              { value: "whatsapp", label: "WhatsApp DM" },
-              { value: "wa_group", label: "WhatsApp Group" },
+              { value: "cron",          label: "Cron Schedule" },
+              { value: "whatsapp",      label: "WhatsApp DM" },
+              { value: "wa_group",      label: "WhatsApp Group" },
+              { value: "telegram_dm",   label: "Telegram DM" },
+              { value: "telegram_chat", label: "Telegram Group / Chat" },
             ]}
             error={errors.trigger_type ? "Required" : undefined}
             {...field}
@@ -166,6 +219,36 @@ export function TriggerForm({ onSubmit, isSubmitting }: TriggerFormProps) {
           rules={{ required: "Group is required" }}
           render={({ field }) => (
             <GroupJidSelect error={errors.group_jid?.message} fieldProps={field} />
+          )}
+        />
+      )}
+
+      {triggerType === "telegram_dm" && (
+        <Controller
+          name="telegram_user_id"
+          control={control}
+          rules={{ required: "User is required" }}
+          render={({ field }) => (
+            <TelegramContactSelect
+              contactType="user"
+              error={errors.telegram_user_id?.message}
+              fieldProps={field}
+            />
+          )}
+        />
+      )}
+
+      {triggerType === "telegram_chat" && (
+        <Controller
+          name="telegram_chat_id"
+          control={control}
+          rules={{ required: "Chat is required" }}
+          render={({ field }) => (
+            <TelegramContactSelect
+              contactType="chat"
+              error={errors.telegram_chat_id?.message}
+              fieldProps={field}
+            />
           )}
         />
       )}

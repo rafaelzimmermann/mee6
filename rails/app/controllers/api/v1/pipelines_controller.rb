@@ -33,6 +33,11 @@ module Api
         head :no_content
       end
 
+      def run_now
+        PipelineJob.perform_later(pipeline.id)
+        render json: { ok: true }
+      end
+
       private
 
       def pipeline

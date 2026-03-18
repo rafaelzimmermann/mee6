@@ -13,6 +13,11 @@ COPY . .
 # Install Python dependencies
 RUN pip install --no-cache-dir ".[dev]"
 
+# Install Playwright browsers to a fixed path accessible by non-root user
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install --with-deps chromium \
+    && chmod -R a+rx /ms-playwright
+
 # Create directory for secrets
 RUN mkdir -p /run/secrets && chown -R nobody:nogroup /run/secrets
 

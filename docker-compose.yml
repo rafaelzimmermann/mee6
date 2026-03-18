@@ -34,11 +34,13 @@ services:
       RAILS_BASE_URL: http://rails:80
       AGENT_SERVICE_SECRET: ${AGENT_SERVICE_SECRET}
       WHATSAPP_SERVICE_SECRET: ${WHATSAPP_SERVICE_SECRET}
+      TELEGRAM_SERVICE_SECRET: ${TELEGRAM_SERVICE_SECRET}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET}
       SIDEKIQ_WEB_USER: ${SIDEKIQ_WEB_USER}
       SIDEKIQ_WEB_PASSWORD: ${SIDEKIQ_WEB_PASSWORD}
       AGENT_SERVICE_URL: http://agents:8001
       WHATSAPP_SERVICE_URL: http://whatsapp:8002
+      TELEGRAM_SERVICE_URL: http://telegram:8003
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,6 +72,25 @@ services:
       - mee6_network
     ports:
       - "8002:8002"
+
+  telegram:
+    build:
+      context: ./services/telegram
+      dockerfile: Dockerfile
+    environment:
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      TELEGRAM_SERVICE_SECRET: ${TELEGRAM_SERVICE_SECRET}
+      RAILS_BASE_URL: http://rails:80
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/mee6_production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rails:
+        condition: service_started
+    networks:
+      - mee6_network
+    ports:
+      - "8003:8003"
 
   ollama:
     image: ollama/ollama:latest
