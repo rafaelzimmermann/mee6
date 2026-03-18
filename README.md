@@ -17,6 +17,7 @@ Services will be available at:
 - Rails API + React SPA: http://localhost:3000
 - Agent service: http://localhost:8001
 - WhatsApp service: http://localhost:8002
+- Telegram service: http://localhost:8003
 
 ## Monorepo Layout
 
@@ -33,11 +34,15 @@ services/
   │   ├── tests/                ← pytest tests
   │   ├── pyproject.toml        ← Python dependencies
   │   └── Dockerfile            ← WhatsApp service image
-  └── agents/                    ← Python agent service (LLM, Browser, Calendar)
-      ├── app/                  ← FastAPI app (main.py, router.py, agents/, config.py)
-      ├── tests/                ← pytest tests
+  ├── agents/                    ← Python agent service (LLM, Browser, Calendar)
+  │   ├── app/                  ← FastAPI app (main.py, router.py, agents/, config.py)
+  │   ├── tests/                ← pytest tests
+  │   ├── pyproject.toml        ← Python dependencies
+  │   └── Dockerfile            ← Agent service image
+  └── telegram/                 ← Telegram microservice (Python + python-telegram-bot)
+      ├── app/                  ← FastAPI app (main.py, router.py, session.py, store.py)
       ├── pyproject.toml        ← Python dependencies
-      └── Dockerfile            ← Agent service image
+      └── Dockerfile            ← Telegram service image
 docker-compose.yml               ← Production orchestration
 docker-compose.dev.yml           ← Development overrides
 .env.example                    ← Environment variable template
@@ -96,6 +101,18 @@ pytest --collect-only
 uvicorn app.main:app --reload
 ```
 
+### Telegram Service
+
+```bash
+cd services/telegram
+
+# Install dependencies
+pip install -e ".[dev]"
+
+# Run dev server
+uvicorn app.main:app --reload --port 8003
+```
+
 ## Development with Docker Compose
 
 For local development with hot reload:
@@ -107,4 +124,38 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 ## Architecture
 
-See `prompts/v3/` for detailed architecture decisions, task breakdown, and implementation guidance.
+```
+Browser / WhatsApp / Telegram
+        │
+        ▼
+  Rails API (port 3000)
+  ├── Pipelines — step-based workflow builder
+  ├── Triggers  — cron, WhatsApp DM/group, Telegram DM/group
+  └── Integrations
+        ├── WhatsApp service (port 8002) — neonize multi-device
+        ├── Telegram service (port 8003) — python-telegram-bot
+        ├── Agent service   (port 8001) — LLM, Browser, Calendar
+        ├── Memories        — per-label key/value store
+        └── Calendars       — Google Calendar read access
+```
+
+### Trigger types
+
+| Type | Description |
+|------|-------------|
+| `cron` | Scheduled execution via cron expression |
+| `whatsapp` | Incoming WhatsApp DM from a specific phone number |
+| `wa_group` | Incoming WhatsApp group message |
+| `telegram_dm` | Incoming Telegram DM from a known user |
+| `telegram_chat` | Incoming Telegram group/channel message |
+
+### Pipeline step types
+
+| Agent | Description |
+|-------|-------------|
+| `llm` | Call an LLM with a prompt (supports memory placeholders) |
+| `browser` | Headless browser for web scraping / search |
+| `calendar` | Read upcoming Google Calendar events |
+| `memory_agent` | Store a value in a named memory |
+| `whatsapp_send` | Send a WhatsApp message |
+| `telegram_send` | Send a Telegram message |
